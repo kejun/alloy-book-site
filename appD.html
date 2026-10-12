@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>附录 D · Diagrammatic Notation 图形记法 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">附录 D · 图形记法</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html" class="on">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<style>
+/* 本页专用：记号示意图 */
+.notation{display:grid;grid-template-columns:minmax(200px,1fr) minmax(300px,1.35fr);
+  gap:20px;align-items:center;padding:18px 0;border-top:1px solid var(--line)}
+.notation:first-of-type{border-top:none}
+.notation .txt{color:var(--ink-soft);font-size:15px;line-height:1.8}
+.notation .txt b{color:var(--ink)}
+.notation svg{width:100%;height:auto;display:block;background:var(--bg-soft);
+  border:1px solid var(--line);border-radius:10px}
+.bx{fill:rgba(122,162,247,.10);stroke:var(--accent);stroke-width:2}
+.bx-ab{fill:none;stroke:var(--violet);stroke-width:2;stroke-dasharray:7 4}
+.bx-sub{fill:rgba(158,206,106,.10);stroke:var(--accent-2);stroke-width:2}
+.bx-in{fill:rgba(224,175,104,.10);stroke:var(--warn);stroke-width:2}
+.tx{fill:var(--ink);font:15px/1 ui-sans-serif,system-ui,sans-serif}
+.mu{fill:var(--warn);font:italic 15px/1 Georgia,'Noto Serif',serif}
+.la{fill:var(--accent-2);font:italic 13px/1 Georgia,'Noto Serif',serif}
+.ab{fill:var(--violet);font:14px/1 Georgia,'Noto Serif',serif}
+.ar{stroke:var(--ink-soft);stroke-width:2;fill:none;marker-end:url(#ah)}
+.rd{fill:var(--ink-dim);font:13px/1 ui-sans-serif,system-ui,sans-serif}
+@media(max-width:760px){.notation{grid-template-columns:1fr}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#8892a4"/>
+    </marker>
+  </defs>
+</svg>
+
+<div class="wrap">
+<h1><span class="num">D</span>Diagrammatic Notation · 图形记法</h1>
+<p class="sub">原书 p. 295–296 · 全书最短的附录：一张「模型图（model diagram）符号对照表」—— 4 组集合记号 + 1 组重数符号 + 3 组关系记号。本页复刻全部图例，并把每条图式翻译回对应的 Alloy 文本约束。</p>
+
+<div class="callout key">
+  <span class="tag">这个附录的定位</span>
+  <p>第 2 章与第 4 章大量使用「方框表示集合、带重数标注的箭头表示关系」的模型图。<strong>本附录是这些图的唯一正式图例（legend）</strong> —— 它不含任何新的语义概念，只把「图形 ↔ 文本」的对应关系固定下来。因此阅读本页最高效的方式是：<strong>每条图示都还原成一句 Alloy 约束。</strong></p>
+  <p style="color:var(--ink-dim);font-size:.92em;margin-top:.6em">注：下方 SVG 为本页对照原书图例逐条核对后重绘的示意图，仅颜色与线宽为适配深色做了调整；结构（矩形容器、抽象集框内的 <code>abstract</code> 字样、单例/可空集专用的<strong>椭圆</strong>容器、从子框上边直插父框下边的斜箭头、箭杆上的 <code>m R n</code> 标注）与原书一致。</p>
+</div>
+
+<div class="toc">
+  <div class="t">本附录地图</div>
+  <ol>
+    <li><a href="#sd1">D.1 集合与 signature 的记号</a> — 集合 / 抽象集合 / 带重数的集合</li>
+    <li><a href="#sd2">D.2 重数符号</a> — <code>*</code> <code>?</code> <code>!</code> <code>+</code></li>
+    <li><a href="#sd3">D.3 extends 与 in</a> — 不相交的子 vs 可相交的子集</li>
+    <li><a href="#sd4">D.4 关系与量化的记号</a> — <code>mRn</code>、<code>m (all v: be | e) n</code>、<code>&lt;C&gt;</code> 特殊形式</li>
+    <li><a href="#sum">附录 D 小结</a></li>
+  </ol>
+</div>
+
+<h2 id="sd1"><span class="num">D.1</span>Sets and Signatures · 集合与 signature 的记号</h2>
+
+<div class="notation">
+  <svg viewBox="0 0 240 110" role="img" aria-label="一个方框，中间写着 S">
+    <rect class="bx" x="55" y="25" width="130" height="60" rx="3"/>
+    <text class="tx" x="120" y="61" text-anchor="middle">S</text>
+  </svg>
+  <div class="txt"><b>S 是一个集合</b>（S is a set）。<br>对应文本：<code>sig S {}</code>。<br>方框代表「一个原子集合」；框内不画元素即表示不展开其成员。</div>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 300 110" role="img" aria-label="左侧普通方框内写 S，右侧方框内上方写 abstract、下方写 S">
+    <rect class="bx" x="18" y="32" width="112" height="48" rx="3"/>
+    <text class="tx" x="74" y="61" text-anchor="middle">S</text>
+    <rect class="bx" x="162" y="22" width="120" height="68" rx="3"/>
+    <text class="ab" x="222" y="48" text-anchor="middle">abstract</text>
+    <text class="tx" x="222" y="76" text-anchor="middle">S</text>
+  </svg>
+  <div class="txt"><b>S 是一个<em>抽象</em>集合：它的全部元素都被「扩展（extend）它的那些子集」所包含。</b> 原书把这条图式画成<strong>两个方框并排</strong>：左边就是普通的 <code>S</code> 框（与上一条同形），右边才是框内顶部多写一行 <code>abstract</code> 的 <code>S</code> 框 —— 靠「有无 abstract 字样」成对对照。<br>对应文本：</div>
+</div>
+
+<div class="callout key" style="margin:-6px 0 22px">
+  <span class="tag">抽象集图式的完整还原</span>
+<pre><code><span class="k">abstract</span> <span class="k">sig</span> S {}
+<span class="k">sig</span> S1 <span class="k">extends</span> S {}
+<span class="k">sig</span> S2 <span class="k">extends</span> S {}</code></pre>
+  <p><strong>框内顶部的 <code>abstract</code> 字样是抽象集的唯一视觉标志</strong> —— 容器仍是同一个普通矩形，没有虚线、没有嵌套、没有额外的元素标记。含义来自附录 B.7.2：<strong>抽象 signature 被约束为「只包含属于某个扩展它的 signature 的元素」</strong> —— 即「所有元素都被子集覆盖」，图中正是这样表述的。</p>
+  <p>附录 B.7.2 的另外两条也一并适用：<strong>① 抽象 sig 的各扩展互不相交</strong>（所以下文 extends 图里两个子框分开绘制、不重叠）；<strong>② 若抽象 sig 没有任何扩展，则 <code>abstract</code> 标记没有效果，而且这往往意味着模型不完整</strong>。</p>
+  <p>第 6.1.5 的 <code>RingProcess extends Process</code>、第 6.4.1 的 <code>Cell</code> 一族、第 6.3 的 <code>Asset</code> 层级，在书中就是这一张图加若干条 extends 箭头。</p>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 240 110" role="img" aria-label="矩形容器内写 S m，S 斜体、m 正体，水平并排居中">
+    <rect class="bx" x="45" y="30" width="150" height="52" rx="3"/>
+    <text class="tx" x="104" y="62" text-anchor="middle">S</text>
+    <text class="mu" x="136" y="62" text-anchor="middle">m</text>
+  </svg>
+  <div class="txt"><b>S 是一个带重数 m 的集合</b>（<code>S</code> 斜体、<code>m</code> 正体，两字<strong>水平并排</strong>写在<strong>矩形</strong>容器中央）。<br>对应文本：<code>[mult] sig S {}</code>，其中 mult ∈ {<code>lone</code>, <code>one</code>, <code>some</code>}。<br>附录 B.7.2：<b>重数适用于整个 signature，也适用于它的每一个扩展</b>；要约束「若干扩展合起来的集合」的重数必须另加一条 fact。而 <code>set</code> 在 signature 上没有效果，因此不会出现在图中。</div>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 240 110" role="img" aria-label="椭圆容器内写 S m，S 斜体、m 正体，水平并排居中">
+    <ellipse class="bx" cx="120" cy="56" rx="82" ry="34"/>
+    <text class="tx" x="104" y="62" text-anchor="middle">S</text>
+    <text class="mu" x="136" y="62" text-anchor="middle">m</text>
+  </svg>
+  <div class="txt"><b>S 是一个带重数 m 的集合；若 m 出现，则 m 只能是 <code>?</code> 或 <code>!</code>，缺省（省略）时为 <code>!</code>。</b><br><strong>原书此条改用<em>椭圆</em>容器</strong> —— 这是全页唯一一处椭圆，专门用来标出<b>单例／可空的 signature</b>：<code>one sig S {}</code> 写作 <code>S!</code>，<code>lone sig S {}</code> 写作 <code>S?</code>。<br>附录 B.7.5：<b><code>one sig</code> 被隐式定界为 1</b>（显式作用域仍优先）—— 所以在图里看到 <code>!</code>，就意味着分析时不必再为它写作用域。第 6.2 的 <code>one sig FrontDesk</code>、第 6.1 的根进程，都是这一枚 <code>S!</code> 椭圆。</div>
+</div>
+
+<h2 id="sd2"><span class="num">D.2</span>Multiplicity Symbols · 重数符号</h2>
+<div class="callout key">
+  <span class="tag">四个符号，与 Alloy 文本的三方对照</span>
+  <table>
+    <thead><tr><th>符号</th><th>图中含义（原文）</th><th>Alloy 关键字</th><th>附录 B.6.6 的重数</th></tr></thead>
+    <tbody>
+      <tr><td><strong><code>*</code></strong></td><td><strong>任意数目（默认）</strong></td><td><code>set</code></td><td>无约束（0,1,2,…）</td></tr>
+      <tr><td><strong><code>?</code></strong></td><td><strong>零或一</strong></td><td><code>lone</code></td><td>≤ 1</td></tr>
+      <tr><td><strong><code>!</code></strong></td><td><strong>恰好一</strong></td><td><code>one</code></td><td>= 1</td></tr>
+      <tr><td><strong><code>+</code></strong></td><td><strong>一或多</strong></td><td><code>some</code></td><td>≥ 1</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 为什么要另造一套符号，以及唯一一处冲突</span>
+  <p>在图里写 <code>set</code>/<code>lone</code>/<code>one</code>/<code>some</code> 会挤占方框与箭杆的空间，而四个单字符符号借用了「正则式」的通行直觉：<code>*</code> 任意重复、<code>?</code> 可选、<code>+</code> 至少一次。</p>
+  <p><strong>代价是：图中的 <code>!</code> 读作「恰好一」，而不是文本中的取反运算符 <code>!</code>。</strong>这是本书图示与正文之间唯一一处符号含义冲突，看到箭头上的 <code>!</code> 千万不要读成「非」。</p>
+  <p>另外注意 <code>!</code> 与「缺省」的关系在两条图式中是<em>相反的</em>：<strong>在 signature 框上，省略 m 意味着 <code>!</code></strong>（因为 <code>one sig</code> 是最常见的用法）；<strong>而在关系箭头上，省略意味着 <code>*</code></strong>（因为字段默认是集合）。分清标注落在框上还是箭杆上，是读对重数的关键。</p>
+</div>
+
+<h2 id="sd3"><span class="num">D.3</span>Extends and In · 子与子集</h2>
+<div class="callout warn">
+  <span class="tag">全附录最需要小心的两条图式 —— 版面几乎一样，语义差别巨大</span>
+  <p>它们分别对应附录 B.7.2 的两条：<strong>「类型 signature 构成一片森林，一个 sig 的各个子 sig 互不相交」</strong>与<strong>「子集 signature 构成一个 DAG，子集之间不必互不相交」</strong>。<strong>两者在图中的区别只在一个标签词。</strong></p>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 320 150" role="img" aria-label="S1 与 S2 两个方框各有一条向上箭头指向 S，标签 extends">
+    <rect class="bx" x="110" y="14" width="100" height="46" rx="3"/>
+    <text class="tx" x="160" y="42" text-anchor="middle">S</text>
+    <rect class="bx-sub" x="22" y="96" width="94" height="42" rx="3"/>
+    <text class="tx" x="69" y="122" text-anchor="middle">S1</text>
+    <rect class="bx-sub" x="204" y="96" width="94" height="42" rx="3"/>
+    <text class="tx" x="251" y="122" text-anchor="middle">S2</text>
+    <path class="ar" d="M78 96 L138 60"/>
+    <path class="ar" d="M242 96 L182 60"/>
+    <text class="la" x="70" y="72" text-anchor="end">extends</text>
+  </svg>
+  <div class="txt"><b>S₁ 与 S₂ 是 S 的子集，并且不相交</b>；<b>不写任何标签就意味着 extends</b>。<br>对应文本：<code>sig S1 extends S {}</code>、<code>sig S2 extends S {}</code><br><b>「没有标注就意味着 extends」这句很关键</b>：第 2、4 章的模型图中，这类箭头常常省略标签，读者必须默认它是<strong>类型层级（互斥的子类型）</strong>而非子集。</div>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 320 150" role="img" aria-label="S1 与 S2 两个方框各有一条向上箭头指向 S，两条箭头都标 in">
+    <rect class="bx" x="110" y="14" width="100" height="46" rx="3"/>
+    <text class="tx" x="160" y="42" text-anchor="middle">S</text>
+    <rect class="bx-in" x="22" y="96" width="94" height="42" rx="3"/>
+    <text class="tx" x="69" y="122" text-anchor="middle">S1</text>
+    <rect class="bx-in" x="204" y="96" width="94" height="42" rx="3"/>
+    <text class="tx" x="251" y="122" text-anchor="middle">S2</text>
+    <path class="ar" d="M78 96 L138 60"/>
+    <path class="ar" d="M242 96 L182 60"/>
+    <text class="la" x="106" y="66">in</text>
+    <text class="la" x="206" y="66">in</text>
+  </svg>
+  <div class="txt"><b>S₁ 与 S₂ 是 S 的子集（subsets），彼此<em>不必</em>不相交</b>（也不必与「其他扩展 S 的集合」不相交）。<br>对应文本：<code>sig S1 in S {}</code>、<code>sig S2 in S {}</code><br>附录 B.7.2 还补两条：子集 sig <b>不得被扩展</b>、<b>不得直接或间接成为自身的父集</b>；并且<b>若两个子集的类型重叠，它们不得声明同名字段</b>。</div>
+</div>
+
+<div class="callout pit">
+  <span class="tag">读图最容易犯的一个错</span>
+  <p><strong>两张图的箭头形状完全一样，只有标签词不同。<code>extends</code>（或无标签）强制「S1 ∩ S2 = ∅」；<code>in</code> 则完全不强制。</strong>因此：</p>
+  <ul>
+    <li>画成 <code>extends</code> 却需要重叠 ⇒ 模型<strong>过约束</strong>（over-constrained），会漏掉合法实例，甚至导致「找不到反例」的假正确；</li>
+    <li>画成 <code>in</code> 却需要互斥 ⇒ 模型<strong>欠约束</strong>（under-constrained），会多出非法实例与假反例。</li>
+  </ul>
+  <p>第 5.4 节「宁欠勿过」的原则在图形层面同样适用，而<strong>图与文本必须同步修改</strong>：一旦把 <code>in</code> 改成 <code>extends</code>，还要顺手检查「字段名是否冲突」（附录 B.7.2 的两条禁令）与「作用域是否仍然一致/完备/均匀」（附录 B.7.5）。</p>
+</div>
+
+<div class="callout idea">
+  <span class="tag">实战对照 · 两种层级在书中分别出现在哪</span>
+  <p>第 6.2 的 <code>RoomKeyEvent extends Event</code>、第 6.3 的 <code>Asset</code> 家族、第 6.1 的 <code>RingProcess extends Process</code> 都是<strong>互斥的类型层级</strong>（extends / 无标签）；而 A.2.3 的地铁线路 <code>Jubilee</code>、<code>Central</code>、<code>Circle</code> 因为共用换乘站，只能画成<strong>两个 <code>in</code> 箭头</strong> —— 若误用 extends，就把「一站多线」这一题意直接消灭了。</p>
+</div>
+
+<h2 id="sd4"><span class="num">D.4</span>Relations · 关系的记号</h2>
+<div class="callout key">
+  <span class="tag">统一的图形约定</span>
+  <p>三个关系图式都画成：<strong>左方框 S、右方框 T、中间一支从 S 指向 T 的箭头，箭杆中央写着「m 关系 n」</strong> —— <strong>m 紧邻 S（左），n 紧邻 T（右）</strong>。</p>
+  <p>这直接对应附录 B.7.3 的箭头标注 <code>e1 m -&gt; n e2</code>：<strong>m 约束「e2 的每个元组被多少个以它结尾的元组」，n 约束「e1 的每个元组对应多少个以它开头的元组」</strong>。图中按左右位置排布这两个字母，是为了让读者把「靠近哪一侧的字母」与「那一侧每个元素的像的重数」直接对上：靠近 S 的 m 管「每个 S 元素」，靠近 T 的 n 管「每个 T 元素」。</p>
+  <p>读图时把 <code>?</code>/<code>!</code>/<code>+</code>/<code>*</code> 换回 <code>lone</code>/<code>one</code>/<code>some</code>/<code>set</code> 即可得到文本。</p>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 400 120" role="img" aria-label="S 与 T 两个方框，中间一支箭头，箭杆上写 m R n">
+    <rect class="bx" x="18" y="32" width="104" height="56" rx="3"/>
+    <text class="tx" x="70" y="66" text-anchor="middle">S</text>
+    <rect class="bx" x="278" y="32" width="104" height="56" rx="3"/>
+    <text class="tx" x="330" y="66" text-anchor="middle">T</text>
+    <path class="ar" d="M122 60 H278"/>
+    <rect x="150" y="44" width="100" height="30" fill="#151922"/>
+    <text class="mu" x="166" y="64" text-anchor="middle">m</text>
+    <text class="tx" x="200" y="65" text-anchor="middle">R</text>
+    <text class="mu" x="234" y="64" text-anchor="middle">n</text>
+  </svg>
+  <div class="txt"><b>R 是一个从 S 到 T、带重数 m 与 n 的关系</b>；它对应文本约束</div>
+</div>
+
+<div class="callout key" style="margin:-6px 0 22px">
+  <span class="tag">图式 D.4-① 的还原</span>
+<pre><code>R : S m -&gt; n T</code></pre>
+  <p><strong>原文补一句极为重要的话：<code>R</code> 可以是<em>任意</em>关系表达式（"R may be any relational expression"）</strong> —— 箭杆上写的不是一个名字，而是一整段表达式（例如 <code>~succ</code>、<code>buf - cs.assets</code>、<code>Room &lt;: keys</code>）。</p>
+  <p>因此第 6.2 中「每把钥匙至多属于一个房间」在图中就是一条 <code>Room</code> → <code>Key</code> 的箭头，杆上写 <code>? keys &lt;: Room</code> 之类的表达式，而不是只能标注一个字段名。<strong>这条也解释了为什么「声明约束」（附录 B.7.8）在图中能随处出现：图例本来就允许在箭杆上放任意表达式。</strong></p>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 400 120" role="img" aria-label="S 与 T 之间一支箭头，箭杆上写 m (all v: be | e) n">
+    <rect class="bx" x="18" y="32" width="104" height="56" rx="3"/>
+    <text class="tx" x="70" y="66" text-anchor="middle">S</text>
+    <rect class="bx" x="278" y="32" width="104" height="56" rx="3"/>
+    <text class="tx" x="330" y="66" text-anchor="middle">T</text>
+    <path class="ar" d="M122 60 H278"/>
+    <rect x="112" y="42" width="176" height="34" fill="#151922"/>
+    <text class="mu" x="122" y="64" text-anchor="middle">m</text>
+    <text class="rd" x="200" y="63" text-anchor="middle">(all v: be | e)</text>
+    <text class="mu" x="278" y="64" text-anchor="middle">n</text>
+  </svg>
+  <div class="txt"><b>对「从约束表达式 be 中取出的 v 的任一值」，表达式 e 都表示一个从 S 到 T、带重数 m 与 n 的关系</b>；对应约束</div>
+</div>
+
+<div class="callout key" style="margin:-6px 0 22px">
+  <span class="tag">图式 D.4-② 的还原</span>
+<pre><code><span class="k">all</span> v: be | e : S m -&gt; n T</code></pre>
+  <p><strong>要点：量化串接在「重数标注之外」</strong> —— m 与 n 描述的是<strong>每一次实例化后得到的那个关系</strong>的重数，而不是整个量化式作为一个整体的重数。</p>
+  <p>这一形式专门用来画<strong>「随参数变化的关系族」</strong>：第 6.4 中 <code>all c: CPU | c.mem : Addr lone -&gt; Data</code>（每个 CPU 的缓存都是地址到数据的一个函数）、第 6.3 中 <code>all w: Window | w.selection</code>、第 6.1 中每个进程的 <code>p.toSend</code> 都属于此类图。<strong>看到杆上有 <code>all v: be |</code>，就先把这段量化搬到约束外面读。</strong></p>
+</div>
+
+<div class="notation">
+  <svg viewBox="0 0 400 120" role="img" aria-label="S 与 T 之间一支箭头，箭杆上写 m e n">
+    <rect class="bx" x="18" y="32" width="104" height="56" rx="3"/>
+    <text class="tx" x="70" y="66" text-anchor="middle">S</text>
+    <rect class="bx" x="278" y="32" width="104" height="56" rx="3"/>
+    <text class="tx" x="330" y="66" text-anchor="middle">T</text>
+    <path class="ar" d="M122 60 H278"/>
+    <rect x="164" y="44" width="72" height="30" fill="#151922"/>
+    <text class="mu" x="176" y="64" text-anchor="middle">m</text>
+    <text class="tx" x="200" y="65" text-anchor="middle">e</text>
+    <text class="mu" x="224" y="64" text-anchor="middle">n</text>
+  </svg>
+  <div class="txt"><b>当 e 是一个含有特殊形式 <code>&lt;C&gt;</code> 的表达式</b>（其中 C 是表示一个集合的表达式）时，<b>标注中 e 的出现就是下式的简写：</b></div>
+</div>
+
+<div class="callout key" style="margin:-6px 0 22px">
+  <span class="tag">图式 D.4-③ 的还原</span>
+<pre><code><span class="k">all</span> v: C | e'      <span class="c">-- e' 是把 e 中的 &lt;C&gt; 替换为 v 所得</span></code></pre>
+  <p>这是全套记法中<strong>最抽象的一条</strong>：它的用途是「在同一条箭头上去掉那些随某个集合逐元素变化的部分」，从而<strong>用一条边表示一族关系</strong>，而不必重复画若干条几乎相同的箭头。</p>
+  <p>它建立在两个已确认的机制上：<strong>① 调用与 let 都是文本替换（附录 B.7.4、B.7.8）</strong>；<strong>② 声明约束可施加于任意表达式（附录 B.7.8）</strong>。所以 <code>&lt;C&gt;</code> 只是一个「占位符」，展开后是一个普通的量化约束，没有任何新的语义。</p>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">读图警告</span>
+    <p><code>&lt;C&gt;</code> 中的 C <strong>必须是「表示集合的表达式」</strong>（一元关系）。若把一段二元关系写进尖括号，展开出的 <code>all v: C</code> 会要求 v 遍历元组，语义与图中位置不再对应。这与附录 C.1 中「量化约束假定约束表达式是一元的」是同一要求。</p>
+  </div>
+</div>
+
+<h2 id="sum">附录 D 小结</h2>
+<div class="card">
+<ol>
+  <li><strong>本附录是全书模型图的唯一正式图例</strong>：4 组集合记号 + 1 组重数符号 + 3 组关系记号，<strong>不含任何新语义</strong>，只固定「图形 ↔ 文本」的对应。</li>
+  <li><strong>容器默认是矩形（"方框 = 集合"），对应 <code>sig S {}</code>；唯一例外是标 <code>?</code>/<code>!</code> 重数的椭圆。</strong></li>
+  <li><strong>框内顶部的 <code>abstract</code> 字样（正体） = 抽象集合</strong>：「其全部元素都被扩展它的子集所包含」，对应 <code>abstract sig</code> + 若干 <code>extends</code>；且各扩展互不相交。容器仍是普通矩形，<strong>没有虚线、没有嵌套</strong>；抽象而<strong>无扩展</strong>则标记无效，往往表示模型不完整（附录 B.7.2）。</li>
+  <li><strong>框内与 S 水平并排的 m = signature 上的重数</strong>（<code>S</code> 斜体、<code>m</code> 正体，整体居中），对应 <code>[mult] sig S</code>；适用于整个 sig 及其每一个扩展；<code>set</code> 在 sig 上无效果故不出现。</li>
+  <li><strong>重数图式有两款容器：矩形（m 可为任意重数）与椭圆（m 只能是 <code>?</code> 或 <code>!</code>，缺省为 <code>!</code>）</strong> —— 椭圆是全页唯一的非矩形容器，专门标 <code>one sig</code>/<code>lone sig</code>，并暗示 <code>one sig</code> 隐式定界为 1（附录 B.7.5）。</li>
+  <li><strong>四个重数符号：<code>*</code> 任意（默认）· <code>?</code> 零或一 · <code>!</code> 恰好一 · <code>+</code> 一或多</strong>，分别对应 <code>set</code>/<code>lone</code>/<code>one</code>/<code>some</code>。</li>
+  <li><strong>图中的 <code>!</code> 表示「恰好一」，不是文本里的取反 <code>!</code></strong> —— 图示与正文唯一一处符号冲突。</li>
+  <li><strong>「缺省」在两处含义相反</strong>：落在 sig 框上时省略 m ⇒ <code>!</code>；落在关系箭杆上时省略 ⇒ <code>*</code>。</li>
+  <li><strong>子集箭头的画法：从子框<em>上边</em>一条直线斜插到父框<em>下边</em>，箭头朝上</strong>；<code>extends</code> 只标一次（在左侧箭杆旁），<code>in</code> 则两条箭杆各标一次。</li>
+  <li><strong><code>extends</code>（或<em>另一条无任何标签</em>）= 类型子 sig，彼此不相交</strong>；<strong><code>in</code> = 子集 sig，彼此<em>不必</em>不相交</strong>。<strong>两图箭头形状相同，只差一个标签词。</strong></li>
+  <li><strong>「没有标注就意味着 extends」</strong> —— 读第 2、4 章模型图时的默认解析。</li>
+  <li><strong>误用后果</strong>：该 <code>in</code> 而画 <code>extends</code> ⇒ 过约束（漏实例、假正确）；该 <code>extends</code> 而画 <code>in</code> ⇒ 欠约束（多实例、假反例）。改图时必须同时复查字段名冲突与作用域三条性质。</li>
+  <li><strong>关系统一画成「S →(杆上 m R n)→ T」</strong>，对应 <code>R : S m -&gt; n T</code>；靠近哪一侧的字母就管哪一侧每个元素的像。</li>
+  <li><strong>R 可以是任意关系表达式</strong>，不必是名字 —— 所以覆盖、限制、连接等复合式都能出现在箭杆上。</li>
+  <li><strong>带量化的标注 <code>m (all v: be | e) n</code></strong> 对应 <code>all v: be | e : S m -&gt; n T</code>：量化在重数<em>之外</em>，用于画「随参数变化的关系族」（如 <code>c.mem</code>）。</li>
+  <li><strong>特殊形式 <code>&lt;C&gt;</code></strong>：标注 <code>e</code>（内含 <code>&lt;C&gt;</code>）是 <code>all v: C | e'</code> 的简写，e' 即 e 中把 <code>&lt;C&gt;</code> 换成 v。C 必须是一元（集合）表达式。</li>
+  <li><strong>实践读图顺序</strong>：先看箭头标签（extends 还是 in）→ 再看框上的重数（是否 <code>!</code>/<code>?</code>）→ 再看箭杆（表达式 + 是否带 <code>all v: be |</code> 或 <code>&lt;C&gt;</code>）→ 最后还原成一条 <code>: S m -&gt; n T</code> 或 <code>all v: be | e : …</code>。</li>
+  <li><strong>与附录 B 的联动</strong>：图例每一条都能在 B.7.2（sig 两种形态）、B.7.3（箭头重数标注与字段声明）、B.7.5（<code>one sig</code> 隐式定界）、B.7.8（声明约束）、C.1（量化要求一元约束表达式）找到对应条文。<strong>图示不是简化的替身，而是同一套约束的另一种排版。</strong></li>
+</ol>
+</div>
+
+<div class="pager">
+  <a href="appC.html"><div class="d">← 上一章</div><div class="n">附录 C · 内核语义</div></a>
+  <a href="appE.html" class="next"><div class="d">下一章</div><div class="n">附录 E · 其他方法 →</div></a>
+</div>
+
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 附录 D</div>
+</div>
+</body>
+</html>
