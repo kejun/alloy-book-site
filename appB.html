@@ -1,0 +1,1610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>附录 B · Alloy Language Reference 语言参考 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">附录 B · 语言参考</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html" class="on">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">B</span>Alloy Language Reference · 语言参考</h1>
+<p class="sub">原书 p. 253–289 · 完整的语言规范：词法、命名空间、BNF 语法、优先级与结合性、语义基础、类型与重载、以及七组语言特性的逐条说明。本页按原文结构完整收录，并补充速查表。</p>
+
+<div class="toc">
+  <div class="t">本附录地图</div>
+  <ol>
+    <li><a href="#sb1">B.1 词法问题</a> — 允许的字符、注释、token、关键字</li>
+    <li><a href="#sb2">B.2 命名空间</a> — 三个命名空间与遮蔽规则</li>
+    <li><a href="#sb3">B.3 语法</a> — 完整 BNF</li>
+    <li><a href="#sb4">B.4 优先级与结合性</a></li>
+    <li><a href="#sb5">B.5 语义基础</a> — 实例与含义、关系逻辑</li>
+    <li><a href="#sb6">B.6 类型与重载</a> — 类型错误、字段重载、子类型、函数与谓词、整数、重数关键字</li>
+    <li><a href="#sb7">B.7 语言特性</a> — 模块结构、signature 声明、声明、约束段、命令、表达式、整数、约束</li>
+    <li><a href="#sum">附录 B 小结 · 速查表</a></li>
+  </ol>
+</div>
+
+<h2 id="sb1"><span class="num">B.1</span>Lexical Issues · 词法问题</h2>
+
+<h3>允许的字符</h3>
+<p>允许的字符是 <strong>ASCII 字符集中的可打印字符</strong>，但以下两个除外：</p>
+<ul>
+  <li>反斜杠 <code>\</code></li>
+  <li>反引号 <code>`</code></li>
+</ul>
+<p>而在 ASCII 非打印字符中，<strong>只有空格、水平制表符、回车和换行</strong>被允许。<strong>由于换行的编码在不同平台上有差异，Alloy Analyzer 接受回车与换行的任何标准组合。</strong></p>
+
+<h3>非字母数字符号</h3>
+<p>非字母数字符号被用作<strong>运算符或标点</strong>，但以下这些除外：</p>
+<table>
+  <thead><tr><th>符号</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>$</code> 美元符</td><td rowspan="3"><strong>保留给语言的未来版本使用</strong></td></tr>
+    <tr><td><code>%</code> 百分号</td></tr>
+    <tr><td><code>?</code> 问号</td></tr>
+    <tr><td><code>_</code> 下划线</td><td rowspan="2"><strong>可以用在标识符中</strong></td></tr>
+    <tr><td><code>'</code> 和 <code>"</code> 单双引号</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">小心「智能引号」</span>
+  <p>单引号与双引号（ASCII 编号 <strong>39</strong> 和 <strong>34</strong>）<strong>不应与排版引号（typographic quote marks）和撇号（prime mark）混淆，后者不是可接受的字符</strong>。<strong>如果文本是在文字处理器中准备的，请确保「智能引号（smart quotes）」功能没有开启，因为它可能从简单引号生成排版引号。</strong></p>
+</div>
+
+<h3>注释</h3>
+<div class="callout key">
+  <span class="tag">三种注释形式</span>
+  <ul>
+    <li><code>--</code> 到行尾</li>
+    <li><code>//</code> 到行尾</li>
+    <li><code>/*</code> 到 <code>*/</code></li>
+  </ul>
+  <p><strong>多行注释不可以嵌套。</strong></p>
+</div>
+
+<h3>Token 切分</h3>
+<p>非注释文本被下列<strong>分隔符</strong>切分成 token：</p>
+<ul>
+  <li><strong>空白字符</strong>（空格、制表符、换行）；</li>
+  <li><strong>非字母数字字符</strong>（下划线与引号除外）。</li>
+</ul>
+<div class="callout key">
+  <span class="tag">三条重要规则</span>
+  <ul>
+    <li><strong>文本的含义与其格式无关</strong>；特别地，<strong>换行被当作空白处理，就像空格和制表符一样</strong>。（所以 Alloy 不靠换行分隔语句，这与 Python 完全不同。）</li>
+    <li><strong>关键字和标识符是大小写敏感的。</strong></li>
+    <li><strong>标识符</strong>可以包含任何字母字符，以及（<strong>除了作为第一个字符之外</strong>）数字、下划线、问号、感叹号和引号。<strong>连字符不能出现在标识符中，因为它被当作一个运算符。</strong></li>
+    <li><strong>数字常量</strong>由一串 0–9 的数字构成，<strong>其第一个数字不为零</strong>。</li>
+  </ul>
+</div>
+
+<h3>被识别为单个 token 的字符序列</h3>
+<table>
+  <thead><tr><th>Token</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>::</code></td><td>双冒号，用于<strong>接收者语法（receiver syntax）</strong></td></tr>
+    <tr><td><code>=&gt;</code></td><td>蕴含运算符</td></tr>
+    <tr><td><code>&gt;=</code> <code>=&lt;</code></td><td>整数比较运算符</td></tr>
+    <tr><td><code>-&gt;</code></td><td>积箭头（product arrow）</td></tr>
+    <tr><td><code>&lt;:</code> <code>:&gt;</code></td><td>限制运算符（域限制 / 值域限制）</td></tr>
+    <tr><td><code>++</code></td><td>关系覆盖运算符</td></tr>
+    <tr><td><code>&amp;&amp;</code> <code>||</code></td><td>合取与析取</td></tr>
+    <tr><td><code>--</code> <code>//</code> <code>/*</code> <code>*/</code></td><td>注释标记</td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">一个有用的细节</span>
+  <p><strong>取反的运算符（例如 <code>!=</code>）不被当作单个 token</strong>，所以它们<strong>可以在取反符与比较符之间写空白</strong>——即 <code>a ! = b</code> 与 <code>a != b</code> 等价，原书中大量使用的 <code>not =</code> 写法正是这一点。</p>
+</div>
+
+<h3>保留关键字（不得用作标识符）</h3>
+<div class="card">
+<pre><code>abstract  all      and     as      assert
+but       check    disj    else    exactly
+extends   fact     for     fun     iden
+if        iff      implies in      Int
+int       let      lone    module  no
+none      not      one     open    or
+part      pred     run     set     sig
+some      sum      then    univ</code></pre>
+<p style="margin-top:.5em;color:var(--ink-dim)">共 <strong>40 个</strong>关键字，按原文六行五列排布。注意 <code>Int</code>（大写，整数 signature）与 <code>int</code>（小写，整数运算符/作用域目标）<strong>是两个不同的关键字</strong>——这正是 4.7 中强调的区别。</p>
+</div>
+
+<h2 id="sb2"><span class="num">B.2</span>Namespaces · 命名空间</h2>
+<div class="callout key">
+  <span class="tag">每个标识符属于且仅属于一个命名空间。共有三个命名空间：</span>
+  <ol>
+    <li><strong>模块名与模块别名</strong>；</li>
+    <li><strong>signature、字段、段（fact、函数、谓词、断言）以及绑定变量</strong>（函数与谓词的参数，以及由 <code>let</code> 和量词绑定的变量）；</li>
+    <li><strong>命令名</strong>。</li>
+  </ol>
+</div>
+<p><strong>不同命名空间中的标识符可以共享名字而没有名字冲突的风险。</strong></p>
+<div class="callout warn">
+  <span class="tag">同一命名空间内的规则与唯一例外</span>
+  <p>在一个命名空间内，<strong>同一个名字不得用于不同的标识符</strong>，<strong>只有一个例外：绑定变量可以相互遮蔽（shadow），也可以遮蔽字段名</strong>。</p>
+  <p><strong>适用常规的词法作用域（lexical scoping）：最内层的绑定生效。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 为什么这个设计很重要</span>
+  <p>「命令名单独一个命名空间」意味着你可以写 <code>run show</code> 而 <code>show</code> 既是谓词名又是命令名。<strong>「模块名单独一个命名空间」意味着模块可以叫 <code>Process</code> 而不会与 signature <code>Process</code> 冲突</strong>（B.7.1 明确重申了这一点）。而<strong>「绑定变量可以遮蔽字段名」</strong>是 Alloy 中一个常见的意外来源：如果你在 <code>let addr = b.addr | ...</code> 中用了与字段同名的变量，那么在该 <code>let</code> 的作用域内 <code>addr</code> 指的是变量而不是字段——A.2.2 的 <code>inv</code> 谓词正是<strong>有意</strong>这样写的（<code>let addr = b.addr</code>）。</p>
+</div>
+
+<h2 id="sb3"><span class="num">B.3</span>Grammar · 语法</h2>
+<div class="callout">
+  <span class="tag">BNF 约定</span>
+  <p>语法使用标准的 BNF 运算符：</p>
+  <ul>
+    <li><code>x*</code> — x 的<strong>零次或多次</strong>重复；</li>
+    <li><code>x+</code> — x 的<strong>一次或多次</strong>重复；</li>
+    <li><code>x | y</code> — <strong>选择</strong> x 或 y；</li>
+    <li><code>[x]</code> — <strong>可选的</strong> x。</li>
+  </ul>
+  <p>此外：</p>
+  <ul>
+    <li><code>x,*</code> 表示<strong>零个或多个以逗号分隔的 x</strong>；</li>
+    <li><code>x,+</code> 表示<strong>一个或多个以逗号分隔的 x</strong>。</li>
+  </ul>
+  <p><strong>为避免与语法符号混淆，方括号、星号、加号和竖线在被解释为终结符时以粗体排版。</strong></p>
+  <p><strong>每个以 Id 结尾的名字都是一个标识符，应当被当作终结符处理。终结符 <code>number</code> 表示一个数字常量。</strong></p>
+</div>
+
+<h3>模块与段</h3>
+<pre><code>module    ::= header import* paragraph*
+header    ::= <span class="k">module</span> [path] moduleId [ '[' sigId,+ ']' ]
+path      ::= directoryId / [path]
+import    ::= <span class="k">open</span> [path] moduleId [ '[' sigRef,* ']' ] [<span class="k">as</span> aliasId]
+
+paragraph ::= sigDecl | factDecl | funDecl | predDecl | assertDecl
+            | runCmd | checkCmd</code></pre>
+
+<h3>signature 声明</h3>
+<pre><code>sigDecl ::= [abstract] [mult] <span class="k">sig</span> sigID,+ [<span class="k">extends</span> sigRef] sigBody
+          | [mult] <span class="k">sig</span> sigID,+ <span class="k">in</span> sigRef sigBody
+sigBody ::= { decl,* } [constraintSeq]</code></pre>
+
+<h3>各类段声明</h3>
+<pre><code>factDecl   ::= <span class="k">fact</span> [factId] constraintSeq
+assertDecl ::= <span class="k">assert</span> [assertId] constraintSeq
+funDecl    ::= <span class="k">fun</span> [sigRef ::] funId ( decl,* ) : declExpr { expr }
+predDecl   ::= <span class="k">pred</span> [sigRef ::] predId ( decl,* ) constraintSeq
+
+runCmd     ::= [commandId :] <span class="k">run</span> funRef [scope]
+             | [commandId :] <span class="k">run</span> predRef [scope]
+checkCmd   ::= [commandId :] <span class="k">check</span> assertRef [scope]
+
+scope      ::= <span class="k">for</span> number
+             | <span class="k">for</span> [number <span class="k">but</span>] typescope,+
+typescope  ::= [<span class="k">exactly</span>] number scopeable
+scopeable  ::= sigRef | int</code></pre>
+
+<h3>声明</h3>
+<pre><code>decl        ::= [<span class="k">part</span> | <span class="k">disj</span>] varId,+ : declExpr
+letDecl     ::= varId = expr
+declExpr    ::= declSetExpr | declRelExpr
+declSetExpr ::= [mult] expr
+declRelExpr ::= declRelExpr' [mult] -&gt; [mult] declRelExpr'
+declRelExpr'::= declRelExpr | expr
+mult        ::= <span class="k">lone</span> | <span class="k">one</span> | <span class="k">some</span></code></pre>
+
+<h3>表达式</h3>
+<pre><code>expr ::= [@] varId | sigRef | <span class="k">this</span>
+       | <span class="k">none</span> | <span class="k">univ</span> | <span class="k">iden</span>
+       | unOp expr | expr binOp expr | expr '[' expr ']'
+       | { decl,+ | [constraint] }
+       | <span class="k">let</span> letDecl,+ | expr
+       | <span class="k">if</span> constraint <span class="k">then</span> expr <span class="k">else</span> expr
+       | <span class="k">Int</span> intExpr
+       | [expr ::] funRef ( expr,* )
+       | ( expr )
+
+intExpr ::= number | '#' expr | <span class="k">sum</span> expr | <span class="k">int</span> expr
+          | <span class="k">if</span> constraint <span class="k">then</span> intExpr <span class="k">else</span> intExpr
+          | intExpr intOp intExpr
+          | <span class="k">let</span> letDecl,… | intExpr
+          | <span class="k">sum</span> decl,+ | intExpr
+          | ( intExpr )
+intOp   ::= + | -</code></pre>
+
+<h3>约束</h3>
+<pre><code>constraintBody ::= constraintSeq | '|' constraint
+constraintSeq  ::= { constraint* }
+constraint     ::= expr [neg] compOp expr
+                 | quantifier expr
+                 | intExpr [neg] intCompOp intExpr
+                 | neg constraint | constraint logicOp constraint
+                 | constraint thenOp constraint [elseOp constraint]
+                 | quantifier decl,+ constraintBody
+                 | <span class="k">let</span> letDecl,+ constraintBody
+                 | [expr ::] predRef ( expr,* )
+                 | expr : declExpr
+                 | constraintSeq
+                 | ( constraint )
+
+thenOp    ::= <span class="k">implies</span> | =&gt;
+elseOp    ::= <span class="k">else</span> | ,
+neg       ::= <span class="k">not</span> | !
+logicOp   ::= &amp;&amp; | || | <span class="k">iff</span> | &lt;=&gt; | <span class="k">and</span> | <span class="k">or</span>
+quantifier::= <span class="k">all</span> | <span class="k">no</span> | mult
+binOp     ::= + | - | &amp; | . | -&gt; | &lt;: | :&gt; | ++
+unOp      ::= ~ | * | ^
+compOp    ::= <span class="k">in</span> | =
+intCompOp ::= &lt; | &gt; = | =&lt; | &gt;=</code></pre>
+
+<h3>引用形式</h3>
+<pre><code>funRef    ::= [moduleRef] funId
+predRef   ::= [moduleRef] predId
+assertRef ::= [moduleRef] assertId
+sigRef    ::= [moduleRef] sigId | <span class="k">Int</span> | <span class="k">univ</span>
+moduleRef ::= [path] moduleId [ '[' sigRef,* ']' ] / | aliasId /</code></pre>
+
+<h2 id="sb4"><span class="num">B.4</span>Precedence and Associativity · 优先级与结合性</h2>
+
+<h3>逻辑运算符的优先级（从最紧开始）</h3>
+<table>
+  <thead><tr><th>优先级</th><th>运算符</th></tr></thead>
+  <tbody>
+    <tr><td>1（最紧）</td><td><strong>取反</strong>：<code>!</code> 和 <code>not</code></td></tr>
+    <tr><td>2</td><td><strong>合取</strong>：<code>&amp;&amp;</code> 和 <code>and</code></td></tr>
+    <tr><td>3</td><td><strong>蕴含</strong>：<code>=&gt;</code>、<code>&lt;=&gt;</code>、<code>implies</code> 和 <code>iff</code></td></tr>
+    <tr><td>4（最松）</td><td><strong>析取</strong>：<code>||</code> 和 <code>or</code></td></tr>
+  </tbody>
+</table>
+
+<h3>表达式运算符的优先级（从最紧开始）</h3>
+<table>
+  <thead><tr><th>优先级</th><th>运算符</th><th>名称</th></tr></thead>
+  <tbody>
+    <tr><td>1（最紧）</td><td><code>~</code> <code>^</code> <code>*</code></td><td>一元运算符</td></tr>
+    <tr><td>2</td><td><code>.</code></td><td>点连接（dot join）</td></tr>
+    <tr><td>3</td><td><code>&lt;:</code> <code>:&gt;</code></td><td>限制运算符</td></tr>
+    <tr><td>4</td><td><code>[ ]</code></td><td>方括号连接（brackets join）</td></tr>
+    <tr><td>5</td><td><code>-&gt;</code></td><td>箭头积（arrow product）</td></tr>
+    <tr><td>6</td><td><code>&amp;</code></td><td>交</td></tr>
+    <tr><td>7</td><td><code>++</code></td><td>覆盖</td></tr>
+    <tr><td>8（最松）</td><td><code>+</code> <code>-</code></td><td>并与差</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">特别注意：点比方括号绑得更紧</span>
+  <p><strong><code>a.b[c]</code> 被解析为 <code>(a.b)[c]</code></strong>，而不是 <code>a.(b[c])</code>。这是最常见的解析意外之一。</p>
+</div>
+
+<h3>结合性</h3>
+<div class="callout key">
+  <span class="tag">除蕴含外，全部左结合</span>
+  <p><strong>所有二元运算符都向左结合，蕴含是例外，它向右结合。</strong>所以：</p>
+  <ul>
+    <li><code>p =&gt; q =&gt; r</code> 被解析为 <code>p =&gt; (q =&gt; r)</code></li>
+    <li><code>a.b.c</code> 被解析为 <code>(a.b).c</code></li>
+  </ul>
+  <p><strong>在一个蕴含中，else 子句与其最近的 then 子句相关联。</strong>所以约束</p>
+<pre><code>p =&gt; q =&gt; r, s</code></pre>
+  <p>被解析为</p>
+<pre><code>p =&gt; (q =&gt; r, s)</code></pre>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 「就近 else」与编程语言中的「悬挂 else」是同一个约定</span>
+  <p>这与 C/Java 里 <code>if-else</code> 的悬挂 else 规则一致。<strong>实践建议：只要用了 <code>else</code>（或逗号形式的 else），就加括号明确意图</strong>，不要依赖解析规则。</p>
+</div>
+
+<h2 id="sb5"><span class="num">B.5</span>Semantic Basis · 语义基础</h2>
+
+<h3>B.5.1 Instances and Meaning · 实例与含义</h3>
+<div class="callout key">
+  <span class="tag">核心定义</span>
+  <p><strong>一个模型的含义是「若干组实例（several collections of instances）」。</strong>一个<strong>实例是「把值绑定到变量」</strong>。</p>
+  <p><strong>通常，单个实例代表一个状态，或一对状态（对应一个操作的执行），或一条执行迹。然而语言中没有内建的状态机概念，所以一个实例不必代表这些东西中的任何一个。</strong></p>
+</div>
+<p>指派给一个模型的实例组有三类：</p>
+<table>
+  <thead><tr><th>组</th><th>定义</th><th>变量</th></tr></thead>
+  <tbody>
+    <tr><td><strong>① 核心实例（core instances）</strong></td><td>与<strong>模型的 facts</strong> 以及<strong>signature 声明中隐含的约束</strong>相关联的实例集合。它们把值绑定到变量上，<strong>使 facts 与声明约束为真</strong>。</td><td><strong>signature 及其字段</strong></td></tr>
+    <tr><td><strong>② 每个函数或谓词一组</strong></td><td>那些<strong>「整个模型的 facts 与声明约束为真，且额外地该函数或谓词的约束也为真」</strong>的实例集合。</td><td>核心实例的变量，<strong>再加上该函数或谓词的参数</strong></td></tr>
+    <tr><td><strong>③ 每个断言一组</strong></td><td>那些<strong>「整个模型的 facts 与声明约束为真，但该断言的约束为假」</strong>的实例集合。</td><td>同上</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">三组的「健康状态」判读</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>对象</th><th>没有实例意味着</th></tr></thead>
+    <tbody>
+      <tr><td><strong>模型</strong></td><td><strong>不一致（inconsistent），并且几乎肯定是有错误的</strong></td></tr>
+      <tr><td><strong>函数或谓词</strong></td><td><strong>同样不一致，并且不太可能有用</strong></td></tr>
+      <tr><td><strong>断言</strong></td><td><strong>这正是我们所期望的！</strong>实例就是<strong>反例</strong>，它们表明该断言并不从 facts 推出</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout warn">
+  <span class="tag">有界搜索的根本限制</span>
+  <p><strong>Alloy Analyzer 通过在有限界内搜索来自动找到模型的实例</strong>（界由用户指定为作用域，见 B.7.5）。<strong>因为搜索是有界的，未能找到实例并不必然意味着实例不存在。但被找到的实例保证是有效的。</strong></p>
+  <p>——这句话是第 5 章全部内容的规范表述：<strong>Alloy 是「反例可信、无反例不可信」的工具。</strong></p>
+</div>
+
+<h3>B.5.2 Relational Logic · 关系逻辑</h3>
+<div class="callout key">
+  <span class="tag">Alloy 是一阶关系逻辑</span>
+  <p><strong>指派给变量的值，以及在给定实例的上下文中求值的表达式的值，都是关系。</strong>这些关系是<strong>一阶的</strong>：也就是说，<strong>它们由「其元素是原子（而不是本身也是关系）」的元组构成。</strong></p>
+</div>
+<table>
+  <thead><tr><th>概念</th><th>在 Alloy 中就是</th></tr></thead>
+  <tbody>
+    <tr><td><strong>集合（set）</strong></td><td>一个<strong>一元关系</strong></td></tr>
+    <tr><td><strong>标量（scalar）</strong></td><td>一个<strong>单例的一元关系</strong></td></tr>
+    <tr><td><strong>元组（tuple）</strong></td><td>一个<strong>单例关系</strong></td></tr>
+  </tbody>
+</table>
+<p><strong>Alloy 没有显式的「集合」「标量」或「元组」概念。</strong>类型系统<strong>区分集合与关系</strong>（因为它们有不同的元数），<strong>但不区分元组、标量与更一般的关系</strong>。</p>
+
+<div class="callout key">
+  <span class="tag">没有「函数应用」运算符</span>
+  <p><strong>关系 join 被用来替代它，而且它在语法上比「一个区分集合与标量的语言」中会更干净。</strong></p>
+  <p>例如，给定一个函数性的关系 <code>f</code>，以及被约束为标量的 <code>x</code> 和 <code>y</code>，约束</p>
+<pre><code>x.f = y</code></pre>
+  <p>把 x 在关系 f 下的像约束为集合 y。<strong>只要 x 在 f 的定义域内，这个约束就与「把点解释为函数应用、把 f 解释为函数、把 x 和 y 解释为标量类型变量」时具有相同的含义。</strong></p>
+  <p><strong>但如果 x 不在 f 的定义域内，表达式 <code>x.f</code> 将求值为空集</strong>，而由于 y 被约束为一个标量（即单例集合），<strong>整个约束将为假</strong>。</p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">这是 Alloy 的一个设计优势</span>
+    <p><strong>在一个有函数应用的语言里，取决于如何处理偏函数，各种含义都是可能的。Alloy 方法的一个优势是它绕开了这个问题。</strong></p>
+  </div>
+</div>
+
+<div class="callout">
+  <span class="tag">声明语法被设计成「让熟悉的形式具有预期的含义」</span>
+  <p>因此，当 X 是一个集合时，量化约束</p>
+<pre><code><span class="k">all</span> x: X | F</code></pre>
+  <p><strong>让 x 遍历标量值</strong>。也就是说，<strong>约束 F 是在「x 被绑定到 X 的单例子集」时求值的</strong>。</p>
+</div>
+
+<div class="callout warn">
+  <span class="tag">Alloy 语法实际上允许高阶量化</span>
+  <p>例如「join 在二元关系上是结合的」这个断言可以写成：</p>
+<pre><code><span class="k">assert</span> {<span class="k">all</span> p, q, r: univ -&gt; univ | (p.q).r = p.(q.r)}</code></pre>
+  <p><strong>许多这类约束在被提交分析时会变成一阶的</strong>，因为（像这里一样）<strong>被量化的变量可以被 Skolem 化掉</strong>。<strong>如果一个约束仍然是真正高阶的，Alloy Analyzer 会警告用户「分析可能不可行」。</strong></p>
+  <p>——这解释了为什么 A.1.1 能写 <code>some r: univ -&gt; univ { ... }</code>，也解释了 5.2.2 中 Skolem 化的重要性。</p>
+</div>
+
+<div class="callout">
+  <span class="tag">整数的初步支持</span>
+  <p><strong>Alloy 提供对整数的初步（rudimentary）支持。</strong>有一类表达式，其值是整数。<strong>整数值不能被绑定到实例中的变量上</strong>，但有<strong>一类特殊的「整数原子」，它们与原始整数值相关联，并且可以像任何其他原子一样出现在被绑定到变量的关系中</strong>。详见 B.7.7。</p>
+</div>
+
+<h2 id="sb6"><span class="num">B.6</span>Types and Overloading · 类型与重载</h2>
+<div class="callout key">
+  <span class="tag">Alloy 类型系统的设计目标与编程语言不同</span>
+  <p><strong>建模语言中没有「运行时错误」这个概念，所以「类型健全性（type soundness）」不是一个问题。</strong>取而代之，类型系统被设计为：</p>
+  <ul>
+    <li><strong>允许尽可能多的合理模型，而不产生虚假警报</strong>；</li>
+    <li><strong>同时仍然在分析之前捕获那些「仅凭已声明字段与变量的类型就能解释」的错误</strong>。</li>
+  </ul>
+</div>
+<div class="callout idea">
+  <span class="tag">用户视角的承诺</span>
+  <p><strong>我们期望大多数用户能够忽略类型系统的微妙之处。</strong></p>
+  <ul>
+    <li><strong>报告「某个表达式类型不良」的错误信息从来不是虚假的，并且总是对应一个真实的错误。</strong></li>
+    <li><strong>报告「无法解析一个重载的字段引用」的信息，总是可以通过一个「小的、系统性的修改」来处理</strong>，见下文。</li>
+  </ul>
+</div>
+
+<h3>B.6.1 Type Errors · 类型错误</h3>
+<table>
+  <thead><tr><th>错误种类</th><th>含义</th><th>例子</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>① 元数错误<br>arity error</strong></td>
+      <td>表明<strong>试图把一个运算符应用于一个元数不对的表达式，或试图组合元数不兼容的表达式</strong></td>
+      <td>对一个<strong>非二元</strong>关系取闭包；把一个关系<strong>限制到一个非集合</strong>；对<strong>不同元数</strong>的两个关系取并、交、差，或用相等或子集来比较</td>
+    </tr>
+    <tr>
+      <td><strong>② 不相交错误<br>disjointness error</strong></td>
+      <td>表明表达式中<strong>两个关系被以「结果将总是空关系（无论它们的值如何）」的方式组合</strong></td>
+      <td>对<strong>两个不相交的关系取交集</strong>；<strong>join 两个没有匹配元素的关系</strong>；<strong>用一个与之不相交的集合来限制一个关系</strong>。<br><strong>把覆盖运算符 <code>++</code> 应用于不相交的关系也会产生 disjointness 错误</strong>——即使结果可能不是空关系，<strong>因为这些关系被期望是重叠的（否则用并集就够了）</strong></td>
+    </tr>
+    <tr>
+      <td><strong>③ 冗余错误<br>redundancy error</strong></td>
+      <td>表明<strong>一个表达式（通常出现在并表达式中）是冗余的，可以在不影响外围约束值的情况下被丢弃</strong></td>
+      <td>诸如 <code>(a + b) &amp; c</code> 这样的表达式，以及诸如 <code>c in a + b</code> 这样的约束，<strong>其中 a 或 b 之一与 c 不相交</strong></td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">重要例外：不相交类型的并是被允许的</span>
+  <p><strong>注意，不相交类型的并是被允许的，因为它们可能并不是错误的。</strong>因此表达式 <code>(a + b).c</code> 将是类型正确的，<strong>即使 a 和 b 的类型不相交</strong>——<strong>只要 c 的最左列的类型与 a 和 b 两者的右列的类型重叠。</strong></p>
+  <p>这正是 4.4.4 中「只有 <code>s.r</code> 的<em>不相交</em>情形被拒绝」的规范表述。</p>
+</div>
+
+<h3>B.6.2 Field Overloading · 字段重载</h3>
+<div class="callout key">
+  <span class="tag">规则</span>
+  <p><strong>signature 的字段可以被重载。</strong>也就是说，<strong>两个不同的 signature 可以有同名字段，只要这两个 signature 不代表重叠的集合</strong>。<strong>字段引用被自动解析。</strong></p>
+</div>
+<p><strong>重载的解析利用表达式的完整上下文，并使用与类型检查器相同的信息。</strong>每一种可能的解析都会被考虑：</p>
+<ul>
+  <li><strong>如果恰好有一种不会产生类型错误，它就被选中；</strong></li>
+  <li><strong>如果多于一种，就产生一条报告「引用有歧义」的错误信息。</strong></li>
+</ul>
+<div class="callout idea">
+  <span class="tag">与 Java 字段解引用的对比</span>
+  <p><strong>解析利用了关于可能解析项的类型的全部已知信息，包括元数，以及所有列（不只是第一列）的类型。</strong></p>
+  <p>因此，<strong>与面向对象语言（如 Java）中用于字段解引用的那种解析不同，表达式 <code>x.f</code> 中对 f 的引用不仅可以利用 x 的类型来解析，还可以额外利用「整个表达式所出现的上下文」来解析。</strong>例如，如果外围表达式是 <code>a + x.f</code>，<strong>f 的引用可以由 a 的元数来解析</strong>。</p>
+</div>
+<div class="callout key">
+  <span class="tag">无法解析时的标准修法：<code>S &lt;: f</code></span>
+  <p><strong>如果一个字段引用无法被解析，修改表达式使它可被解析是很容易的。如果字段引用 f 意在指「在 signature S 中声明的那个字段 f」，你可以把对 f 的引用替换为表达式 <code>S &lt;: f</code>。</strong></p>
+  <p><strong>这个新表达式有相同的含义，但保证能解析这个引用，因为只有「在 S 中声明的那个 f」才会产生非空的结果。</strong></p>
+  <p><strong>注意这不是一种特殊的类型转换（casting）语法。它只依赖于域限制运算符的标准语义。</strong>（等价于 <code>(S -&gt; univ) &amp; f</code>。）</p>
+</div>
+
+<h3>B.6.3 Subtypes · 子类型</h3>
+<p><strong>类型系统包含一个子类型的概念。这允许捕获更多错误，并允许字段有一个更细粒度的命名空间。</strong></p>
+<div class="callout key">
+  <span class="tag">类型的结构</span>
+  <ul>
+    <li><strong>任何表达式的类型都是一个「联合类型（union type）」，它由若干关系类型的并构成。</strong></li>
+    <li><strong>一个关系类型是若干基本类型的积。</strong></li>
+    <li><strong>一个基本类型要么是「signature 类型」，要么是预定义的全类型 <code>univ</code>，要么是预定义的空类型 <code>none</code>。</strong></li>
+    <li><strong>基本类型构成一个格（lattice），以 <code>univ</code> 为其最大元、<code>none</code> 为其最小元。</strong>这个格是这样得到的：<strong>取已声明的 signature 类型构成的森林（trees 的集合），再加上「顶层类型与 <code>univ</code> 之间」以及「<code>none</code> 与所有 signature 类型之间」的子类型关系。</strong></li>
+  </ul>
+</div>
+<div class="callout warn">
+  <span class="tag">一个精细的区分</span>
+  <p><strong>「由零个关系类型构成的并」被用在类型检查中，用来表示「类型不良的表达式」</strong>，它与<strong>「由一个「全是 <code>none</code> 的积」的关系类型构成的并」是不同的</strong>——后者用于<strong>用常量 <code>none</code> 构造的表达式，代表一个「有意为空的关系」</strong>。</p>
+</div>
+<div class="callout key">
+  <span class="tag">子类型的语义非常简单</span>
+  <ul>
+    <li><strong>如果一个 signature 是另一个的子类型，它就代表一个子集。</strong></li>
+    <li><strong>一个 signature 的直接子类型是互不相交的。</strong></li>
+    <li><strong>因此，两个子类型只有在「其中一个是另一个的（直接或间接）子类型」时才重叠。</strong></li>
+    <li><strong>类型系统为一个表达式计算出的类型是其值的一个近似（approximation）。</strong></li>
+  </ul>
+</div>
+<p>考虑 join <code>e1 . e2</code>，其中子表达式具有类型：</p>
+<pre><code>e1 : A -&gt; B
+e2 : C -&gt; D</code></pre>
+<div class="callout">
+  <span class="tag">join 的类型规则</span>
+  <ul>
+    <li><strong>如果基本类型 B 和 C 不重叠，这个 join 就产生一个 disjointness 错误。</strong></li>
+    <li><strong>否则，B 或 C 中必有一个是另一个的子类型。整个表达式的类型将是 <code>A -&gt; D</code>。</strong></li>
+  </ul>
+</div>
+<div class="callout key">
+  <span class="tag">不需要任何类型转换（cast），无论向上还是向下</span>
+  <p>如果字段 f 声明在 signature S 中，而 <code>sup</code> 和 <code>sub</code> 分别是类型为「S 的超类型」和「S 的子类型」的变量，那么 <strong><code>sup.f</code> 和 <code>sub.f</code> 都是类型良好的</strong>。</p>
+  <ul>
+    <li><strong>两种情况下表达式都不必然为空。</strong></li>
+    <li><strong>两种情况下它都可能为空</strong>：如果 <code>sup</code> 不在 S 中，或者 <code>f</code> 被声明为偏的且 <code>sub</code> 在其定义域之外。</li>
+    <li><strong>另一方面，如果 <code>d</code> 是一个其类型 D 与 S 的类型不相交的变量</strong>——例如因为 S 和 D 都是某个其他 signature 的直接子类型——<strong>那么表达式 <code>d.f</code> 将是类型不良的，因为它必然总是求值为空关系。</strong></li>
+  </ul>
+</div>
+
+<h3>B.6.4 Functions and Predicates · 函数与谓词</h3>
+<div class="callout warn">
+  <span class="tag">一条容易踩坑的规则</span>
+  <p><strong>函数与谓词的调用是这样被类型检查的：确保实际参数表达式与形式参数不相交。</strong>（即检查「实参类型与形参类型有重叠」。）<strong>形式参数的类型<em>不</em>被用来解析实际表达式中字段名的重载。</strong></p>
+  <p><strong>函数与谓词的参数声明中隐含的约束，在「运行」该函数或谓词时会被合取到体约束上。然而当函数或谓词被「调用」时，这些隐含约束被忽略。</strong></p>
+  <p><strong>因此你不应该依赖这类声明约束具有语义效果；它们的意图是「冗余的文档」。</strong>Alloy 的未来版本可能会包含一种检查方案，用来判定实际表达式是否具有与形参的声明约束相容的值。</p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读</span>
+  <p>这条规则的实际后果是：<strong>写 <code>pred p (x: set S) {...}</code> 时，<code>set S</code> 里的 <code>set</code> 在被调用时不起作用</strong>——它只在 <code>run p</code> 时生效。所以<strong>不要指望「形参的重数声明」在调用点帮你做校验</strong>；如果需要，就在体内显式写约束。</p>
+</div>
+
+<h3>B.6.5 Integers and Type Checking · 整数与类型检查</h3>
+<div class="callout key">
+  <span class="tag">语法层面的区分，而非类型层面的</span>
+  <p><strong>只有整数表达式才取原始整数值。解析器区分关系表达式与整数表达式，所以解析 <code>+</code> 和 <code>-</code> 运算符的重载时不需要类型信息</strong>——<strong>它们在整数表达式中充当加法与减法，在关系表达式中充当并与差。</strong></p>
+  <p>在这样一个约束中：</p>
+<pre><code># S + S = 1</code></pre>
+  <p><strong>加号将被解析为一个关系运算符（而 <code>#</code> 运算符将被应用于整个左侧）</strong>，因为<strong>否则整个约束在语法上就不合法了</strong>。</p>
+  <p><strong><code>Int</code> 类型（它代表「承载整数的对象」的预定义 signature）被类型系统当作任何其他基本类型一样处理。它与所有其他基本类型都不相交，除了全类型 <code>univ</code>。</strong></p>
+</div>
+
+<h3>B.6.6 Multiplicity Keywords · 重数关键字</h3>
+<table>
+  <thead><tr><th>关键字</th><th>解释</th></tr></thead>
+  <tbody>
+    <tr><td><code>lone</code></td><td><strong>零个或一个</strong></td></tr>
+    <tr><td><code>one</code></td><td><strong>恰好一个</strong></td></tr>
+    <tr><td><code>some</code></td><td><strong>一个或多个</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">记忆窍门（原文提供）</span>
+  <p><strong>要记住 <code>lone</code> 意味着「零或一」，可以把这个词想成是 “less than or equal to one” 的缩写。</strong></p>
+</div>
+<p>这些关键字被用在<strong>五种上下文</strong>中：</p>
+<table>
+  <thead><tr><th>#</th><th>上下文</th><th>例子与含义</th></tr></thead>
+  <tbody>
+    <tr><td>①</td><td><strong>量化约束中的量词</strong></td><td><code>one x: S | F</code> — 说<strong>恰好有一个 x 满足约束 F</strong></td></tr>
+    <tr><td>②</td><td><strong>量化表达式中的量词</strong></td><td><code>lone e</code> — 说<strong>表达式 e 表示一个「至多含一个元组」的关系</strong></td></tr>
+    <tr><td>③</td><td><strong>集合声明中</strong></td><td><code>x: some S</code>（S 是一元类型）— 声明 x 是<strong>「从 S 中取元素构成的、非空的」集合</strong></td></tr>
+    <tr><td>④</td><td><strong>关系声明中</strong></td><td><code>r: A one -&gt; one B</code> — 声明 r 是<strong>从 A 到 B 的一一对应关系</strong></td></tr>
+    <tr><td>⑤</td><td><strong>signature 声明中</strong></td><td><code>one sig S {…}</code> — 声明 S 是<strong>一个「其集合恰好含一个元素」的 signature</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">默认重数</span>
+  <p><strong>声明一个集合变量时，默认是 <code>one</code></strong>。所以在声明 <code>x: X</code> 中（X 是一元类型），<strong>x 将被约束为一个标量</strong>。<strong>在这种情况下，<code>set</code> 关键字覆盖这个默认值。</strong></p>
+</div>
+
+<h2 id="sb7"><span class="num">B.7</span>Language Features · 语言特性</h2>
+<p>本节按 BNF 的生产式逐条说明 Alloy 的语法构造，共八个子节：<a href="#sb71">B.7.1 模块结构</a> · <a href="#sb72">B.7.2 signature 声明</a> · <a href="#sb73">B.7.3 声明</a> · <a href="#sb74">B.7.4 约束段</a> · <a href="#sb75">B.7.5 命令</a> · <a href="#sb76">B.7.6 表达式</a> · <a href="#sb77">B.7.7 整数</a> · <a href="#sb78">B.7.8 约束</a>。</p>
+
+<h3 id="sb71">B.7.1 Module Structure · 模块结构</h3>
+<div class="callout">
+  <span class="tag">本节涉及的生产式</span>
+<pre><code>module    ::= header import* paragraph*
+header    ::= <span class="k">module</span> [path] moduleId [ '[' sigId,+ ']' ]
+path      ::= id / [path]
+import    ::= <span class="k">open</span> [path] moduleId [ '[' sigRef,* ']' ] [<span class="k">as</span> aliasId]
+paragraph ::= sigDecl | factDecl | funDecl | predDecl | assertDecl
+            | runCmd | checkCmd
+sigRef    ::= [moduleRef] sigId | <span class="k">Int</span> | <span class="k">univ</span>
+moduleRef ::= [path] moduleId [ '[' sigRef,* ']' ] / | aliasId /
+funRef    ::= [moduleRef] funId
+predRef   ::= [moduleRef] predId
+assertRef ::= [moduleRef] assertId</code></pre>
+</div>
+
+<div class="callout key">
+  <span class="tag">模块与模型</span>
+  <ul>
+    <li><strong>一个 Alloy 模型由一个或多个文件组成，每个文件含有一个模块。</strong>其中一个「主（main）模块」被提交分析；它<strong>直接</strong>（通过自己的 import）或<strong>间接</strong>（通过被导入模块的导入）引入其他模块。</li>
+    <li><strong>一个模型可以完全包含在一个模块中</strong>，此时不需要任何导入。</li>
+    <li><strong>没有任何段的模块在语法上合法，但毫无用处。</strong></li>
+  </ul>
+</div>
+
+<h4>七类段（paragraph）</h4>
+<table>
+  <thead><tr><th>段</th><th>在分析中的角色</th></tr></thead>
+  <tbody>
+    <tr><td><strong>signature</strong></td><td>表示集合，并在分析中被赋值 —— 因此<strong>其角色类似于编程语言中的「静态变量」</strong></td></tr>
+    <tr><td><strong>fact / fun / pred</strong></td><td>都是<strong>约束的封装（packagings of constraints）</strong></td></tr>
+    <tr><td><strong>run / check 命令</strong></td><td>用来<strong>指示 Alloy Analyzer 执行各种分析</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">导出规则（决定了「命令不可 import」）</span>
+  <p><strong>一个模块导出的组件是「除命令之外的所有段」；只有主模块的命令在一次分析中是相关的。</strong></p>
+</div>
+
+<h4>路径、文件与根目录</h4>
+<div class="callout key">
+  <span class="tag">文件系统约定</span>
+  <ul>
+    <li>模块由「一个路径 + 一个模块标识符」命名，并可<strong>被一个或多个 signature 形参参数化</strong>。</li>
+    <li><strong>路径必须对应「模块文件相对于某个默认根目录的目录位置」。</strong>一组根目录可以在 Alloy Analyzer 中指定，<strong>以便把库与特定领域的模型保存在不同的位置</strong>。</li>
+    <li><strong>模块标识符为 <code>m</code> 的模块必须存放在名为 <code>m.als</code> 的文件中。</strong></li>
+  </ul>
+</div>
+
+<h4>导入与实例化</h4>
+<div class="callout key">
+  <span class="tag">每个被导入模块需要一个独立的 import</span>
+  <p>它给出被导入模块的路径与名字、其形参的<strong>实例化</strong>（若有），以及一个可选的别名：</p>
+<pre><code><span class="k">open</span> [path] moduleId [ '[' sigRef,* ']' ] [<span class="k">as</span> aliasId]</code></pre>
+  <ul>
+    <li><strong>被导入模块的每一个形参都必须有一个实例化的 signature 形参。</strong>实例化 signature 可以是<strong>类型、子类型或子集</strong>，也可以是预定义类型 <code>Int</code> 与 <code>univ</code>。</li>
+    <li><strong>如果被导入模块声明了一个「是某形参的扩展」的 signature，那么用「子集」或 <code>Int</code> 来实例化那个形参将是一个错误。</strong></li>
+    <li><strong>同一个模块可以被导入多次。其结果不是创建该模块的多份拷贝，而是让同一个模块以不同的名字可用。</strong></li>
+  </ul>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 「不产生多份拷贝」为什么关键</span>
+  <p>第 4 章的结论由此获得语言层面的保证：<strong>同一个 signature 无论被 <code>open</code> 多少次，在分析中都只有一个解释</strong>。这就是第 6.1.3 中 <code>open util/ordering[Time] as TO</code> 与 <code>open util/ordering[Time]</code>（后者在第 6 章的不同位置被反复引用）能够共存、且 <code>Time</code> 始终是同一个集合的原因。</p>
+</div>
+
+<h4>限定名（qualified name）</h4>
+<div class="callout key">
+  <span class="tag">何时必须限定</span>
+  <p>被导入模块的一个组件通过<strong>限定名</strong>引用，即「模块引用 + 组件名」：</p>
+<pre><code>sigRef  ::= [moduleRef] sigId | <span class="k">Int</span> | <span class="k">univ</span>
+funRef  ::= [moduleRef] funId
+predRef ::= [moduleRef] predId
+assertRef ::= [moduleRef] assertId</code></pre>
+  <ul>
+    <li><strong>当一个组件引用会产生歧义时，它必须被限定。</strong>在「引用发生的模块」中声明的组件不必限定。</li>
+    <li><strong>模块在导入时也可以被赋予别名，以得到更简洁的限定名。一旦声明了别名，就不能再使用常规的模块名。</strong></li>
+    <li>模块引用可以是<strong>「导入语句中原样出现的路径 + 模块标识符 + 实例化形参」</strong>，也可以是<strong>「导入时声明的别名」</strong>。两者<strong>都以 <code>/</code> 结尾</strong>：<code>moduleRef ::= [path] moduleId [ '[' sigRef,* ']' ] / | aliasId /</code></li>
+  </ul>
+  <p>这正是 6.1 中 <code>TO/first</code>、<code>PO/prevs</code>、<code>KO/min</code> 的语法依据；也解释了 4.7 里 <code>RoomKeyEvent extends hotel.Event</code> 式引用为何需要带模块前缀。</p>
+</div>
+
+<h4>顺序、预定义与封装</h4>
+<div class="callout key">
+  <span class="tag">四条规则</span>
+  <ul>
+    <li><strong>段在模块中可以任意顺序出现。没有「先定义后使用」的要求。import 语句之间的顺序也无关紧要</strong>，即使一个 import 为另一个提供实例化形参。</li>
+    <li><strong>signature <code>Int</code> 是一个代表整数的特殊预定义 signature，可以在没有显式导入的情况下使用。</strong></li>
+    <li><strong>一个模块不得引用「它没有导入的另一个模块」的组件，即使那个模块在别处与它一起被导入。</strong>（模块封装：可见性只沿自己的 import 图传播。）</li>
+    <li><strong>模块名占据自己的命名空间</strong>，因此可以与 signature、段、参数或变量的名字相同而没有冲突。</li>
+  </ul>
+</div>
+
+<h3 id="sb72">B.7.2 Signature Declarations · signature 声明</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>sigDecl ::= [abstract] [mult] <span class="k">sig</span> sigID,+ [<span class="k">extends</span> sigRef] sigBody
+          | [mult] <span class="k">sig</span> sigID,+ <span class="k">in</span> sigRef sigBody
+sigRef  ::= [moduleRef] sigId | <span class="k">Int</span>
+sigBody ::= { decl,* } [constraintSeq]
+mult    ::= <span class="k">lone</span> | <span class="k">one</span> | <span class="k">some</span></code></pre>
+</div>
+<div class="callout key">
+  <span class="tag">signature 表示原子的集合，共两种</span>
+  <ul>
+    <li><strong>用 <code>in</code> 关键字声明的是「子集 signature（subset signature）」</strong>：<code>sigID,+ in sigRef sigBody</code></li>
+    <li><strong>其余全部是「类型 signature（type signature）」</strong>：<code>[abstract] [mult] sig sigID,+ [extends sigRef] sigBody</code></li>
+  </ul>
+</div>
+
+<h4>类型 signature → 一片森林</h4>
+<div class="callout key">
+  <span class="tag">层级结构</span>
+  <ul>
+    <li><strong>类型 signature 在类型系统中扮演「类型或子类型」的角色。</strong></li>
+    <li><strong>不扩展任何其他 signature 的类型 signature 是「顶层 signature」</strong>，其类型是「顶层类型」。</li>
+    <li><strong>扩展了另一个 signature 的 signature 称为被扩展者的「子 signature（subsignature）」</strong>，其类型是被扩展者类型的<strong>子类型</strong>。</li>
+    <li><strong>一个 signature 不得直接或间接地扩展自身。</strong></li>
+    <li>因此<strong>类型 signature 形成一个类型层级，其结构是一片「森林」：以顶层类型为根的若干棵树的集合。</strong></li>
+  </ul>
+</div>
+<div class="callout key">
+  <span class="tag">不相交规则（决定一切 disjointness 判断）</span>
+  <p><strong>顶层 signature 表示互不相交的集合，且一个 signature 的各个子 signature 之间互不相交。</strong>因此<strong>任意两个不同的类型 signature 都是不相交的 —— 除非其中一个直接或间接地扩展了另一个，此时它们重叠。</strong></p>
+</div>
+
+<h4>子集 signature → 一个 DAG</h4>
+<div class="callout key">
+  <span class="tag">与类型 signature 的三点关键差异</span>
+  <ul>
+    <li>子集 signature 表示的集合是<strong>「其所有父集（声明中列出的 signature）之并」的一个子集</strong>。父集<strong>可以是子集 signature，也可以是类型 signature</strong>。</li>
+    <li><strong>子集 signature 不得被扩展</strong>；并且<strong>同一个 signature 的各个子集之间不必互不相交</strong>。</li>
+    <li><strong>子集 signature 不得直接或间接地成为自身的父集。</strong></li>
+    <li>因此<strong>子集 signature 与其父集构成一个「有向无环图（DAG）」，以类型 signature 为根。</strong></li>
+    <li>子集 signature 的类型<strong>一般是一个「顶层类型或子类型的并（union）」</strong>，由「作为类型的父集」加上「作为子集的父集们的类型」构成。</li>
+  </ul>
+  <p>——「子集之间不必不相交」正是 A.2.3 地铁线路题（<code>Jubilee</code>、<code>Central</code>、<code>Circle</code> 三个 <code>sig ... in Station</code> 可以共用车站）的语言依据。</p>
+</div>
+
+<h4>抽象 signature</h4>
+<div class="callout key">
+  <span class="tag"><code>abstract</code></span>
+  <p><strong>标记为 <code>abstract</code> 的 signature 被约束为「只包含属于某个扩展它的 signature 的元素」。</strong></p>
+  <ul>
+    <li><strong>如果没有扩展，这个标记没有任何效果。</strong></li>
+    <li>其意图是：<strong>抽象 signature 代表一种「由更『具体』的 signature 进一步细化的元素分类」。</strong></li>
+    <li><strong>如果一个抽象 signature 没有扩展，<code>abstract</code> 关键字很可能是在提示「模型是不完整的」。</strong></li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">与 B.7.5 的作用域规则联动</span>
+    <p>因为抽象集被强制等于扩展之并，<strong>抽象 signature 的对象数 = 其各子 signature 对象数之和</strong>，所以作用域里抽象 signature 的界是<strong>推导出来的</strong>而非独立指定的。这就是 6.1.5 中「要表达『至多 k 个环』必须让 <code>RingProcess extends Process</code>，并给抽象父 <code>Process</code> 一个不小于子之和的界」的规范表述。</p>
+  </div>
+</div>
+
+<h4>signature 上的重数</h4>
+<div class="callout key">
+  <span class="tag"><code>[mult] sig ...</code></span>
+  <p><strong>任何重数关键字（<code>lone</code>/<code>one</code>/<code>some</code>）都可以关联到一个 signature，用来约束该 signature 集合的元素个数。</strong></p>
+  <p><strong>唯一的例外是 <code>set</code> —— 它没有效果，因此不能用在 signature 上。</strong>（注意这与 B.7.3 中 <code>set</code> 在集合声明里的作用不同。）</p>
+</div>
+
+<h4>段体：字段声明 + signature 事实</h4>
+<div class="callout key">
+  <span class="tag"><code>sigBody ::= { decl,* } [constraintSeq]</code></span>
+  <p><strong>signature 声明的体由「字段声明」加上「一个可选的、约束该 signature 元素的 signature 事实」组成。</strong></p>
+  <ul>
+    <li><strong>子类型 signature 继承它所扩展的 signature 的字段，以及那个 signature 所继承的字段。</strong></li>
+    <li><strong>子集 signature 继承其父集 signature 的字段，以及父集们的继承字段。</strong></li>
+  </ul>
+</div>
+<div class="callout warn">
+  <span class="tag">两条字段名冲突禁令</span>
+  <ol>
+    <li><strong>一个 signature 不得声明一个「名字与某个继承字段名冲突」的字段。</strong></li>
+    <li><strong>如果两个子集 signature 的类型有重叠，它们不得声明同名字段。</strong></li>
+  </ol>
+  <p>原文的理由：<strong>这保证了「同名的两个字段只能声明在互不相交的 signature 中」，并且「总存在某个上下文使得两个同名字段能够被区分」。若非如此，某些重载将永远无法被解析。</strong></p>
+</div>
+<div class="callout key">
+  <span class="tag">一次声明多个 signature = 各自单独声明</span>
+  <p><strong>在单条 signature 声明中一次声明多个 signature，等价于逐个单独声明。</strong>因此声明</p>
+<pre><code><span class="k">sig</span> A, B <span class="k">extends</span> C {f: D}</code></pre>
+  <p><strong>引入了 C 的两个子 signature A 与 B，并为每一个声明一个字段 f。</strong>（注意：由于 A 与 B 是同一父集的子 signature，它们互不相交，因此同名字段 f 是合法的重载 —— 呼应上面的冲突禁令。）</p>
+</div>
+
+<h4>signature 事实：隐式量化与隐式解引用</h4>
+<div class="callout key">
+  <span class="tag">原文的精确定义</span>
+  <p><strong>像任何其他 fact 一样，signature 事实是一个「总是成立的」约束。但不同于其他 fact 的是：signature 事实被「隐式地对该 signature 集合量化」。</strong>给定 signature 声明</p>
+<pre><code><span class="k">sig</span> S {…} { F }</code></pre>
+  <p><strong>signature 事实 F 被解释为仿佛写出了这样一条显式 fact：</strong></p>
+<pre><code><span class="k">fact</span> { <span class="k">all</span> this: S | F' }</code></pre>
+  <p><strong>其中 F' 与 F 相同，但把其中对 S 的每个字段 f（无论声明的还是继承的）的引用都替换为 <code>this.f</code>。在字段名前加特殊符号 <code>@</code> 会抑制这一隐式展开。</strong></p>
+<pre><code><span class="k">sig</span> Person {friends: <span class="k">set</span> Person} {no friends &amp; iden}
+   ≡  <span class="k">fact</span> { <span class="k">all</span> this: Person | no <span class="k">this</span>.friends &amp; iden }
+
+<span class="k">sig</span> Person {friends: <span class="k">set</span> Person} {no @friends &amp; iden}
+   ≡  <span class="k">fact</span> { <span class="k">all</span> this: Person | no friends &amp; iden }  <span class="c">-- 引用字段本身</span></code></pre>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · A.3.3 第五题的官方答案就在这里</span>
+    <p>「什么时候需要 <code>@</code>？」—— 当你在 signature 事实里想谈的是<strong>字段关系整体</strong>（例如把它与另一个字段比较、或对它做闭包）而不是「当前原子的像集」时。B.7.6 也再次重申：<em>「在字段名被隐式解引用的上下文中 —— 即 signature 声明表达式与 signature 事实 —— <code>@</code> 前缀阻止解引用」</em>。</p>
+  </div>
+</div>
+
+<h3 id="sb73">B.7.3 Declarations · 声明</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>decl         ::= [<span class="k">part</span> | <span class="k">disj</span>] varId,+ : declExpr
+letDecl      ::= varId = expr
+declExpr     ::= declSetExpr | declRelExpr
+declSetExpr  ::= [mult] expr
+declRelExpr  ::= declRelExpr' [mult] -&gt; [mult] declRelExpr'
+declRelExpr' ::= declRelExpr | expr
+mult         ::= <span class="k">lone</span> | <span class="k">one</span> | <span class="k">some</span></code></pre>
+</div>
+<div class="callout key">
+  <span class="tag">一套声明语法，三种用途</span>
+  <p><strong>同一套声明语法同时用于：signature 的字段、函数与谓词的参数、以及量化变量</strong> —— 下文统称「变量」。字段的解释略有不同，放在最后说明。</p>
+</div>
+
+<h4>声明的两种效果</h4>
+<div class="callout key">
+  <span class="tag">语义效果 + 类型效果</span>
+  <ul>
+    <li><strong>语义上：约束变量可取的值。</strong>「左边所表示的关系」被约束为<strong>「右边声明表达式所表示的关系」的子集</strong>。<ul>
+      <li>当一次声明多个变量时可用 <code>disj</code> 与 <code>part</code>：<strong><code>disj</code> 约束被声明变量互不相交；<code>part</code> 额外约束它们「对声明表达式所表示的关系构成一个划分」。</strong></li>
+      <li>下文的重数约束会进一步约束变量的值。</li>
+    </ul></li>
+    <li><strong>为了类型检查：声明给变量一个类型。</strong>先为声明表达式求出类型，再把该类型赋给变量。<ul>
+      <li><strong>声明表达式中出现的任何变量必须「已经被声明过」</strong>：或者在<strong>本声明所在的声明序列中更早</strong>，或者<strong>在其他地方更早</strong>。具体地：<ul>
+        <li>对量化变量 —— 指在一个<strong>外层量词</strong>之内；</li>
+        <li>对 signature 的字段 —— 指该字段是<strong>继承来的</strong>；</li>
+        <li>对函数/谓词参数 —— 指在<strong>外围函数或谓词的参数声明</strong>中。</li>
+      </ul></li>
+    </ul></li>
+  </ul>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">注意</span>
+    <p><strong>signature 中字段声明的声明表达式，不得引用「在其他 signature 中声明的字段」，除非它们是继承来的。</strong></p>
+  </div>
+</div>
+
+<h4>集合（一元）声明与默认标量</h4>
+<div class="callout key">
+  <span class="tag"><code>declSetExpr ::= [mult | set] expr</code></span>
+  <p><strong>声明表达式是任意表达式。</strong>若它表示一个集合（一元关系），可以用重数关键字作前缀；<strong>省略关键字时，被声明变量默认被约束为「标量」（即单例集合）</strong>。四种写法的效果：</p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>写法</th><th>效果</th></tr></thead>
+    <tbody>
+      <tr><td><strong>省略</strong></td><td>约束为<strong>标量</strong>（单例集合）</td></tr>
+      <tr><td><strong><code>set</code></strong></td><td><strong>消除这个约束</strong>（可以是任意集合）</td></tr>
+      <tr><td><strong><code>lone</code></strong></td><td><strong>把约束弱化，允许变量表示一个「可选项（option）」</strong>：单例集合<strong>或</strong>空集</td></tr>
+      <tr><td><strong><code>some</code></strong></td><td>约束变量表示<strong>非空集合</strong></td></tr>
+      <tr><td><strong><code>one</code></strong></td><td><strong>没有效果</strong>，等价于省略</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:.5em"><strong>若表达式不表示集合（元数 ≥ 2），则不得用重数关键字作前缀。</strong></p>
+</div>
+
+<h4>箭头两侧的重数标注</h4>
+<div class="callout key">
+  <span class="tag"><code>declRelExpr ::= declRelExpr' [mult] -&gt; [mult] declRelExpr'</code></span>
+  <p>若声明表达式形如 <code>e1 m-&gt;n e2</code>（m、n 为重数关键字），<strong>该箭头表示的关系，其元组是 e1 的元组与 e2 的元组的串接</strong>。此时：</p>
+  <ul>
+    <li><strong>若标注 n 存在：所声明变量表示的关系，对 e1 中的每个元组 t1，被要求含有 n 个「以 t1 开头」的元组。</strong></li>
+    <li><strong>若标注 m 存在：对 e2 中的每个元组 t2，被要求含有 m 个「以 t2 结尾」的元组。</strong></li>
+    <li>标注解释：<strong><code>lone</code> = 零或一；<code>one</code> = 恰好一；<code>some</code> = 一或多。</strong></li>
+  </ul>
+  <p><strong>当 e1、e2 是一元时，这些就退化为熟悉的概念：</strong></p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>声明</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>X -&gt; one Y</code></td><td><strong>从 X 到 Y 的全函数（total function）</strong></td></tr>
+      <tr><td><code>X -&gt; lone Y</code></td><td><strong>从 X 到 Y 的偏函数（partial function）</strong></td></tr>
+      <tr><td><code>X one -&gt; one Y</code></td><td><strong>X 到 Y 的双射（bijection）</strong></td></tr>
+    </tbody>
+  </table>
+  <p>这就是 6.2.1 中 <code>Room &lt;: keys : Room lone -&gt; Key</code>（偏函数）与 A.5.1 中 <code>one -&gt; one</code>（双射）的读法。</p>
+</div>
+
+<h4>嵌套箭头声明的展开</h4>
+<div class="callout key">
+  <span class="tag">嵌套标注产生「逐像」约束</span>
+  <p>形如</p>
+<pre><code>r: e1 m -&gt; n (e2 m' -&gt; n' e3)</code></pre>
+  <p>的声明<strong>既产生由 m、n 描述的约束，也产生由 m'、n' 描述的额外约束</strong>。嵌套部分的约束与「顶层箭头表达式的重数约束」相同，但<strong>施加于「所声明关系在某个元组之下的像」—— 即每个能产生嵌套表达式取值的像</strong>。展开式：</p>
+  <ul>
+    <li><strong>e1 表示集合时</strong>，等价于声明<pre><code><span class="k">all</span> x: e1 | x.r : e2 m' -&gt; n' e3</code></pre></li>
+    <li><strong>e1 不是集合时</strong>，量化必须遍历相应的元组。例如 e1 为二元时，等价于声明<pre><code><span class="k">all</span> x, y: univ | x-&gt;y <span class="k">in</span> e1 =&gt; x.(y.r) : e2 m' -&gt; n' e3</code></pre></li>
+  </ul>
+  <p>——第 6.4.2 中把 <code>data: set Addr -&gt; set Data</code> 精化为 <code>data: Addr -&gt; Data</code>（即「每个地址至多映射一个数据」）正是这种「逐列重数」的应用；而 6.3 中 <code>selection: Window -&gt; set Asset</code> 的嵌套标注同理。</p>
+</div>
+
+<h4>字段声明：约束 <code>this.f</code>，类型为 <code>S -&gt; e</code></h4>
+<div class="callout key">
+  <span class="tag">signature 内声明的核心差异</span>
+  <p><strong>signature 内的声明本质上解释相同，但对字段 f 而言，声明约束适用于 <code>this.f</code>，而不是 f 本身</strong> —— 即「用 f 解引用 signature 的某个元素所得的值」。因此：</p>
+<pre><code><span class="k">sig</span> S {f: e}</code></pre>
+  <p><strong>并不约束 f 是 e 的子集</strong>（若 f 是普通变量则会），<strong>而是蕴含</strong></p>
+<pre><code><span class="k">all</span> this: S | this.f <span class="k">in</span> e</code></pre>
+  <ul>
+    <li><strong>此外，e 中出现的任何字段都按「signature 事实的规则」展开</strong>（见 B.7.2）。</li>
+    <li><strong>重数约束与 <code>disj</code>/<code>part</code> 也做同样处理。</strong>例如若 e 表示一元关系，隐式的重数约束将使 <code>this.f</code> 成为一个标量，<strong>从而 f 本身表示「在 S 上的全函数」</strong>。</li>
+    <li><strong>字段的类型检查具有同样的风格：f 不被赋类型 e，而被赋类型 <code>S -&gt; e</code>。</strong>即关系 f 的定义域类型是 S，而 <code>this.f</code> 与 e 类型相同。</li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">这正是 6.2.1 那个「声明式子集」写法的存在理由</span>
+    <p>字段声明 <code>keys: Room -&gt; set Key</code> 只约束「每个房间有若干钥匙」（从 Room 视角），<strong>无法</strong>表达「每把钥匙至多属于一个房间」（从 Key 视角）。要补上后者，必须写成约束形式的声明约束 <code>Room &lt;: keys : Room lone -&gt; Key</code> —— 详见 <a href="#sb78">B.7.8</a> 的「声明约束」小节。同理，第 6.4.2 中「缓存是内存的函数」也必须写成 <code>cache: Mem -&gt; lone Data</code> 之类的显式约束来补足反向重数。</p>
+  </div>
+</div>
+
+<h3 id="sb74">B.7.4 Constraint Paragraphs · 约束段</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>factDecl   ::= <span class="k">fact</span> [factId] constraintSeq
+predDecl   ::= <span class="k">pred</span> [sigRef ::] predId ( decl,* ) constraintSeq
+funDecl    ::= <span class="k">fun</span> [sigRef ::] funId ( decl,* ) : declExpr { expr }
+assertDecl ::= <span class="k">assert</span> [assertId] constraintSeq
+constraintSeq ::= { constraint* }
+constraint ::= … | [expr ::] predRef ( expr,* )
+expr       ::= … | [expr ::] funRef ( expr,* )</code></pre>
+</div>
+
+<table>
+  <thead><tr><th>段</th><th>原文定义</th><th>可被 Analyzer 做什么</th></tr></thead>
+  <tbody>
+    <tr><td><strong><code>fact</code></strong></td><td><strong>一个「总是成立的」约束</strong></td><td>参与每一次分析（被合取进 F and D）</td></tr>
+    <tr><td><strong><code>pred</code></strong></td><td><strong>一个「可在不同上下文中实例化」的约束模板</strong></td><td>可被<strong>模拟（simulated）</strong>，即 <code>run</code></td></tr>
+    <tr><td><strong><code>fun</code></strong></td><td><strong>一个「表达式模板」</strong></td><td>可被调用；也可 <code>run</code></td></tr>
+    <tr><td><strong><code>assert</code></strong></td><td><strong>一个「预期应从模型 facts 推出」的约束，因而是一种「有意的冗余（intentional redundancy）」</strong></td><td>可被<strong>检验（checked）</strong>；pred 与 fun 可被模拟</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">命名规则</span>
+  <ul>
+    <li><strong>fact 可以为了文档目的而命名。</strong></li>
+    <li><strong>assert 可以命名也可以匿名；但由于「检验一个断言的命令必须指名它」，所以匿名断言无法被检验。</strong></li>
+    <li><strong>函数与谓词必须总是命名。</strong></li>
+  </ul>
+</div>
+<div class="callout key">
+  <span class="tag">约束以序列给出，隐式合取</span>
+  <p>fact 由「可选的名字 + 一个以<strong>约束序列</strong>给出的约束」组成，<strong>序列中的约束被隐式合取</strong>：</p>
+<pre><code><span class="k">fact</span> Transitive {
+  <span class="k">all</span> a, b, c: univ | a in b.r &amp;&amp; b in c.r =&gt; a in c.r
+  <span class="k">no</span> iden &amp; r
+}</code></pre>
+  <p>谓词声明由「谓词名 + 若干参数声明 + 一个以约束序列给出的约束」组成，序列同样隐式合取。</p>
+</div>
+
+<h4>匿名接收者参数 <code>pred S::f</code></h4>
+<div class="callout key">
+  <span class="tag">形式参数中的「第一个匿名参数」</span>
+  <p>参数声明可以包含一个<strong>以匿名形式声明的第一个参数</strong>。当谓词以下列形式声明时：</p>
+<pre><code><span class="k">pred</span> S::f (…) {…}</code></pre>
+  <p><strong>第一个参数被取为「signature S 上的一个标量」，并在谓词体内用关键字 <code>this</code> 引用它</strong> —— 就好像声明本写成：</p>
+<pre><code><strong>pred</strong> f (<strong>this</strong>: S, …) {…}</code></pre>
+  <p><strong>函数声明类似</strong>：它由「函数名 + 若干参数声明 + 一个表达式」组成；参数声明<strong>包含一个用于「函数结果」的声明表达式</strong>，它对应于表达式的值；<strong>第一个参数同样可以匿名声明，规则与谓词完全一致。</strong></p>
+</div>
+
+<h4>调用 = 文本内联</h4>
+<div class="callout key">
+  <span class="tag">语义</span>
+  <p><strong>谓词可以为每个参数提供一个表达式而作为约束被调用；函数 likewise 可以为每个参数提供一个表达式而作为表达式被调用。</strong></p>
+  <p><strong>调用可以被视为「文本内联（textual inlining）」</strong>：</p>
+  <ul>
+    <li>谓词调用得到的约束 = 取谓词体的约束，<strong>把形参替换为调用中相应的表达式</strong>；</li>
+    <li>函数调用得到的表达式 = 取函数体的表达式，<strong>把形参替换为调用中相应的表达式</strong>。</li>
+  </ul>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">两个直接推论</span>
+    <p><strong>① 不支持递归调用。</strong>这是第 4.4.3 中 <code>pred path</code> 必须借助传递闭包 <code>^</code> 来表达的深层语言原因，也是第 6.1.4 中 <code>send</code> 谓词不能自递归的原因。</p>
+    <p><strong>② 因此每次调用都拥有自己的局部变量</strong> —— 内联把形参换成调用点的表达式，<strong>不存在「同名参数互相冲突」的危险</strong>，嵌套调用也各自独立。</p>
+  </div>
+</div>
+
+<h4>接收者语法与解耦</h4>
+<div class="callout key">
+  <span class="tag"><code>p(a,b,c)</code> 与 <code>a::p(b,c)</code> 等价</span>
+  <p><strong>函数或谓词调用可以把它的第一个参数放在「接收者位置」。因此除了写 <code>p (a, b, c)</code>，还可以写 <code>a::p (b, c)</code>。</strong></p>
+  <p><strong>调用的形式不受声明形式的约束。</strong>虽然常见做法是「既用匿名接收者参数声明、又用接收者语法调用」，但<strong>这并非必需</strong>：</p>
+  <ul>
+    <li><strong>第一个参数可以不论声明格式而以接收者形式呈现；</strong></li>
+    <li><strong>第一个参数也可以不论使用格式而匿名声明。</strong></li>
+    <li><strong>特别地：当第一个参数不是标量时，用接收者形式调用函数或谓词往往是方便的 —— 尽管在那种情况下它不能用接收者语法来<em>声明</em>。</strong>（因为 <code>pred S::f</code> 的接收者被定义为「S 上的一个标量」。）</li>
+  </ul>
+  <p>——第 6.4 中 <code>c.mem.load [a]</code>、第 6.1 中 <code>p.toSend</code> 这类「接收者不是标量也能用」的写法，其规范依据正是这一条。</p>
+</div>
+<div class="callout warn">
+  <span class="tag">段的名字唯一性</span>
+  <p><strong>在一个模块内，不得有两个约束段声明同名；一个约束段也不得与某个 signature 同名。</strong>（注意：这与「<code>run</code> 命令必须指名断言」共同决定了 assert 的命名策略。）</p>
+</div>
+
+<h3 id="sb75">B.7.5 Commands · 命令</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>runCmd   ::= [commandId :] <span class="k">run</span> funRef [scope]
+           | [commandId :] <span class="k">run</span> predRef [scope]
+checkCmd ::= [commandId :] <span class="k">check</span> assertRef [scope]
+
+scope      ::= <span class="k">for</span> number
+             | <span class="k">for</span> [number <span class="k">but</span>] typescope,+
+typescope  ::= [<span class="k">exactly</span>] number scopeable
+scopeable  ::= sigRef | <span class="k">int</span>
+sigRef     ::= [moduleRef] sigId | <span class="k">Int</span> | <span class="k">univ</span></code></pre>
+</div>
+<div class="callout key">
+  <span class="tag">命令是什么</span>
+  <p><strong>命令是「指示 Alloy Analyzer 执行一次分析」的指令。分析就是「求解约束」：寻找一个满足约束的实例。</strong></p>
+  <ul>
+    <li><strong><code>run</code> 命令让分析器搜索一个「见证某个函数或谓词之一致性（consistency）」的示例；</strong></li>
+    <li><strong><code>check</code> 命令让它搜索一个「表明某个断言不成立」的反例。</strong></li>
+  </ul>
+</div>
+<div class="callout key">
+  <span class="tag">命令名的用途与唯一性</span>
+  <p>命令名在<strong>图形界面（或命令行）中用于选择要执行的命令</strong>。在 GUI 中命令从弹出菜单里选取；<strong>命令名存在的唯一理由，是当同一个断言/函数/谓词有很多命令时，让命令更容易被识别。一个模块内不得有两个命令同名。</strong></p>
+</div>
+
+<h4>三种命令各自解出的约束</h4>
+<div class="callout key">
+  <span class="tag">核心表格（F = 所有 facts 之合取，D = 所有声明约束之合取）</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>命令</th><th>被求解的约束</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong><code>run</code> 体为 P 的谓词</strong></td>
+        <td><strong>P and F and D</strong></td>
+        <td><strong>D 包含该谓词「参数声明」的约束</strong>。<br>注意：<strong>当谓词体为空时，约束就只是「模型的 facts 与声明约束」</strong></td>
+      </tr>
+      <tr>
+        <td><strong><code>run</code> 体表达式为 E、名为 f 的函数</strong></td>
+        <td><strong>f = E and F and D</strong></td>
+        <td>这里<strong>变量 f 代表「该表达式的值」</strong>；D 同样包含函数参数的声明约束</td>
+      </tr>
+      <tr>
+        <td><strong><code>check</code> 体为 A 的断言</strong></td>
+        <td><strong>F and D and not A</strong></td>
+        <td>也就是 <strong>F and D implies A 的否定</strong>；此处 D 是所有声明约束之合取</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout key">
+  <span class="tag">原文给出的实用建议</span>
+  <p><strong>空谓词常常是「分析的有用起点」，用来判定模型是否一致；若一致，还可以检视它的若干实例。</strong>即写 <code>run {}</code>。</p>
+</div>
+<div class="callout warn">
+  <span class="tag">反复强调的那条不对称规则（此处再次出现）</span>
+  <p><strong>注意：谓词或函数的「声明约束」在「该函数或谓词被 run 时」会被使用，但在「该谓词或函数被调用（invoked）时」会被忽略。</strong></p>
+  <p>与 B.6.4 的表述完全一致 —— 因此形参声明中的 <code>set</code>/<code>one</code>/<code>lone</code> 只是文档，不构成调用点的校验。</p>
+</div>
+
+<h4>被找到的实例给哪些变量赋值</h4>
+<div class="callout key">
+  <span class="tag">三类变量</span>
+  <ul>
+    <li><strong>模型的 signature 与字段；</strong></li>
+    <li><strong>若实例来自谓词或函数：该谓词/函数的各个参数</strong> —— 其中若第一个参数是匿名声明的，<strong>会有一个名为 <code>this</code> 的参数</strong>；</li>
+    <li><strong>若实例来自函数：一个代表「表达式值」的变量，其名字与函数本身相同。</strong></li>
+  </ul>
+  <p><strong>分析器还可能给「Skolem 常量」赋值，作为存在量词的见证。</strong>是否这样做，以及<strong>「全称量词内部的存在量词」是否也被 Skolem 化</strong>，取决于用户设定的偏好（preferences）。</p>
+  <p>——这就是第 5.2.2 中「Skolem 化既减少搜索空间、也可能改变可视化」的规范来源。</p>
+</div>
+
+<h4>作用域：什么被定界</h4>
+<div class="callout key">
+  <span class="tag">只有类型 signature 被定界</span>
+  <p><strong>命令的作用域规范「对赋给类型 signature 的集合的大小设定上界」，从而把搜索变为有限。</strong></p>
+  <p><strong>只涉及类型 signature；子集 signature 不得在作用域规范中被定界。</strong></p>
+  <p>本节余下内容中，<strong>「signature」应读作与「类型 signature」同义</strong>。</p>
+</div>
+
+<h4>界的确定规则（四条，按顺序）</h4>
+<table>
+  <thead><tr><th>写法</th><th>结果</th></tr></thead>
+  <tbody>
+    <tr><td><strong>不给作用域规范</strong></td><td><strong>使用「3 个元素」的默认作用域：每个<em>顶层</em> signature 被约束为「至多表示含 3 个元素的集合」</strong></td></tr>
+    <tr><td><code>for N</code></td><td>默认值改为 <strong>N</strong></td></tr>
+    <tr><td><code>for N but ...</code></td><td><code>but</code> 之后列出的每个 signature 受其给定界约束；<strong>任何未给出界的顶层 signature 由默认值 N 定界</strong></td></tr>
+    <tr><td><strong>没有默认值的显式列表</strong></td><td>列出的每个 signature 受其给定界约束</td></tr>
+  </tbody>
+</table>
+
+<h4>隐式界（四条，按顺序）</h4>
+<table>
+  <thead><tr><th>条件</th><th>隐式界</th></tr></thead>
+  <tbody>
+    <tr><td><strong>抽象 signature 无显式界，但其子 signature 都有界</strong>（隐式或显式）</td><td><strong>它的界 = 其各子 signature 界之和</strong></td></tr>
+    <tr><td><strong>抽象 signature 有界（显式或默认），且其子 signature「除一个之外」都有界</strong></td><td><strong>剩下那个子 signature 的界 = 抽象 signature 的界 − 其余子 signature 界之和</strong><br>例：<code>for 4 but 3 A, 1 B, 1 C</code>（A、B、C 扩展 <code>abstract sig X</code>）⇒ X 为 5，且<strong>未指定的那个扩展被定界为 1</strong></td></tr>
+    <tr><td><strong>用重数关键字 <code>one</code> 声明的 signature</strong></td><td><strong>界为 1</strong></td></tr>
+    <tr><td>若按上述规则无法为某 signature 确定隐式界</td><td><strong>该 signature 没有隐式界</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">原文紧接的一条兜底规则</span>
+  <p><strong>如果按上述规则无法为某个 signature 确定隐式界，那么该 signature 就没有隐式界。</strong>（这通常会使作用域不满足下面要求的「完备性」而被 Analyzer 拒绝。）</p>
+</div>
+<div class="callout key">
+  <span class="tag"><code>exactly</code>：把上界变成「上下双界」并向上传播</span>
+  <p><strong>若作用域规范使用了关键字 <code>exactly</code>，该界就被当作「对该 signature 基数的<em>上界与下界</em>」。隐式界的规则相应调整。例如：一个「其子 signature 被 <code>exactly</code> 约束」的抽象 signature，也将同样被 <code>exactly</code> 约束。</strong></p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 为什么第 6 章反复用 <code>exactly</code></span>
+    <p>第 6.1.5 中「用 <code>exactly</code> 让恰好 k 个环成立」、第 6.2 中「<code>exactly 1 Guest</code> 逼出更小的反例」、第 6.4 中「<code>exactly</code> 固定内存大小」都是同一条规则的应用：<strong><code>exactly</code> 既收紧了搜索空间（消掉「更少元素」的等价实例），又通过对抽象父集的自动传播避免了不一致的作用域报错。</strong></p>
+  </div>
+</div>
+
+<h4>作用域必须满足的三条性质</h4>
+<div class="callout key">
+  <span class="tag">原文列表</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>性质</th><th>原文含义</th></tr></thead>
+    <tbody>
+      <tr><td><strong>一致（consistent）</strong></td><td><strong>「至多有一个界可以与任何 signature 相关联」</strong> —— 无论该界是隐式的、显式的、还是默认的。</td></tr>
+      <tr><td><strong>完备（complete）</strong></td><td><strong>每个顶层 signature 都必须有一个界。</strong></td></tr>
+      <tr><td><strong>均匀（uniform）</strong></td><td><strong>一个「没有界的 signature」不得拥有「有界的子 signature」。</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">解读 · 三条性质各自防的是什么</span>
+    <p><strong>一致</strong>防「同一个 signature 被两个不同的界夹击」（默认 N 与显式列表重叠时会发生）；<strong>完备</strong>防「某个顶层集无上界 ⇒ 搜索空间无限」；<strong>均匀」防「界在层级中出现空洞」—— 若父集未定界而子集已定界，那么搜索空间里出现的「父集比子集大」的实例，<em>并不对应原模型的任何一个合法解释</em>（因为父集的元素数不可能少于其各不相交子集之和），得出的结论也就失去意义。</strong>这就是第 6.1.5 中给 <code>RingProcess</code> 定界时必须连带给抽象父 <code>Process</code> 定界的直接原因。</p>
+  </div>
+</div>
+
+<h4>整数作用域：<code>Int</code> 与 <code>int</code></h4>
+<div class="callout key">
+  <span class="tag">两个不同的东西</span>
+  <ul>
+    <li><strong><code>Int</code>（大写）是一个 signature</strong>（承载整数的对象集合），因此<strong>可以出现在 <code>sigRef</code> 中，被当作普通 signature 定界</strong>。<strong>默认情况下 <code>Int</code> 被定界为 3 个对象</strong>；由于这些对象被期望取不同的整数值，<strong>这意味着界内可用的值是 0、1、2</strong>。</li>
+    <li><strong><code>int</code>（小写）是一个「可定界的类别（scopeable）」</strong>，出现在 <code>scopeable ::= sigRef | int</code> 中。<strong>对 <code>int</code> 指定界 k 会把可用的原始整数值限制在 <code>0 … 2^k − 1</code>（含两端）。</strong>整数界的<strong>默认值是 5</strong> —— 也就是说，<strong>在没有显式整数界时，可用的原始整数值是 0 到 31。</strong></li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">实践后果：这是最容易踩的坑</span>
+    <p>第 6.1.7 中「机器直径 12 有解、13 无解」这类<strong>基数结论</strong>，必须配合<strong>足够大的 <code>Int</code> 界与 <code>int</code> 界</strong>；否则「找不到更大的实例」完全可能只是<strong>整数空间不够造成的假阴性</strong>。附录 A.4.2 明确要求「显式地定界整数」，理由就在这里。回顾 B.1 的关键字表：<code>Int</code> 与 <code>int</code> 是两个不同的保留字。</p>
+  </div>
+</div>
+
+<h3 id="sb76">B.7.6 Expressions · 表达式</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>expr ::= [@] varId | sigRef | <span class="k">this</span>
+     | <span class="k">none</span> | <span class="k">univ</span> | <span class="k">iden</span>
+     | unOp expr | expr binOp expr | expr '[' expr ']'
+     | { decl,+ | [constraint] }
+     | <span class="k">let</span> letDecl,+ | expr
+     | <span class="k">if</span> constraint <span class="k">then</span> expr <span class="k">else</span> expr
+     | <span class="k">Int</span> intExpr
+     | [expr ::] funRef ( expr,* )
+     | ( expr )
+
+letDecl ::= varId = expr
+binOp   ::= + | - | &amp; | . | -&gt; | &lt;: | :&gt; | ++
+unOp    ::= ~ | * | ^</code></pre>
+</div>
+<div class="callout key">
+  <span class="tag">两类表达式</span>
+  <p><strong>Alloy 中有两类表达式：关系表达式与整数表达式。当不加限定时，术语「表达式」指的是「关系表达式」。</strong></p>
+  <p><strong>每个关系表达式都表示一个关系。集合被表示为「元数 1 的关系」，标量被表示为「单例集合」，元组是「单例关系」。</strong></p>
+  <p><strong>Alloy 的分析涉及「求约束的解」。对于任何一个可能作为该约束之解的候选实例，约束中的每个表达式都有一个值，该值由「实例对变量所赋的值」给出。</strong></p>
+</div>
+
+<h4>简单表达式：变量、signature 引用、<code>this</code></h4>
+<div class="callout key">
+  <span class="tag"><code>expr ::= [@] varId | sigRef | this</code></span>
+  <ul>
+    <li><strong>若变量是一个字段名</strong>，其值 = 在被求值的实例中绑定给该字段的值。<br><strong>在「字段名被隐式解引用」的上下文中 —— 即 signature 声明表达式与 signature 事实 —— <code>@</code> 前缀阻止解引用</strong>（见 B.7.2）。<strong>若存在多个同名字段，该引用会被解析；若有歧义则被拒绝</strong>（见 B.6）。</li>
+    <li><strong>若变量是量化变量或 let 绑定变量</strong>，其值由该绑定决定。</li>
+    <li><strong>若变量是某个函数或谓词的参数</strong>：当前的分析<strong>必须是对该函数或谓词的一次 <code>run</code></strong> —— <strong>因为若函数或谓词被调用，其含义已由内联取得，参数早已被替换掉</strong> —— 而在搜索期间，<strong>该变量的值被「试探性地（speculatively）」绑定到每一个可能的值</strong>。</li>
+  </ul>
+</div>
+
+<h4>三个关系常量</h4>
+<div class="callout key">
+  <span class="tag"><code>none</code> / <code>univ</code> / <code>iden</code></span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>常量</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><strong><code>none</code></strong></td><td><strong>空的元数 1 关系</strong>，即「不含任何元素的集合」</td></tr>
+      <tr><td><strong><code>univ</code></strong></td><td><strong>全域的元数 1 关系</strong>，即「含每个元素的集合」</td></tr>
+      <tr><td><strong><code>iden</code></strong></td><td><strong>恒等关系</strong>，即「把每个元素与自身相关联」的二元关系</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">一个极易出错的点（原文特意提醒）</span>
+    <p><strong>注意 <code>univ</code> 与 <code>iden</code> 是在「全体原子的宇宙」上被解释的。</strong>所以像</p>
+<pre><code>iden <span class="k">in</span> r</code></pre>
+    <p><strong>这样的约束将不可满足，除非关系 r 的类型是 <code>univ -&gt; univ</code>。</strong>要说「r 是自反的」，你更应当写</p>
+<pre><code>t &lt;: iden <span class="k">in</span> r</code></pre>
+    <p>例如，其中 r 的类型是 <code>t -&gt; t</code>。</p>
+    <p>——这正是 A.1.2/A.1.3 中「自反性必须写成 <code>t&lt;:iden in r</code>」的规范出处，也是本章多处的 <code>&lt;:</code> 用法的根由。</p>
+  </div>
+</div>
+
+<h4>复合表达式与全部运算符的语义</h4>
+<div class="callout key">
+  <span class="tag">运算符含义（原文完整列表）</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>表达式</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td><code>~e</code></td><td>e 的<strong>转置</strong></td></tr>
+      <tr><td><code>^e</code></td><td>e 的<strong>传递闭包</strong></td></tr>
+      <tr><td><code>*e</code></td><td>e 的<strong>自反-传递闭包</strong></td></tr>
+      <tr><td><code>e1 + e2</code></td><td>e1 与 e2 的<strong>并</strong></td></tr>
+      <tr><td><code>e1 - e2</code></td><td><strong>差</strong></td></tr>
+      <tr><td><code>e1 &amp; e2</code></td><td><strong>交</strong></td></tr>
+      <tr><td><code>e1 . e2</code></td><td>e1 与 e2 的<strong>连接（join）</strong></td></tr>
+      <tr><td><code>e2 [e1]</code></td><td>e1 与 e2 的<strong>连接</strong>（与上式同值，但优先级不同）</td></tr>
+      <tr><td><code>e1 -&gt; e2</code></td><td>e1 与 e2 的<strong>积（product）</strong></td></tr>
+      <tr><td><code>e2 &lt;: e1</code></td><td>e1 <strong>对 e2 的域限制</strong></td></tr>
+      <tr><td><code>e1 :&gt; e2</code></td><td>e1 <strong>对 e2 的值域限制</strong></td></tr>
+      <tr><td><code>e1 ++ e2</code></td><td>e1 <strong>被 e2 关系覆盖（override）</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">元数要求</span>
+    <ul>
+      <li><strong>前三个（一元运算符）要求 e 是二元的。</strong></li>
+      <li><strong>集合论运算（并、差、交）与关系覆盖，要求其参数具有相同元数。</strong></li>
+      <li><strong>限制运算符要求其参数 e2 是一个集合。</strong></li>
+      <li><strong>注意 <code>e1[e2]</code> 等价于 <code>e2.e1</code>，但点运算符与方括号运算符有不同的优先级</strong>（点在 B.4 中优先级 2，方括号是 4）。</li>
+    </ul>
+  </div>
+</div>
+
+<h4>每个运算符的精确定义</h4>
+<div class="callout">
+  <span class="tag">原文逐条</span>
+  <ul>
+    <li><strong>转置</strong>是关系的镜像：<strong>把每个元组反转所得的关系。</strong></li>
+    <li><strong>传递闭包</strong>是<strong>「包含它的最小的传递关系」</strong>（传递 = 只要存在 b 使关系把 a 联到 b、b 联到 c，就把 a 联到 c）。</li>
+    <li><strong>自反-传递闭包</strong>是<strong>「包含它的最小的、既传递又自反的关系」</strong>（自反 = 包含恒等关系）。</li>
+    <li><strong>并、差、交</strong>是标准的集合论运算符，<strong>施加于「被视作元组集合的关系」</strong>：并含 e1 或 e2 中的每个元组；交含<strong>两者都</strong>有的元组；差含「在 e1 中但不在 e2 中」的元组。</li>
+    <li><strong>连接（join）</strong>：取「第一个关系的每个元组」与「第二个关系的每个元组」的每种组合，<strong>若第一个元组的最后一个元素与第二个元组的第一个元素匹配，则把两个元组串接、并省略匹配的那个元素</strong>。</li>
+    <li><strong>积（product）</strong>：取两个关系元组的每种组合，<strong>并纳入它们的串接</strong>。</li>
+    <li><strong>域限制</strong>：e1 对 e2 的域限制含「e1 中所有<strong>以 e2 的某个元素开头</strong>」的元组；<strong>值域限制</strong>含「e1 中所有<strong>以 e2 的某个元素结尾</strong>」的元组。<strong>这两个运算符在解析重载时特别好用</strong>（见 B.6）。</li>
+    <li><strong>关系覆盖</strong>：<code>e1 ++ e2</code>（e1 被 e2 覆盖）含 <strong>e2 的全部元组</strong>，此外还含 <strong>e1 中那些「第一个元素不是 e2 中任何元组的第一个元素」的元组</strong>。</li>
+  </ul>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 覆盖定义与 6.3 的 <code>++</code> 用法严丝合缝</span>
+    <p>注意覆盖的定义<strong>只看「第一个元素」</strong>，因此 <code>++</code> 只适用于二元关系。第 6.3 中 <code>buf' = (buf - cs.assets) ++ (cs.selection ++ ...)</code>、第 6.4 中 <code>m.data' = m.data ++ (a -&gt; d)</code> 之所以能用覆盖来表达「除被改写的地址外保持不变」，正是因为<strong>「同键覆盖、异键保留」就是这条定义的直接后果</strong>；而 B.6.1 之所以规定「对不相交关系用 <code>++</code> 报 disjointness 错误」（即使结果非空），也是因为<strong>覆盖的语义预设了两边会重叠，否则你该用 <code>+</code>。</strong></p>
+  </div>
+</div>
+
+<h4>演绎（comprehension）表达式</h4>
+<div class="callout key">
+  <span class="tag"><code>expr ::= { decl,+ | [constraint] }</code></span>
+  <p>表达式</p>
+<pre><code>{x1: e1, x2: e2, … | F}</code></pre>
+  <p>表示这样的关系：<strong>取所有形如 <code>x1 -&gt; x2 -&gt; …</code> 的元组，其中 x1 从集合 e1 中选取、x2 从 e2 中选取，依此类推，且约束 F 成立。</strong></p>
+  <ul>
+    <li><strong>e1、e2 等必须是元数 1 的（unary）；</strong></li>
+    <li><strong>且不得带重数关键字作前缀；</strong></li>
+    <li><strong>更一般的声明形式不允许，唯一的例外是 <code>disj</code> 与 <code>part</code> 关键字的使用。</strong></li>
+  </ul>
+  <p>这就是 6.1.4 中 <code>{p: Process | ...}</code>、以及 B.7.7 中把 <code>Int ie</code> 定义为 <code>{i: Int | int i = ie}</code> 的语法基础。</p>
+</div>
+
+<h4>let 表达式</h4>
+<div class="callout key">
+  <span class="tag"><code>expr ::= let letDecl,+ | expr</code></span>
+  <p>表达式</p>
+<pre><code><span class="k">let</span> v1 = e1, v2 = e2, … | e</code></pre>
+  <p>等价于表达式 e，<strong>但其中每个绑定变量 v1、v2 等被其赋值的表达式 e1、e2 等替换</strong>。</p>
+  <ul>
+    <li><strong>出现在 let 声明表达式中的变量必须早先已被声明。</strong></li>
+    <li><strong>不允许递归绑定。</strong></li>
+  </ul>
+</div>
+
+<h4>if 表达式与其余形式</h4>
+<div class="callout key">
+  <span class="tag">三条收尾</span>
+  <ul>
+    <li><strong>if 表达式</strong>：<code>if F then e1 else e2</code> 在约束 F 为真时取值 e1，否则取值 e2。</li>
+    <li><strong>调用表达式</strong> <code>[expr ::] funRef ( expr,* )</code> 的含义在 <a href="#sb74">B.7.4</a> 解释；<strong>整数表达式</strong> <code>Int intExpr</code> 的含义在 <a href="#sb77">B.7.7</a> 解释。</li>
+    <li><strong>括号</strong>：<code>( expr )</code> 可用来强制某种特定的运算符应用次序。</li>
+  </ul>
+</div>
+
+<h3 id="sb77">B.7.7 Integers · 整数</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>constraint ::= intExpr [neg] intCompOp intExpr
+expr       ::= <span class="k">Int</span> intExpr
+intExpr ::= number | '#' expr | <span class="k">sum</span> expr | <span class="k">int</span> expr
+          | <span class="k">if</span> constraint <span class="k">then</span> intExpr <span class="k">else</span> intExpr
+          | intExpr intOp intExpr
+          | <span class="k">let</span> letDecl,… | intExpr
+          | <span class="k">sum</span> decl,+ | intExpr
+          | ( intExpr )
+intOp     ::= + | -
+intCompOp ::= &lt; | &gt; | = | =&lt; | &gt;=</code></pre>
+</div>
+
+<div class="callout key">
+  <span class="tag">Alloy 中有两类整数（这是全节的核心）</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th></th><th>整数<em>对象</em>（integer-carrying objects）</th><th>原始整数值（primitive integer values）</th></tr></thead>
+    <tbody>
+      <tr><td><strong>由什么表示</strong></td><td>预定义 signature <strong><code>Int</code></strong> 所表示的集合</td><td>整数表达式（<code>intExpr</code>）的值</td></tr>
+      <tr><td><strong>能否作为原子出现在关系中</strong></td><td><strong>能</strong> —— 它们「可以像任何其他原子一样出现在被绑定到变量的关系中」</td><td><strong>不能</strong></td></tr>
+      <tr><td><strong>能否被量化</strong></td><td><strong>能</strong>（<code>all i: Int | ...</code>）</td><td><strong>不能</strong></td></tr>
+      <tr><td><strong>能否直接用算术运算符</strong></td><td><strong>不能</strong> —— 整数运算符不得直接应用于这些对象</td><td><strong>能</strong>，可被组合与比较</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:.5em"><strong>整数表达式在语法上（syntactically）与关系表达式相区分</strong>（呼应 B.6.5：解析器无需类型信息即可区分 <code>+</code> 与 <code>-</code> 的两种含义）。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">关键不变式：不同的整数对象绝不携带相同的原始整数值</span>
+  <p><strong>Distinct integer objects never carry the same primitive integer value.</strong> 所以下面的断言<strong>恒真</strong>：</p>
+<pre><code><span class="k">assert</span> IntegersCanonical {no disj i, j: Int | int i = int j}</code></pre>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 这就是第 6.4 记忆模型能work的前提</span>
+    <p>第 6.4 中 <code>Canonicalize</code>（「没有两个内存具有相同的 data」）是<strong>需要显式写出的 fact</strong>；而对 <code>Int</code> 而言，「值 → 对象」的单射性是<strong>语言保证的</strong>，无需 fact。因此 A.5.2 中「<code>one sig</code> 表示常量」能成立，也正因为每个原子有唯一的身份。原书用 <code>IntegersCanonical</code> 这个名字点明它与内存正规化的同构关系。</p>
+  </div>
+</div>
+
+<h4>从关系表达式取得原始整数值</h4>
+<div class="callout key">
+  <span class="tag"><code>sum expr</code> 与 <code>int expr</code></span>
+  <p><strong>两种运算都返回「与关系表达式 e 所表示集合中的整数对象所关联的整数值之和」。<code>int e</code> 与 <code>sum e</code> 之间没有语义差别。</strong></p>
+  <ul>
+    <li><strong>意图是：用 <code>sum</code> 来明确标示「该表达式被预期不是单例」。</strong></li>
+    <li><strong>通常 <code>int</code> 会应用于「表示单个整数对象」的表达式，但它被定义在「整数对象的集合」上，以便它<em>总是</em>有值。</strong>（空集上的和是 0 —— 因此 <code>int</code> 永不失败。）</li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">实践提示</span>
+    <p>这解释了为什么第 6 章里 <code>#(set)</code> 与 <code>sum</code> 常被混用：<strong>两者都是「把关系折算成整数」的桥</strong>，而 <code>int e</code> 在 e 恰好为单例时与直接取该原子的值一致。写 <code>int</code> 而实际得到多元素集合时结果会是「求和」而不是报错 —— 这是一个静默陷阱。</p>
+  </div>
+</div>
+
+<div class="callout key">
+  <span class="tag"><code># expr</code>：基数</span>
+  <p><strong>原始整数值也可以从「任意类型的关系表达式」通过基数字符串表达式取得：<code>#e</code> 的值对应于 e 的基数 —— 即「关系表达式 e 所表示的关系中<strong>元组的个数</strong>」。</strong></p>
+  <p><strong>注意是「元组个数」而非「原子个数」</strong>：因此 <code>#(A -&gt; B)</code> 是 |A|·|B|，而不是 |A|+|B|。这与第 6.1.7 中「用 <code>#</code> 数环上的进程数」时必须先降为一元关系相呼应。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">数值常量</span>
+  <p><strong>数值常量可以作为整数表达式使用：<code>intExpr ::= number</code>。一个数值常量是一串一个以上的数字，其第一位不是零。</strong>（即不允许 <code>007</code> 这类写法；<code>0</code> 本身是单个数字且第一位非零的情形由「一位数」满足 —— 原文的表述严格来说排除了前导零。）</p>
+</div>
+
+<h4>算术与比较</h4>
+<div class="callout key">
+  <span class="tag"><code>intOp ::= + | -</code></span>
+  <p><code>i + j</code> 求值为整数表达式 i 与 j 的值之和；<code>i - j</code> 求值为 i 的值减 j 的值。</p>
+  <p><strong>注意加号与减号是重载的：它们在整数表达式中充当「算术运算符」，在关系表达式中充当「并与差」。</strong></p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>比较</th><th>为真的条件</th></tr></thead>
+    <tbody>
+      <tr><td><code>i = j</code></td><td>两个整数表达式有<strong>相同的值</strong></td></tr>
+      <tr><td><code>i &lt; j</code></td><td>i <strong>小于</strong> j</td></tr>
+      <tr><td><code>i &gt; j</code></td><td>i <strong>大于</strong> j</td></tr>
+      <tr><td><code>i =&lt; j</code></td><td>i <strong>小于等于</strong> j</td></tr>
+      <tr><td><code>i &gt;= j</code></td><td>i <strong>大于等于</strong> j</td></tr>
+    </tbody>
+  </table>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">为什么是 <code>=&lt;</code> 而不是 <code>&lt;=</code></span>
+    <p><strong>「小于等于」运算符被非常规地写成「等号在前」，以免它看起来像一个箭头，从而可能与逻辑蕴含混淆。</strong></p>
+    <p>——这条设计说明与 B.1「<code>=&gt;</code> 与 <code>-&gt;</code> 都是单 token」互为因果：Alloy 里箭头家族太重要，不能让 <code>&lt;=</code> 被误读成 <code>&lt;</code> 加 <code>=</code> 或某种箭头变体。</p>
+  </div>
+  <p><strong>没有 <code>!=</code>、没有 <code>&lt;&gt;</code>：不等只能通过取反表达。</strong>比较运算符取反的形式</p>
+<pre><code>e1 <span class="k">not</span> op e2</code></pre>
+  <p>等价于把否定移到外面：</p>
+<pre><code><span class="k">not</span> e1 op e2</code></pre>
+  <p><strong>否定运算符 <code>!</code> 与 <code>not</code> 含义相同。</strong></p>
+</div>
+
+<div class="callout key">
+  <span class="tag"><code>sum decl,+ | intExpr</code>：区间求和</span>
+  <p>整数表达式</p>
+<pre><code><span class="k">sum</span> x: X, y: Y, … | ie</code></pre>
+  <p>求值为「<strong>对 x、y 等的所有不同绑定，整数表达式 ie 所能取的诸值之和</strong>」。</p>
+  <ul>
+    <li><strong>最一般的声明形式都被允许；</strong></li>
+    <li><strong>不过当绑定不是一阶的时候，分析可能不可行。</strong></li>
+  </ul>
+</div>
+<div class="callout key">
+  <span class="tag">if 与 let 也可用于整数表达式</span>
+  <pre><code>intExpr ::= <span class="k">if</span> constraint <span class="k">then</span> intExpr <span class="k">else</span> intExpr
+          | <span class="k">let</span> letDecl,… | intExpr</code></pre>
+  <p><strong>含义与关系表达式相同，只是值换成整数值。</strong></p>
+</div>
+
+<h4>从值回到对象：<code>Int</code> 运算符</h4>
+<div class="callout key">
+  <span class="tag"><code>expr ::= Int intExpr</code></span>
+  <p><strong>表达式 <code>Int ie</code> 表示「与整数表达式 ie 的值相关联的那个整数对象」；它等价于</strong></p>
+<pre><code>{i: Int | int i = ie}</code></pre>
+  <ul>
+    <li><strong>有可能在某次具体分析中，作用域太小而未能提供这样一个整数。在那种情况下，<code>Int ie</code> 表示空集。</strong></li>
+    <li><strong>注意：由于没有两个整数对象持有相同的整数值，它<em>绝不</em>会表示含多于一个对象的集合。</strong></li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">这是「找不到反例」的又一来源</span>
+    <p><code>Int ie</code> 在界外<strong>静默地返回空集</strong>而不是报错。所以「<code>Int 40</code>」在默认的 <code>Int</code> 界 3（可用值 0/1/2）下是 <code>none</code>。第 6 章凡是用 <code>Int k</code> 或依赖整数计数的地方，都必须同时检查 <code>Int</code> 与 <code>int</code> 两个作用域 —— 与 B.7.5 末尾的提醒完全一致。</p>
+  </div>
+  <p><strong>语法上 <code>Int</code> 出现在 <code>expr</code>（关系表达式）的产生式中</strong> —— 即 <code>Int ie</code> 是一个<strong>关系表达式</strong>（返回集合），而 <code>int e</code> 是一个<strong>整数表达式</strong>（返回原始值）。这一对「往返」是 Alloy 整数机制的全部。</p>
+</div>
+
+<h3 id="sb78">B.7.8 Constraints · 约束</h3>
+<div class="callout">
+  <span class="tag">生产式</span>
+<pre><code>constraint ::=
+    quantifier expr
+  | expr [neg] compOp expr
+  | neg constraint | constraint logicOp constraint
+  | constraint thenOp constraint [elseOp constraint]
+  | quantifier decl,+ constraintBody
+  | <span class="k">let</span> letDecl,+ constraintBody
+  | expr : declExpr
+  | constraintSeq
+  | ( constraint )
+
+constraintBody ::= constraintSeq | '|' constraint
+constraintSeq  ::= { constraint* }
+thenOp    ::= <span class="k">implies</span> | =&gt;
+elseOp    ::= <span class="k">else</span> | ,
+neg       ::= <span class="k">not</span> | !
+logicOp   ::= &amp;&amp; | || | <span class="k">iff</span> | &lt;=&gt; | <span class="k">and</span> | <span class="k">or</span>
+quantifier::= <span class="k">all</span> | <span class="k">no</span> | mult
+mult      ::= <span class="k">lone</span> | <span class="k">one</span> | <span class="k">some</span>
+compOp    ::= <span class="k">in</span> | =
+declExpr  ::= [mult | set] expr
+            | expr [mult] -&gt; [mult] expr</code></pre>
+</div>
+<div class="callout key">
+  <span class="tag">总纲</span>
+  <p><strong>基本约束（elementary constraints）由「把量词应用于关系表达式」或「比较关系表达式或整数表达式」构成。</strong></p>
+</div>
+
+<h4>量化表达式（对表达式施加量词）</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= quantifier expr</code></span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>约束</th><th>为真的条件</th></tr></thead>
+    <tbody>
+      <tr><td><code>no e</code></td><td>e 求值为「<strong>不含任何元组</strong>」的关系</td></tr>
+      <tr><td><code>some e</code></td><td>e 求值为「<strong>含一个或多个元组</strong>」的关系</td></tr>
+      <tr><td><code>lone e</code></td><td>e 求值为「<strong>至多含一个元组</strong>」的关系</td></tr>
+      <tr><td><code>one e</code></td><td>e 求值为「<strong>恰好含一个元组</strong>」的关系</td></tr>
+      <tr><td><code>all e</code></td><td><strong>被静态语义检查拒绝：它没有含义。</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 为什么 <code>all e</code> 无意义而其余四个有</span>
+    <p>这四个量词都是<strong>关于「关系里元组个数」的基数谓词</strong>，可以直接对表达式求值；而 <code>all</code> 语义上是「对所有绑定成立」，<strong>必须搭配一个声明（范围）才有意义</strong> —— 所以它只出现在 <code>all decl,+ constraintBody</code> 那条产生式里。这就是第 5 章中「<code>all r</code> 会被报错、而 <code>lone r</code>/<code>no r</code> 是合法的表达式级断言」的规范解释，也是 <code>Traces</code> 里 <code>no r.elected &amp; ...</code> 这类写法合法的原因。</p>
+  </div>
+</div>
+
+<h4>比较约束</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= expr [neg] compOp expr</code>，<code>compOp ::= in | =</code></span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>约束</th><th>为真的条件</th></tr></thead>
+    <tbody>
+      <tr><td><code>e1 in e2</code></td><td>e1 求值所得的关系是 e2 求值所得关系的<strong>子集</strong></td></tr>
+      <tr><td><code>e1 = e2</code></td><td>e1 与 e2 求值<strong>为同一个关系</strong></td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>注意：关系相等是「外延的（extensional）」—— 当两个关系含有相同的元组时它们相等。</strong></li>
+    <li><strong>取反形式 <code>e1 not op e2</code> 等价于 <code>not e1 op e2</code>；<code>!</code> 与 <code>not</code> 含义相同。</strong></li>
+    <li><strong>对整数表达式的比较在 <a href="#sb77">B.7.7</a> 中讲述。</strong>（注意 BNF 中 <code>compOp</code> 只有 <code>in</code> 和 <code>=</code>，<code>：</code> 在「声明约束」那一条单独出现。）</li>
+  </ul>
+</div>
+
+<h4>否定与逻辑组合</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= neg constraint | constraint logicOp constraint</code></span>
+  <p><strong><code>not F</code> 在 F 为假时为真，反之亦然；<code>not</code> 与 <code>!</code> 可互换。</strong></p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>约束</th><th>为真的条件</th></tr></thead>
+    <tbody>
+      <tr><td><code>F and G</code></td><td>F 真<strong>且</strong> G 真</td></tr>
+      <tr><td><code>F or G</code></td><td>F 与 G 中<strong>有一个或两个</strong>为真</td></tr>
+      <tr><td><code>F iff G</code></td><td>F 与 G <strong>同假或同真</strong></td></tr>
+      <tr><td><code>F implies G</code></td><td><strong>F 为假，或 G 为真</strong></td></tr>
+      <tr><td><code>F implies G else H</code></td><td><strong>「F 与 G 都真」或者「F 假且 H 真」</strong></td></tr>
+    </tbody>
+  </table>
+  <p><strong>逻辑运算符可以用符号可互换地书写：<code>&amp;&amp;</code> 代替 and，<code>||</code> 代替 or，<code>=&gt;</code> 代替 implies，<code>&lt;=&gt;</code> 代替 iff，逗号 <code>,</code> 代替 else。</strong></p>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">两个必须记住的组合后果</span>
+    <p>① <strong>逗号就是 else</strong>：所以 <code>all x: X | F, G</code> 里的逗号<strong>不是</strong>「合取的分隔」，而是「F 蕴含 G 否则……」。要写合取请用 <code>{ }</code>（约束序列）或 <code>&amp;&amp;</code>。<br>② <strong>else 结合最近的 then</strong>（B.4），因此 <code>p =&gt; q =&gt; r, s</code> 解析为 <code>p =&gt; (q =&gt; r, s)</code>。</p>
+  </div>
+</div>
+
+<h4>约束序列</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= constraintSeq</code>，<code>constraintSeq ::= { constraint* }</code></span>
+  <p>约束</p>
+<pre><code>{ F G H … }</code></pre>
+  <p>等价于合取</p>
+<pre><code>F and G and H and …</code></pre>
+  <p><strong>如果序列中不含任何约束，则该约束为真。</strong>（空体 <code>{}</code> 恒真 —— 这正是 <code>run {}</code> 只检查模型一致性的语法基础。）</p>
+</div>
+
+<h4>量化约束</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= quantifier decl,+ constraintBody</code></span>
+  <p>它由「一个或多个声明」加上「一个体」构成。<strong>体是「竖线加单个约束」还是「约束序列」并无区别</strong> —— 提供两种形式是为了让「体是多个约束时可以省略竖线」。原文列出四种等价写法：</p>
+<pre><code><span class="k">all</span> x: X | { F }        <span class="c">-- 有些用户偏好永远写竖线</span>
+<span class="k">all</span> x: X { F }          <span class="c">-- 有些用户偏好永不写竖线，即使序列只含一个约束</span></code></pre>
+  <p><strong>这些形式都可接受且可互换。</strong></p>
+</div>
+<div class="callout key">
+  <span class="tag">五种量词的含义（关于「绑定的个数」）</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>约束</th><th>为真的条件</th></tr></thead>
+    <tbody>
+      <tr><td><code>all x: e | F</code></td><td>F 对 x 的<strong>所有</strong>绑定为真</td></tr>
+      <tr><td><code>no x: e | F</code></td><td>F 对 x 的<strong>没有任何</strong>绑定为真</td></tr>
+      <tr><td><code>some x: e | F</code></td><td>F 对 x 的<strong>一个或多个</strong>绑定为真</td></tr>
+      <tr><td><code>lone x: e | F</code></td><td>F 对 x 的<strong>至多一个</strong>绑定为真</td></tr>
+      <tr><td><code>one x: e | F</code></td><td>F 对 x 的<strong>恰好一个</strong>绑定为真</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="callout key">
+  <span class="tag">多声明：后声明可以引用先声明</span>
+  <p>绑定变量的范围与类型由其决定（见 B.7.3）。<strong>在声明序列中，每个被声明的变量可以被其声明本身、或此前已声明的变量绑定。</strong>例如约束</p>
+<pre><code><span class="k">all</span> x: e, y: S - x | F</code></pre>
+  <p>中，<strong>x 遍历表达式 e 的值（假定 e 表示一个集合），而 y 遍历集合 S 中除 x 之外的所有元素。</strong></p>
+</div>
+<div class="callout warn">
+  <span class="tag">多声明不是嵌套量词的简写（原文重点澄清）</span>
+  <p><strong>当声明多个变量时，量词在「所有变量的绑定」上被解释。</strong>因此</p>
+<pre><code><span class="k">one</span> x: X, y: Y | F</code></pre>
+  <p>为真，当且仅当<strong>恰好存在一个「给 x 和 y 赋值并使 F 为真的绑定」</strong>。</p>
+  <p><strong>所以，尽管「带多个声明的量化约束」对某些量词而言可以看作嵌套的单声明约束的简写，但一般来说并不成立。具体地：</strong></p>
+<pre><code><span class="k">all</span> x: X, y: Y | F   <span class="c">≡ 是</span>   <span class="k">all</span> x: X | <span class="k">all</span> y: Y | F
+<span class="k">one</span> x: X, y: Y | F   <span class="c">✗ 不是</span>   <span class="k">one</span> x: X | <span class="k">one</span> y: Y | F</code></pre>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">这是全书最容易写错的一条</span>
+    <p><strong><code>all</code> 与 <code>no</code> 可以拆开，<code>one</code>/<code>some</code>/<code>lone</code> 不可以。</strong>第 6.1.4 中 <code>one p: Process | ...</code> 与第 6.2 中「恰好一个操作」的写法依赖的正是「绑定数」而非「每个变量的取值数」。写 <code>some x: X, y: Y | F</code> 时，只要<strong>有一对 (x,y)</strong> 使 F 为真即成立；而嵌套写法则要求「存在某个 x，使得存在某个 y……」——两者在 F 非对称时完全不同。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">高阶量化</span>
+  <p><strong>一个量化约束可以是高阶的（higher-order）：即它可以把「非标量的值」绑定到变量上。</strong>该约束是否可分析，<strong>取决于分析器能否对它做 Skolem 化，以及若不能，作用域有多大。</strong>（与 B.5.2 表述一致。）</p>
+</div>
+
+<h4>let 约束</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= let letDecl,+ constraintBody</code></span>
+  <p><strong>let 约束允许引入一个变量，用来「突出一个重要的子表达式」或「通过提取重复出现的子表达式使约束更短」。</strong></p>
+<pre><code><span class="k">let</span> x1 = e1, x2 = e2, … | F</code></pre>
+  <p>等价于把约束 F 中每个绑定变量 x1 的出现替换为表达式 e1、x2 替换为 e2，依此类推。</p>
+  <ul>
+    <li><strong>与所有声明一样，let 声明按顺序解释，且不得递归。</strong></li>
+    <li><strong>谓词调用在 <a href="#sb74">B.7.4</a> 中讲述。</strong></li>
+  </ul>
+  <p>附录 A.2.2 的 <code>inv</code> 谓词（<code>let addr = b.addr | ...</code>）与第 6.4 中大量 <code>let</code> 用法都受此条约束：let 是<strong>纯文本替换</strong>，不引入新的绑定，也不改变量词范围。</p>
+</div>
+
+<h4>声明约束（declaration constraint）—— 本节最重要的补充工具</h4>
+<div class="callout key">
+  <span class="tag"><code>constraint ::= expr : declExpr</code></span>
+<pre><code>declExpr ::= [mult | set] expr
+           | expr [mult] -&gt; [mult] expr</code></pre>
+  <p><strong>声明约束有两个用处。</strong></p>
+</div>
+<div class="callout key">
+  <span class="tag">用处一：把重数约束施加到「任意表达式」上</span>
+  <p><strong>声明本身只允许把重数约束加在变量上；声明约束则可以加在任意表达式上。</strong>例如</p>
+<pre><code>p.q : t <span class="k">one</span> -&gt; <span class="k">one</span> t</code></pre>
+  <p>就说「<strong>p 与 q 的连接（join）是一个双射</strong>」。</p>
+</div>
+<div class="callout key">
+  <span class="tag">用处二：表达「声明无法表达」的额外重数约束</span>
+  <p>考虑类型 <code>A -&gt; B</code> 的关系 r，它可以被声明为 A 的字段：</p>
+<pre><code><span class="k">sig</span> A {r: <span class="k">set</span> B}</code></pre>
+  <p><strong>由于声明约束适用于 <code>this.r</code>，它们无法从 B 的视角约束该关系的重数。</strong>要说「r 至多把一个 A 映到每个 B」，可以添加如下<strong>作为 fact 的声明约束</strong>：</p>
+<pre><code><span class="k">fact</span> {r: A <span class="k">lone</span> -&gt; B}</code></pre>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">这条正是第 6.2.1 那个「反常写法」的官方解释</span>
+    <p>酒店模型里的 <code>Room &lt;: keys : Room lone -&gt; Key</code>（「每把钥匙至多属于一个房间」）<strong>不能写进字段声明</strong>，只能以声明约束的形式出现在 fact 里。第 6.4.2 中「缓存/内存的反向重数」同理。<strong>同时注意：这里必须用 <code>&lt;:</code> 把关系限制到 <code>Room</code>，否则「lone」会被判为对整个 keys（含 Undefined 等部分）施加约束，从而产生过强约束 —— 呼应第 5.4 的「宁欠勿过」。</strong></p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">用处三：突破「声明只允许一个箭头」的限制</span>
+  <p>声明的另一个缺陷是<strong>它们只允许给出「一个箭头周围」的重数</strong>。对类型 <code>A -&gt; B -&gt; C</code> 的关系 p，形如</p>
+<pre><code><span class="k">all</span> r: A -&gt; <span class="k">some</span> (B -&gt; C) | …</code></pre>
+  <p>的声明使 r 在 A 上是<strong>全（total）</strong>的。<strong>而「R 把 A -&gt; B 中的一个<em>对</em>映到 C 的每个元素」这一约束无法在该声明中表达，因为它需要对表达式做<em>不同的</em>解析 —— 让箭头向左结合而非向右结合。</strong>要表达它，可以用这样的声明约束：</p>
+<pre><code><span class="k">all</span> r: A -&gt; <span class="k">some</span> (B -&gt; C) | r : (A -&gt; B) <span class="k">some</span> -&gt; C  =&gt; …</code></pre>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读</span>
+    <p>请注意这条示例的写法本身：<strong>「声明约束」被放在一个 <code>all</code> 量化里，用 <code>=&gt;</code> 与体相连</strong> —— 因为它是一条<strong>约束</strong>而不是声明，所以在任意约束位置都能出现。这正是第 6.3 中「对每个窗口，选中集是若干资产的<strong>对</strong>」这类三元重数唯一可行的写法。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">括号</span>
+  <p><strong>一个约束可以加括号以强制特定的运算符应用次序：<code>constraint ::= ( constraint )</code>。</strong></p>
+</div>
+
+<h2 id="sum">附录 B 小结 · 速查表</h2>
+<div class="card">
+<ol>
+  <li><strong>词法</strong>：可打印 ASCII，排除 <code>\</code> 与 <code>`</code>；非打印只允许空白四类；<strong>换行等同空格</strong>，格式不影响含义；<code>$ % ?</code> 保留、<code>_</code> 与引号可用于标识符；智能引号是文件级头号错误源。</li>
+  <li><strong>单 token 表</strong>：<code>:: =&gt; &gt;= =&lt; -&gt; &lt;: :&gt; ++ &amp;&amp; || -- // /* */</code>；<strong>取反运算符不是单 token</strong>，所以 <code>not =</code>、<code>! =</code> 都合法。</li>
+  <li><strong>40 个关键字</strong>，其中 <code>Int</code> 与 <code>int</code> 是两个不同的字（前者是 signature，后者是「可定界的整数界」）。</li>
+  <li><strong>三个命名空间</strong>：模块名/别名 · sig/字段/段/绑定变量 · 命令名。<strong>绑定变量可互相遮蔽、也可遮蔽字段名</strong>，采用词法作用域、最内层生效。</li>
+  <li><strong>逻辑优先级</strong>：<code>not</code> &gt; <code>and</code> &gt; <code>implies/iff</code> &gt; <code>or</code>。<strong>表达式优先级</strong>：<code>~ ^ *</code> &gt; <code>.</code> &gt; <code>&lt;: :&gt;</code> &gt; <code>[]</code> &gt; <code>-&gt;</code> &gt; <code>&amp;</code> &gt; <code>++</code> &gt; <code>+ -</code>。</li>
+  <li><strong><code>a.b[c]</code> = <code>(a.b)[c]</code></strong>；<strong>除蕴含右结合外全部左结合</strong>；<strong>else 结合最近的 then</strong>。</li>
+  <li><strong>模型的含义 = 若干组实例</strong>：核心实例（facts + 声明约束）、每个函数/谓词一组、每个断言一组（反例）。「模型无实例 = 不一致且几乎肯定有错」；「断言无反例 = 正是所期望」。</li>
+  <li><strong>有界搜索 ⇒ 找不到不等于不存在；找到了则保证有效。</strong></li>
+  <li><strong>一阶关系逻辑，没有集合/标量/元组三个独立概念</strong>：集合 = 一元关系、标量 = 单例的一元关系、元组 = 单例关系。类型系统只区分「集合与关系」，不区分元组/标量/一般关系。</li>
+  <li><strong>没有函数应用运算符，用 join 代替</strong>，因而绕开偏函数语义问题：<code>x.f</code> 在 x 不在定义域时求值为空集，整个约束变假而非报错。</li>
+  <li><strong>类型系统不是为了健全性</strong>，而是为了「不多报假警报，同时捕获纯类型可解释的错误」。三类错误：<strong>元数 / 不相交 / 冗余</strong>。<strong>不相交类型的「并」是允许的</strong>；<code>++</code> 用于不相交关系报 disjointness（即使结果非空）。</li>
+  <li><strong>字段重载用完整表达式上下文解析（含外围元数与所有列的类型）</strong>；有歧义时用 <code>S &lt;: f</code> 消歧 —— <strong>那不是类型转换，只是域限制的标准语义</strong>。</li>
+  <li><strong>类型 = 联合类型的结构</strong>：基本类型格以 <code>univ</code> 为顶、<code>none</code> 为底；join 的类型规则「B、C 不重叠则报 disjointness，否则类型为 <code>A-&gt;D</code>」；<strong>空联合（类型不良）≠ 全 none 的积（有意为空）</strong>。</li>
+  <li><strong>不需要任何向上或向下的 cast</strong>：<code>sup.f</code>、<code>sub.f</code> 都合法且都可能为空；只有与 S 不相交的 <code>d.f</code> 才报类型不良。</li>
+  <li><strong>调用只检查「实参与形参不相交」；形参的声明约束在调用时被忽略</strong> —— 它只是文档。<code>run</code> 时才生效。</li>
+  <li><strong><code>+</code>/<code>-</code> 的重载由解析器按「整数表达式 vs 关系表达式」区分，无需类型信息</strong>：<code># S + S = 1</code> 中的加号是关系并。</li>
+  <li><strong>重数三兄弟</strong>：<code>lone</code>≤1、<code>one</code>=1、<code>some</code>≥1；<strong>五种使用上下文</strong>（量化约束/量化表达式/集合声明/关系声明/sig 声明）；<strong>集合变量默认 <code>one</code>（标量），<code>set</code> 覆盖之</strong>；sig 声明上不接受 <code>set</code>。</li>
+  <li><strong>模块</strong>：一段一文件、<code>m.als</code>、根目录集合、<strong>导出除命令外的所有段</strong>、<strong>多次导入不产生拷贝</strong>、<strong>无「先定义后使用」要求</strong>、<code>Int</code> 无需导入、<strong>别名一旦出现则常规模块名不可用</strong>、不得引用未导入模块的组件。</li>
+  <li><strong>两类 signature</strong>：类型 sig 构成<strong>森林</strong>（顶层互斥、兄弟互斥、不得自扩展）；子集 sig 构成 <strong>DAG</strong>（<strong>不得被扩展、兄弟不必互斥</strong>、不得为自身祖先）。抽象 sig = 其扩展之并；<strong>无扩展时 abstract 无效，且往往意味着模型不完整</strong>。</li>
+  <li><strong>字段名冲突两条禁令</strong>保证「同名只在不相交 sig 中声明」，从而<strong>任何重载总有可解析的上下文</strong>。</li>
+  <li><strong>signature 事实 = <code>fact { all this: S | F' }</code></strong>，其中对 S 的每个字段（声明或继承）的引用被替换为 <code>this.f</code>；<strong><code>@</code> 抑制这一展开</strong>。</li>
+  <li><strong>一次声明多个 sig 等价于分别声明</strong>。</li>
+  <li><strong>声明的双重效果</strong>：语义（左 ⊆ 右）+ 类型（右的类型赋给左）；<strong><code>disj</code> = 互不相交，<code>part</code> = 再加上「对右侧构成划分」</strong>；<code>part</code> 中所有变量共享同一类型。</li>
+  <li><strong>嵌套箭头标注逐像展开</strong>：<code>r: e1 m -&gt; n (e2 m' -&gt; n' e3)</code> ⇒ <code>all x: e1 | x.r : e2 m' -&gt; n' e3</code>；e1 非集合时须遍历元组。<code>X one-&gt;one Y</code> = 双射，<code>X -&gt; lone Y</code> = 偏函数。</li>
+  <li><strong>字段声明约束 <code>this.f</code> 而非 <code>f</code>，字段类型是 <code>S -&gt; e</code></strong> —— 这是「反向重数必须写成声明约束」的根本原因。</li>
+  <li><strong>四种段</strong>：fact 恒真 · pred 约束模板 · fun 表达式模板 · <strong>assert 是「有意的冗余」</strong>；匿名 assert <strong>无法被 check</strong>；模块内段名唯一且不得与 sig 同名。</li>
+  <li><strong>调用 = 文本内联 ⇒ 不支持递归；每次调用有独立局部变量</strong>。<code>pred S::f</code> 的接收者是 S 上的标量，但<strong>调用形式不受声明形式约束，且接收者不必是标量</strong>。</li>
+  <li><strong>命令解出的约束</strong>：谓词 <code>P and F and D</code>；函数 <code>f = E and F and D</code>；断言 <code>F and D and not A</code>。<strong>空体谓词 = 模型一致性检验的标准形式</strong>。各命令<strong>相互独立</strong>，实例之间不要求相容。实例还会给 Skolem 常量赋值（依用户偏好）。</li>
+  <li><strong>作用域</strong>：只定界<strong>类型</strong> sig，默认 3；<code>for N</code>、<code>for N but ...</code>、显式列表三种写法；抽象界 = 子之和，「除一外全有界 ⇒ 余者为差」，<code>one sig</code> 界为 1，<strong>显式优先</strong>，推不出则无隐式界。</li>
+  <li><strong><code>exactly</code> 使界成为上下双界并自动传播给抽象父集</strong> —— 第 6 章用它收敛搜索空间。</li>
+  <li><strong>作用域必须一致 / 完备 / 均匀</strong>：任一 sig 至多一个界；每个顶层 sig 有界；无界的 sig 不得有有界的子。</li>
+  <li><strong>整数界</strong>：<code>Int</code> 默认 3 个对象 ⇒ 可用值 0、1、2；<code>int</code> 默认 5 位 ⇒ 原始值 0–31。</li>
+  <li><strong>表达式即关系</strong>；<code>none</code>/<code>univ</code>/<code>iden</code> 三常量定义在<strong>全体原子</strong>上，所以「自反」必须写 <code>t &lt;: iden in r</code>，<code>iden in r</code> 除非 <code>r: univ-&gt;univ</code> 否则不可满足。</li>
+  <li><strong>运算符语义全部以「元组」定义</strong>：join 省略匹配元素、积做串接、限制要求右侧是集合、<strong>覆盖只看第一个元素</strong>（故 <code>++</code> 只适用于二元）。</li>
+  <li><strong>演绎表达式</strong> <code>{x1: e1, ... | F}</code> 中各 e 必须一元且不得带重数前缀，声明形式除 <code>disj</code>/<code>part</code> 外一律不许。</li>
+  <li><strong>let 是纯文本替换</strong>，不得递归，被绑定的变量必须早先声明；<code>if F then e1 else e2</code> 是表达式级的。</li>
+  <li><strong>两类整数：对象 vs 原始值</strong>。对象可作原子、可量化、不可直接运算；原始值不可作原子、不可量化。<strong><code>Int ie</code> 是关系表达式（界外静默返回空集），<code>int e</code>/<code>sum e</code> 是整数表达式</strong>；<code>int</code> 定义在集合上故永不失败。</li>
+  <li><strong>不同整数对象必持不同值</strong>（<code>IntegersCanonical</code> 恒真）；<strong><code>=&lt;</code> 而非 <code>&lt;=</code> 是为了不像箭头</strong>；没有不等运算符，只能 <code>not op</code>。</li>
+  <li><strong><code>#e</code> 数的是元组个数</strong>，不是原子个数。</li>
+  <li><strong>量化表达式</strong>：<code>no/some/lone/one e</code> 都是元数无关的基数谓词；<strong><code>all e</code> 被静态检查拒绝</strong>。</li>
+  <li><strong>相等是外延的</strong>；<code>in</code> 是子集；<code>!</code> 与 <code>not</code> 互换；<strong><code>else</code> 可用逗号书写</strong>（陷阱！）；空约束序列恒真。</li>
+  <li><strong>多声明量词不是嵌套量词的简写</strong>：<code>all x:X, y:Y | F</code> 是简写，<code>one x:X, y:Y | F</code> <strong>不是</strong> —— 它数的是「绑定」的个数。这是本附录最容易写错的一条。</li>
+  <li><strong>声明约束 <code>expr : declExpr</code> 的三个用处</strong>：对任意表达式施加重数（<code>p.q : t one-&gt;one t</code>）、补足字段声明无法表达的反向重数（<code>r: A lone -&gt; B</code>）、突破「声明只允许一个箭头」从而改变箭头结合方向（<code>r : (A -&gt; B) some -&gt; C</code>）。</li>
+  <li><strong>高阶量化被允许但可能不可分析</strong>：能否 Skolem 化决定可行性，否则受作用域大小编译。</li>
+</ol>
+</div>
+
+<div class="pager">
+  <a href="appA.html"><div class="d">← 上一章</div><div class="n">附录 A · Exercises 习题</div></a>
+  <a href="appC.html" class="next"><div class="d">下一章</div><div class="n">附录 C · 内核语义 →</div></a>
+</div>
+
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 附录 B</div>
+
+
+</div>
+</body>
+</html>
