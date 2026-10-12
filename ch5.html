@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第 5 章 · Analysis 分析 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">第 5 章 · 分析</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html" class="on">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">5</span>Analysis · 分析</h1>
+<p class="sub">原书 p. 139–167 · 分析让抽象「活起来」：作用域内穷尽搜索、SAT 求解、Skolem 化、生成器公理与有界全称量词、作用域选择与单调性。这一章讲清楚了「Alloy 到底在算什么」以及「它算不到的地方在哪」。</p>
+
+<div class="fig" style="text-align:center">
+  <p style="font-size:1.08em;font-style:italic;margin:0">「第一条原则是你不能欺骗自己，<br>而你是最容易被欺骗的人。」</p>
+  <div class="cap">—— Richard P. Feynman（本章题词）</div>
+</div>
+
+<div class="callout key">
+  <span class="tag">分析以三种方式让软件抽象活起来</span>
+  <ol>
+    <li><strong>在你探索时鼓励你</strong>：给出具体的例子，<strong>强化直觉并提示新的场景</strong>。</li>
+    <li><strong>让你保持诚实</strong>：帮你<strong>边走边检验</strong>——你写下的东西是否就是你以为的意思。</li>
+    <li><strong>揭示微妙的缺陷</strong>：那些你可能要到很晚才发现、或者<strong>根本发现不了</strong>的缺陷。</li>
+  </ol>
+  <p style="margin-top:.7em">核心思想是<strong>作用域（scope）的说明</strong>——它限定各 signature 的大小——以及<strong>在作用域内对例子或反例做穷尽搜索</strong>。</p>
+</div>
+
+<div class="toc">
+  <div class="t">本章地图</div>
+  <ol>
+    <li><a href="#s51">5.1 作用域完备的分析</a>
+      <ol><li>5.1.1 实例查找与不可判定性的妥协 · 5.1.2 作用域的概念 · 5.1.3 小作用域假设</li></ol></li>
+    <li><a href="#s52">5.2 实例、例子与反例</a>
+      <ol><li>5.2.1 分析约束与变量 · 5.2.2 Skolem 化</li></ol></li>
+    <li><a href="#s53">5.3 无界全称量词</a>
+      <ol><li>5.3.1 生成器公理与作用域爆炸 · 5.3.2 省略生成器公理</li></ol></li>
+    <li><a href="#s54">5.4 作用域选择与单调性</a></li>
+    <li><a href="#sum">第 5 章小结</a></li>
+  </ol>
+</div>
+
+<h2 id="s51"><span class="num">5.1</span>Scope-Complete Analysis · 作用域完备的分析</h2>
+
+<h3>5.1.1 Instance Finding and Undecidability Compromises</h3>
+<div class="callout">
+  <span class="tag">两个问题其实是同一个问题</span>
+  <p><strong>检验断言</strong>与<strong>运行谓词</strong>归结为同一个分析问题：<em>找到某个把关系赋给变量的赋值，使约束为真。</em>所以书中不再分别讨论，只谈「检验断言」。</p>
+</div>
+
+<p><strong>Alloy 的关系逻辑是不可判定的（undecidable）。</strong>这意味着<strong>不可能造出一个自动工具，以完全可靠的程度告诉你一个断言是否有效</strong>（即是否对每个可能的赋值都成立）。因此<strong>某种妥协是必需的</strong>。</p>
+
+<table>
+  <thead><tr><th></th><th>传统妥协：定理证明</th><th>Alloy 的妥协：实例查找（instance finding）</th></tr></thead>
+  <tbody>
+    <tr><td><strong>做什么</strong></td><td>自动定理证明器尝试<strong>构造一个证明</strong>，说明断言成立</td><td>不尝试构造证明，而是<strong>寻找反驳（refutation）</strong>：把断言与<strong>一大堆测试用例</strong>逐一对照，每个用例都是「关系→变量」的一种可能赋值</td></tr>
+    <tr><td><strong>成功时</strong></td><td>断言<strong>有效</strong>（确定结论）</td><td>找到反例 ⇒ 断言<strong>无效</strong>（确定结论），并给出具体场景</td></tr>
+    <tr><td><strong>失败时</strong></td><td>断言<strong>可能有效也可能无效</strong>。而且<strong>很难分辨</strong>失败是因为断言有错、证明器本身的局限、还是<strong>用户缺乏恰当的引导</strong></td><td>断言<strong>仍可能不成立</strong>——它的反例可能比所考虑的任何测试用例都大</td></tr>
+    <tr><td><strong>适用性</strong></td><td>需要巨大的人工引导投入</td><td><strong>更适合轻量级建模</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="callout key">
+  <span class="tag">为什么实例查找更契合轻量级建模</span>
+  <p>由于分析在抽象的开发过程中被<strong>反复、增量地</strong>应用，它<strong>最常遇到的就是无效的断言</strong>。实例查找非常适合分析无效断言，因为：</p>
+  <ol>
+    <li>它<strong>生成反例</strong>，而反例通常可以<strong>轻松追溯回描述中的问题</strong>；</li>
+    <li><strong>无效断言的分析速度往往远快于有效断言</strong>——有效断言要求<strong>覆盖整个可能实例空间</strong>，而无效断言只需<strong>找到第一个实例就能停止</strong>。</li>
+  </ol>
+</div>
+
+<h3>5.1.2 The Notion of Scope · 作用域的概念</h3>
+<p>为了让实例查找可行，定义一个<strong>作用域</strong>来限制所考虑实例的大小。<strong>分析实际上检查了作用域内的每一个实例</strong>，一个无效断言只有在<strong>其最小反例落在作用域之外</strong>时才会「溜过去」而未被反驳。</p>
+
+<div class="callout warn">
+  <span class="tag">为什么不让分析器自动递增作用域</span>
+  <p>你可能觉得好策略是：分析器从小作用域开始，<strong>自动递增</strong>，直到找到反例或超过预设时限。但这<strong>预设了「作用域只是一个数字」</strong>。</p>
+  <p>事实证明<strong>更丰富的作用域概念更有用</strong>：每个 signature <strong>单独设界，由用户控制</strong>。例如分析一个<strong>铁路道岔操作</strong>可能只需要<strong>两个状态</strong>（前后状态）和<strong>一个路口</strong>，但需要<strong>更多的轨道段和列车</strong>。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">作用域定义了一个多维测试用例空间</span>
+  <p>每个维度对应一个特定 signature 的界限。<strong>即使很小的作用域通常也定义了巨大的空间。</strong></p>
+  <p>以<strong>默认作用域 3</strong> 为例（每个 signature 界为 3）：每个<strong>二元关系</strong>为状态贡献 <strong>9 个比特</strong>（因为定义域的 3 个元素中的每一个，都<strong>可能也可能不</strong>与值域的 3 个元素中的每一个相关联）——也就是 <strong>2⁹ = 512 倍</strong>。</p>
+  <p>所以<strong>一个只有四个二元关系的微型模型，其空间就超过十亿个用例</strong>（512⁴ ≈ 6.9 × 10¹⁰）。</p>
+</div>
+
+<h3>5.1.3 The Small Scope Hypothesis · 小作用域假设</h3>
+<div class="qa">
+  <div class="q">「实例查找不就是测试吗？」</div>
+  <div class="a"><p><strong>某种意义上是的</strong>：断言被对照一组有限的用例检验，而这组用例只占可能用例空间中<strong>无穷小的一部分</strong>。Dijkstra 的名言同样适用于实例查找：</p>
+  <div class="fig" style="margin:.6em 0"><p style="font-style:italic;margin:0">「程序测试可以用来展示 bug 的存在，<br>但永远不能展示它们的不存在。」</p><div class="cap">—— Dijkstra [13]</div></div>
+  <p><strong>但测试的弱点超出了「无法证明 bug 不存在」——它通常连「证明 bug 存在」都做不到。</strong>代码中的大多数 bug 都能逃过测试；编写测试套件的挑战是<strong>捕获更多确实存在的 bug</strong>，而不是证明没有 bug 残留（那是一个完全不同、甚至更难的问题）。</p>
+  <p><strong>实例查找的覆盖面远比传统测试广泛</strong>，因此它在找 bug 上往往有效得多。简而言之：</p>
+  </div>
+</div>
+
+<div class="callout key" style="border-left-color:var(--accent-2)">
+  <span class="tag">小作用域假设（Small Scope Hypothesis）</span>
+  <p style="font-size:1.15em;text-align:center;margin:.4em 0"><strong>「大多数 bug 都有小的反例。」</strong><br><span style="color:var(--ink-dim);font-size:.85em">Most bugs have small counterexamples.</span></p>
+  <p>也就是说：<strong>如果一个断言无效，它很可能有一个小的反例。</strong>这带来一个令人鼓舞的推论：<strong>如果你检查了所有小的情形，你就很可能找到反例。</strong></p>
+</div>
+
+<h3>5.1 Discussion · 原文问答</h3>
+
+<div class="qa">
+  <div class="q">Q：定理证明器在分析软件抽象中扮演什么角色？</div>
+  <div class="a"><p><strong>定理证明器与实例查找器扮演互补的角色。</strong>一旦 Alloy Analyzer 未能找到某断言的反例，你可以用定理证明器去证明该断言<strong>在所有作用域下都成立</strong>。</p>
+  <p>但<strong>借助定理证明器完成一个证明，通常需要比之前的建模努力大一个数量级的投入</strong>，所以对大多数应用而言<strong>不划算</strong>。不过对于<strong>安全攸关（safety-critical）的抽象</strong>，从证明中获得的额外保证可能是值得的。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：分析依赖于拥有「完美的断言」吗？</div>
+  <div class="a"><p><strong>不。</strong>有些人假设，如果没有捕获某种柏拉图式「高层规范」的断言，分析就不值得做。<strong>恰恰相反，即使简单形式的分析也是有益的。</strong></p>
+  <p><strong>简单的模拟谓词常常生成令人惊讶的场景</strong>；把<strong>基本的健全性检查（sanity checks）表述为断言，就能暴露深层错误</strong>。当然，如果你能用断言表达一个软件设计的关键性质，那你就能用分析检验它们，而<strong>「找不到反例」的分量就更重</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：分析的首要目的是揭露微妙的 bug 吗？</div>
+  <div class="a"><p>形式化方法的论证常常建立在「捕获逃过测试的微妙 bug」这一前景上。<strong>但在实践中，远更重要的是那些不那么光鲜的分析</strong>——它们在抽象开发过程中被反复应用，<strong>使形式化模型与设计者的意图保持一致</strong>。</p>
+  <p><strong>软件与硬件不同，很少因为单个微小但致命的缺陷而失效。</strong>几乎所有情况下，软件失效是因为<strong>糟糕的抽象导致 bug 大量滋生，而其中恰好有一个引发了失效</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：是什么让这套逻辑不可判定？</div>
+  <div class="a"><p><strong>一阶逻辑是不可判定的</strong>，除非对可写的约束施加严厉限制。例如：</p>
+  <ul>
+    <li>把逻辑限制到「<strong>一元（monadic）</strong>」谓词（只有一个参数的谓词）——在关系设定下这会<strong>消灭关系</strong>，只剩集合与标量；</li>
+    <li>或限制<strong>量词的使用方式</strong>，例如只允许某些「前缀」模式，即所有量词都出现在断言开头、按特定的存在/全称量词模式排列。</li>
+  </ul>
+  <p>然而<strong>消灭量词并不能让我们的逻辑变得可判定</strong>，因为<strong>关系演算本身就不可判定</strong>——它只由二元关系和我们的关系算子（尤其是<strong>点连接</strong>）构成。</p>
+  <p><strong>简言之：似乎不存在一种既实用、又足够丰富到能刻画软件抽象、同时还可判定的逻辑。</strong></p>
+  <p>入门读物：David Harel 的书 [25] 第 8 章；全面论述见 [6]，其中含一个很好的分类，也以短文形式在线可得 [20]。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么用「实例（instance）」这个词？</div>
+  <div class="a">在标准数学术语中，一个约束的实例叫做「<strong>模型（model）</strong>」，找模型的工具叫「<strong>模型查找器（model finder）</strong>」。但「model」这个词被<strong>严重重载</strong>了，所以最好避开它。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：作用域这个想法是新的吗？</div>
+  <div class="a"><p><strong>不是。</strong>1980 年代发展出的「<strong>模型检查（model checking）</strong>」技术用于分析可表示为有限状态机的协议与硬件设计。它太有效了，很快就被应用到<strong>无界系统</strong>上——方法是构造一个描述，<strong>人为地（而且往往有点任意地）把系统变有限</strong>。事实上这个过程如今被视为模型检查的根本环节，以至于人们以为这就是它名字里「model」所指：<em>无限系统的一个有限模型</em>。（其实这个词本意是数学意义上的：分析检查该状态机是否是一个时序逻辑公式的「模型」。）所以「在有限界限内搜索、（至少隐式地）依赖小作用域假设来找 bug」并不是新想法。</p>
+  <p><strong>Alloy 中也许是新的东西有两点：</strong></p>
+  <ol>
+    <li><strong>把作用域说明与模型本体分离。</strong>这防止模型被分析方面的考虑污染，并且<strong>无需调整模型本身就能用不同作用域跑不同分析</strong>。</li>
+    <li><strong>细粒度调整作用域的能力。</strong>它超越了静态配置参数（如网络中的进程数），延伸到<strong>动态分配数据的界限</strong>（如队列中的消息数、堆中的对象数）。</li>
+  </ol></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：一个「只在小作用域下才work」的设计有什么用？</div>
+  <div class="a"><p>这个问题暴露了对作用域概念的<strong>常见误解</strong>。当然，一个「只有当每个类型的元素不超过一小把时才能工作」的系统是没用的。</p>
+  <p><strong>小作用域假设的要点是：在大实例上失效的系统，几乎总会在具有相似性质的小实例上同样失效——即使这样的小实例在实践中不会出现。</strong>所以<strong>通过检查所有小实例，我们实际上也在为大实例做检查。</strong></p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：那资源分配上限怎么办？</div>
+  <div class="a">实现中常内建<strong>资源分配上限</strong>，一旦越过就失效。这看似与小作用域假设矛盾，因为失效只发生在<strong>超过分配上限的巨大实例</strong>上。<strong>但抽象没有这些问题</strong>，因为资源分配要么<strong>被抽象掉（factored out）</strong>，要么<strong>被更抽象地表示</strong>——或者用模型中一个<strong>可以被设得任意低的参数</strong>，或者用<strong>非确定性行为</strong>。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：你能证明小作用域假设吗？</div>
+  <div class="a"><p><strong>不能——所以我才叫它「假设」。</strong>它是对<strong>实践中出现的断言</strong>做的断言，不是对「所有可能断言的空间」做的断言。<strong>人们完全可以构造一个无效断言，其最小反例刚好超出任何给定的作用域。</strong>幸运的是，<strong>无意中的错误在实践中很少如此狡猾</strong>。</p>
+  <p>但仍须牢记：<strong>实例查找是一种不完备的分析，有时找到某个 bug 所需的作用域比直觉所暗示的更大。</strong></p>
+  <p>如果存在一个足以找到任何无效断言反例的作用域，或者哪怕存在一种「逐断言计算出足够大作用域」的方法，那么<strong>（至少原则上）就能判定一个断言是否有效</strong>。这会与逻辑的不可判定性矛盾，所以<strong>做不到</strong>。</p>
+  <p>尽管如此，一阶逻辑的某些子集有「<strong>小模型定理（small model theorem）</strong>」，允许从断言的<strong>结构</strong>确定一个充分的作用域：与建模相关的一个例子是<strong>集合值字段的理论</strong> [45]。</p></div>
+</div>
+
+<h2 id="s52"><span class="num">5.2</span>Instances, Examples, and Counterexamples</h2>
+
+<h3>5.2.1 Analysis Constraints and Variables · 分析约束与变量</h3>
+<p>当你 run 一个谓词或 check 一个断言时，分析器搜索的是<strong>一个「分析约束」的实例</strong>：给该约束的变量赋值，使约束求值为真。</p>
+<table>
+  <thead><tr><th></th><th>分析约束 =</th><th>找到的实例叫</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>run P</code></td><td>P 的约束 <strong>∧</strong> 模型的所有 fact<br><span style="color:var(--ink-dim)">（既包括 fact 段落里的显式 fact，也包括<strong>隐含在声明里的</strong> fact）</span></td><td><strong>例子（example）</strong></td><td>fact 与谓词<strong>同时成立</strong>的场景</td></tr>
+    <tr><td><code>check A</code></td><td><strong>¬</strong>(A 的约束) <strong>∧</strong> 模型的所有 fact</td><td><strong>反例（counterexample）</strong></td><td>fact 成立但断言<strong>不成立</strong>的场景（等价地：断言<strong>未能由 fact 推出</strong>的场景）</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">实例中被赋值的变量包括</span>
+  <ul>
+    <li>与各 <strong>signature</strong> 关联的<strong>集合</strong>；</li>
+    <li>与各<strong>字段</strong>关联的<strong>关系</strong>；</li>
+    <li>以及（对谓词而言）<strong>它的参数</strong>。</li>
+  </ul>
+</div>
+
+<h4>贯穿本章的例子：地址簿（fig. 5.1）</h4>
+<div class="fig">
+<pre><code><span class="k">module</span> analysis/addressBook
+<span class="k">abstract sig</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> -&gt; <span class="t">Target</span>}
+<span class="k">fact</span> Acyclic {<span class="k">all</span> b: <span class="t">Book</span> | <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(b.addr)}
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {
+  b'.addr = b.addr + n -&gt; t
+}
+<span class="k">run</span> add <span class="k">for</span> 3 <span class="k">but</span> 2 <span class="t">Book</span>
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {n.<span class="o">^</span>(b.addr) &amp; <span class="t">Addr</span>}
+<span class="k">assert</span> addLocal {
+  <span class="k">all</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, t: <span class="t">Target</span> |
+    add (b,b',n,t) <span class="k">and</span> n != n' =&gt; lookup (b,n') = lookup (b',n')
+}
+<span class="k">check</span> addLocal <span class="k">for</span> 3 <span class="k">but</span> 2 <span class="t">Book</span></code></pre>
+<div class="cap">fig. 5.1 地址簿例子。作者选它是因为它<strong>包含了每一种基本语言构件</strong>。每个地址簿 b 有一个映射 <code>b.addr</code>，把名字不仅映射到地址，<strong>也映射到名字</strong>（从而允许多层间接）；<code>Target</code> 就是为这个泛化而声明的。fact 说这些间接<strong>永不形成环</strong>。<code>add</code> 只是加一条「名字→目标」的映射。<code>lookup</code> 返回从该名字可达的<strong>地址集合</strong>——即<strong>树的叶子</strong>。断言 <code>addLocal</code> 做出（<strong>错误的</strong>）声明：为名字 n 做一次添加，只影响对 n 本身的查找。</div>
+</div>
+
+<h4>run add：分析约束的完整展开</h4>
+<p>对命令 <code>run add</code>，<strong>分析变量</strong>是：signature <code>Target</code>、<code>Addr</code>、<code>Name</code>、<code>Book</code>；字段 <code>addr</code>；以及 add 谓词的四个参数 <code>b</code>、<code>b'</code>、<code>n</code>、<code>t</code>。<strong>分析约束</strong>是下列各项的合取：</p>
+<div class="card">
+<pre><code><span class="c">// ① signature 隐含的约束</span>
+<span class="t">Name</span> <span class="k">in</span> <span class="t">Target</span>
+<span class="t">Addr</span> <span class="k">in</span> <span class="t">Target</span>
+<span class="k">no</span> <span class="t">Name</span> &amp; <span class="t">Addr</span>
+<span class="t">Target</span> <span class="k">in</span> <span class="t">Name</span> + <span class="t">Addr</span>      <span class="c">// 因为 Target 是 abstract</span>
+<span class="k">no</span> <span class="t">Book</span> &amp; <span class="t">Target</span>            <span class="c">// 因为两者都是顶层 signature</span>
+
+<span class="c">// ② 字段与参数声明隐含的约束</span>
+addr : <span class="t">Book</span> -&gt; <span class="t">Name</span> -&gt; <span class="t">Target</span>
+b: <span class="t">Book</span>
+n: <span class="t">Name</span>
+t: <span class="t">Target</span>
+
+<span class="c">// ③ 显式 fact（这里只有 Acyclic）</span>
+<span class="k">all</span> b: <span class="t">Book</span> | <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(b.addr)
+
+<span class="c">// ④ 被 run 的谓词的体</span>
+b'.addr = b.addr + n -&gt; t</code></pre>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 这一段为什么重要</span>
+  <p>这是全书第一次<strong>把「一段 Alloy 代码」完整地翻译成「一条真正被求解的逻辑公式」</strong>。请注意：<strong>你写的每一个 <code>extends</code>、<code>abstract</code>、每一个重数关键字，都变成了合取式中的一项</strong>。理解了这一点，你就能预测分析器的行为——也能理解为什么「声明即约束」是 Alloy 的核心哲学。</p>
+  <p>还有一个细节：<code>b'</code> 虽然是谓词参数，但它<strong>不是</strong>「b 的后继」这种带语义的东西——对分析器来说它只是一个普通变量（见下面的 Discussion）。</p>
+</div>
+
+<h4>第一个生成的实例</h4>
+<div class="grid c2">
+<div class="card"><h4>书中格式（第 3 章风格，元素加括号）</h4>
+<pre><code><span class="t">Target</span> = {(Addr_0), (Name_0)}
+<span class="t">Addr</span>   = {(Addr_0)}
+<span class="t">Name</span>   = {(Name_0)}
+<span class="t">Book</span>   = {(Book_0), (Book_1)}
+addr   = {(Book_0, Name_0, Addr_0),
+          (Book_1, Name_0, Addr_0)}
+b      = {(Book_0)}
+b'     = {(Book_0)}
+n      = {(Name_0)}
+t      = {(Addr_0)}</code></pre>
+<p>这是「<strong>添加一个已经存在的 名字/地址 对</strong>」的情形。集合元素加括号是为了提醒读者：<strong>从语义角度看，集合在 Alloy 中是以关系表示的</strong>。</p></div>
+<div class="card"><h4>Analyzer 的文本 / 树形输出</h4>
+<pre><code><span class="k">module</span> alloy/lang/univ
+<span class="k">sig</span> univ = {Addr_0, Book_0, Book_1, Name_0}
+
+<span class="k">module</span> analysis/addressBook
+<span class="k">sig</span> <span class="t">Target</span> <span class="k">extends</span> univ = {Addr_0, Name_0}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> = {Addr_0}
+<span class="k">sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> = {Name_0}
+<span class="k">sig</span> <span class="t">Book</span> <span class="k">extends</span> univ = {Book_0, Book_1}
+  addr: …/Name -&gt; …/<span class="t">Target</span> =
+    {Book_0 -&gt; Name_0 -&gt; Addr_0,
+     Book_1 -&gt; Name_0 -&gt; Addr_0}
+
+Skolem constants
+  add_b  = Book_0
+  add_b' = Book_0
+  add_n  = Name_0
+  add_t  = Addr_0</code></pre>
+<p>Analyzer 提供<strong>三种输出形式</strong>：文本形式、<strong>树形</strong>、<strong>图形</strong>（fig. 5.2）。它的格式更常规也稍友好，用关系的声明来决定如何排版。</p></div>
+</div>
+
+<h4>check addLocal：反例的产生</h4>
+<p>对命令 <code>check addLocal</code>，变量包括各 signature 和字段 <code>addr</code>，但<strong>没有谓词参数</strong>。分析约束是「signature 与字段声明隐含的约束 + 显式 fact」（同前），<strong>再加上断言的否定</strong>：</p>
+<pre><code><span class="k">some</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, a: <span class="t">Addr</span> |
+  add (b,b',n,a) <span class="k">and</span> n != n'
+  <span class="k">and not</span> lookup (b,n') = lookup (b',n')</code></pre>
+<p>把谓词 <code>add</code> 和函数 <code>lookup</code> 展开后变成：</p>
+<pre><code><span class="k">some</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, a: <span class="t">Addr</span> |
+  b'.addr = b.addr + n -&gt; t
+  <span class="k">and</span> n != n'
+  <span class="k">and not</span> n.<span class="o">^</span>(b.addr) &amp; <span class="t">Addr</span> = n'.<span class="o">^</span>(b'.addr) &amp; <span class="t">Addr</span></code></pre>
+<p>fig. 5.3 用<strong>三种不同的视图</strong>展示了一个反例（通过 Analyzer 中不同的可视化选择、并使用 3.3 节描述的<strong>投影</strong>设施得到）：默认设置的图形视图、<strong>投影到 Book 集合</strong>上的视图、以及<strong>只显示 Book 原子</strong>的视图。</p>
+<div class="callout key">
+  <span class="tag">见证者标签（witness labels）</span>
+  <p>注意那些<strong>标明「哪些原子是量化变量的见证者」的标签</strong>：例如 <code>addLocal_b</code> 就是 <code>addLocal</code> 中变量 b 的见证者。这些是 <strong>Skolem 常量</strong>，在 5.2.2 解释。反例中的绑定是：</p>
+<pre><code>addLocal_b  = Book_0
+addLocal_b' = Book_1
+addLocal_n  = Name_0
+addLocal_n' = Name_1
+addLocal_t  = Addr_0</code></pre>
+</div>
+
+<h3>5.2.1 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：处理前状态和后状态，不是需要一个变量的多个值吗？</div>
+  <div class="a"><p><strong>不，不，不！</strong>在 addLocal 的分析变量中，<code>b</code> 和 <code>b'</code> 是<strong>不同的变量</strong>；就分析器而言，它们的共同点<strong>不比任何其他一对变量多</strong>——尽管它们碰巧代表一个地址簿的前值和后值。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：所以变量其实不「变」？</div>
+  <div class="a"><p><strong>对。</strong>我们的变量像<strong>数学与物理学中的变量</strong>（而不像命令式程序中的变量），只在「可以被赋予多种值」这个意义上变化。<strong>工程中的标准做法是用不同的名字描述不同时间点的现象；这正是让代数操作式推理成为可能的原因。</strong>在计算机科学中，用不同名字描述前后状态的做法至少可以追溯到 <strong>Hoare 逻辑中辅助变量（auxiliary variables）</strong>的使用。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么字段的后状态值没有带撇号的变量？</div>
+  <div class="a"><p>大多数建模语言（<strong>尤其是 Z</strong> [65]）采用那种做法。本书采取的做法<strong>更像物理学</strong>：把一个随时间变化的现象建模为<strong>一个从时刻到值的函数</strong>。例如 <code>addr</code> 字段可看作一个函数，对每本书 x 都有一个值 <code>x.addr</code>。<strong>多个地址簿可能代表某一时刻的不同簿子，或者——如本例——代表同一个簿子在不同时刻的状态。</strong></p>
+  <p>在第 6 章的<strong>领导者选举</strong>和<strong>酒店门锁</strong>例子中，<strong>时间被完全显式化</strong>：一个随时间变化的状态组件被建模为一个字段 f，<strong>时刻放在最后一列</strong>，于是 <code>f.t</code> 表示在时刻 t 的值。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Alloy 是第一个用这种做法的语言吗？</div>
+  <div class="a"><strong>不是。</strong>这种做法由 <strong>John McCarthy 在其 situation calculus（情境演算）中首创</strong> [51]。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：分析究竟是怎么工作的？</div>
+  <div class="a"><p>每次分析都涉及<strong>求解一个约束</strong>：要么找实例（run），要么找反例（check）。所以 <strong>Alloy Analyzer 是 Alloy 逻辑的一个约束求解器</strong>。但在实现上，它<strong>更像一个编译器</strong>：它不直接求解约束，而是<strong>把约束翻译成一个布尔公式，然后用现成的 SAT 求解器求解</strong>。</p>
+  <p><strong>SAT = satisfiability（可满足性）</strong>：布尔公式的一个解，是给公式的布尔变量赋值使其「满足」该公式。过去十年 SAT 求解技术进展巨大，<strong>最先进的 SAT 求解器常常能求解含数千个布尔变量、数百万个子句的公式</strong>。Alloy Analyzer 捆绑了若干 SAT 求解器，其中最快的是 <strong>Chaff [55]</strong> 与 <strong>Berkmin [19]</strong>，可通过偏好设置选择用哪个。</p></div>
+</div>
+
+<div class="callout key">
+  <span class="tag">翻译到布尔公式：概念上非常简单</span>
+  <p>考虑一个<strong>从集合 A 到集合 B 的二元关系 r 的某个特定值</strong>。这个值可以表示为一个由 0 和 1 组成的<strong>邻接矩阵</strong>：当 A 的第 i 个元素被映射到 B 的第 j 个元素时，第 i 行第 j 列为 1。</p>
+  <p>于是 <strong>r 的所有可能值的空间，可以表示为一个「元素不是布尔值、而是布尔变量」的矩阵</strong>：在每个位置放一个变量 <code>r<sub>i,j</sub></code>。矩阵的维度由<strong>作用域</strong>决定：如果作用域把 A 界为 3、B 界为 4，那么 r 就是一个 <strong>3×4 的矩阵，含 12 个布尔变量，有 2¹² 种可能的值</strong>。</p>
+  <table style="margin-top:.6em">
+    <thead><tr><th>Alloy 构造</th><th>翻译结果</th></tr></thead>
+    <tbody>
+      <tr><td>关系表达式 <code>p + q</code></td><td>构造一个<strong>元素为布尔表达式</strong>的矩阵：第 i 行第 j 列是 <code>p<sub>i,j</sub> ∨ q<sub>i,j</sub></code>（因为 A<sub>i</sub> 被 p+q 关联到 B<sub>j</sub>，当且仅当它被 p 或被 q 关联）</td></tr>
+      <tr><td>关系公式 <code>p in q</code></td><td>构造一个布尔公式：<strong>对所有 i、j 取 <code>p<sub>i,j</sub> ⇒ q<sub>i,j</sub></code> 的合取</strong>（因为 p in q 成立，就是「只要 p 把 A<sub>i</sub> 关联到 B<sub>j</sub>，q 也如此」）</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:.6em">得到的布尔公式交给 SAT 求解器。<strong>找不到解</strong> ⇒ Analyzer 只报告「没有找到实例/反例」。<strong>找到解</strong> ⇒ 解被映射回一个实例：例如若变量 <code>r<sub>i,j</sub></code> 为真，就把「关联 A 的第 i 个元素与 B 的第 j 个元素」的那个元组放进关系 r 的值里。</p>
+</div>
+
+<div class="callout idea">
+  <span class="tag">对称破缺（symmetry breaking）——最重要的优化</span>
+  <p>在从 Alloy 逻辑翻译到布尔公式时，Analyzer 应用了多种优化，其中<strong>最重要也最有趣的是对称破缺</strong>。</p>
+  <p><strong>因为原子是无解释的</strong>（见 3.2），<strong>每个 Alloy 模型都有天然的对称性</strong>：你可以取一个命令的任意实例，通过<strong>置换原子</strong>造出另一个实例。这意味着当分析约束有一个解时，它<strong>实际上有一整组解</strong>，对应于该解的原子可以被置换的所有方式。</p>
+  <p>概念上，我们可以把<strong>赋值（可能解）的空间划分成等价类</strong>：两个赋值属于同一类，当且仅当其中一个可以被置换成另一个。<strong>求解器于是只需查看每个等价类中的一个赋值。</strong>由于置换数量极多，等价类非常大，这样限制搜索<strong>可以极大地提升性能</strong>。</p>
+  <p>事实上 Analyzer <strong>只间接影响搜索</strong>：它从模型生成<strong>对称破缺约束</strong>，并把它们合取到分析约束上。如果这些约束是完美的，就会排除每个等价类中除一个以外的所有赋值——但那需要<strong>非常大的对称破缺约束</strong>，反而会压垮求解器、<strong>实际损害性能</strong>。所以 Analyzer 生成一个<strong>小得多的约束，只破除部分对称性，但在实践中消除了超过 99% 的赋值</strong>。</p>
+</div>
+
+<div class="card">
+<h4>最简单的对称破缺：<code>util/ordering</code></h4>
+<p>当模型使用 <code>util/ordering</code> 时，对称破缺最简单。这个库模块用来<strong>给一个 signature 施加排序</strong>，它在被排序的 signature 上声明一个关系 <code>next</code>。<strong>由于被排序的原子是可互换的，它们可以按自然的字典序排序而不失一般性。</strong></p>
+<p>这就是为什么用 <code>util/ordering</code> 给 signature S 排序，<strong>总会把它的元素排成 S0、S1、S2……</strong>这不仅对<strong>性能</strong>好（其他顺序不被考虑），也对<strong>可视化</strong>好。</p>
+</div>
+
+<div class="callout">
+  <span class="tag">历史脉络</span>
+  <ul>
+    <li>「用关系逻辑写模型、用约束求解器分析」的想法最早是为 Alloy 的前身 <strong>Nitpick</strong> [35] 开发的。Nitpick 的工具靠<strong>枚举完整的关系值</strong>工作，有一套相当精细的对称破缺方案 [34, 36]。</li>
+    <li>用「归约到可满足性」求解 Nitpick 公式的方案<strong>不太成功</strong> [11]，因为它用 <strong>BDD</strong> 表示布尔公式——这种数据结构在其他领域效果很好，但<strong>与关系逻辑不匹配</strong>。</li>
+    <li>Alloy→SAT 的基本翻译方案于 <strong>1997 年</strong>开发 [31, 32]，效果好得多，很大程度上归功于<strong>（Greg Nelson 建议的）从 BDD 转向 SAT</strong>。</li>
+    <li>当前版本 Analyzer 的算法主要由 <strong>Ilya Shlyakhter</strong> 开发 [64]，特别是这套<strong>对称破缺方案</strong> [63]，以及一个<strong>检测生成公式中共享机会</strong>的优化。</li>
+  </ul>
+</div>
+
+<h3>5.2.2 Skolemization · Skolem 化</h3>
+<p>如果分析约束含有<strong>存在量词</strong>，分析器通常（取决于约束的确切形式）能提供一个<strong>见证者（witness）</strong>：一个使存在量化公式的体为真的量化变量值。这是通过<strong>把实例中绑定的变量集合扩展到包含量化变量</strong>做到的，所用的变换叫 <strong>Skolem 化</strong>。</p>
+
+<h4>先看「不做 Skolem 化」时存在量词怎么处理</h4>
+<p>假设分析约束形如 <code>some x: S | F</code>，S 是 signature，F 是含 x 的任意约束。如果作用域给 S 分配界限 k，它就可以用原子 <code>S1, S2, …, Sk</code> 表示，量化可以展开为：</p>
+<pre><code>F[S0/x] <span class="k">or</span> F[S1/x] <span class="k">or</span> … <span class="k">or</span> F[Sn/x]</code></pre>
+<p>其中 <code>F[Si/x]</code> 是把 Si 代入 x 的约束 F。<strong>注意变量 x 不再显式出现在这个新约束里</strong>，所以当生成实例时，<strong>可能不清楚哪个析取项为真</strong>。</p>
+
+<div class="callout key">
+  <span class="tag">Skolem 化的做法</span>
+  <p>取原分析约束，<strong>不展开量词</strong>，而是把<strong>绑定变量替换成一个自由变量</strong>：</p>
+<pre><code>(sx: S) <span class="k">and</span> F[sx/x]</code></pre>
+  <p>其中 <code>sx</code> 是一个<strong>新的自由变量</strong>。容易看出：<strong>新分析约束在旧约束有实例时也有实例</strong>，但它的实例<strong>更有帮助，因为它会给 sx 赋一个值</strong>。</p>
+  <p><strong>Skolem 化没有任何魔法。</strong>分析约束中的一个自由变量——比如一个 signature 或一个关系——<strong>被约束求解器当作存在量化的变量来处理</strong>。Skolem 化只是<strong>把一个隐式的存在量化变成显式的</strong>。</p>
+</div>
+
+<div class="grid c2">
+<div class="card"><h4>最外层量词：变量变成标量/集合/关系</h4>
+<pre><code><span class="c">// 原式（check addLocal 的分析约束的一部分）</span>
+<span class="k">some</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, a: <span class="t">Addr</span> |
+  add (b,b',n,a) <span class="k">and</span> n != n'
+  <span class="k">and not</span> lookup (b,n') = lookup (b',n')
+
+<span class="c">// Skolem 化后</span>
+b: <span class="t">Book</span> <span class="k">and</span> b': <span class="t">Book</span> <span class="k">and</span> n: <span class="t">Name</span>
+  <span class="k">and</span> n': <span class="t">Name</span> <span class="k">and</span> a: <span class="t">Addr</span>
+<span class="k">and</span> add (b,b',n,a) <span class="k">and</span> n != n'
+<span class="k">and not</span> lookup (b,n') = lookup (b',n')</code></pre></div>
+<div class="card"><h4>嵌套量词：变量变成一个「函数」</h4>
+<pre><code><span class="c">// 原式</span>
+<span class="k">all</span> x: S | <span class="k">some</span> y: T | F
+
+<span class="c">// Skolem 化后</span>
+(sy: S -&gt; <span class="k">one</span> T) <span class="k">and</span> (<span class="k">all</span> x: S | F[x.sy/y])</code></pre>
+<p>其中 <code>F[x.sy/y]</code> 是把 y 的每次出现替换成表达式 <code>x.sy</code> 的约束 F。</p>
+<p><strong>直觉仍然直白</strong>：如果原约束有实例，那么对 x 的每个值都存在一个使 F 为真的 y 值。<strong>这个 y 值可以被看作把函数 sy 应用到相应的 x 值得到的</strong>，所以对 y 的量化可以通过<strong>引入这样一个函数作为「待确定值的变量」</strong>来消除。</p></div>
+</div>
+
+<div class="card">
+<h4>例：run show 的 Skolem 化</h4>
+<pre><code><span class="c">// 模型</span>
+<span class="k">sig</span> <span class="t">Name</span>, <span class="t">Address</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> -&gt; <span class="t">Address</span>}
+<span class="k">pred</span> show () { <span class="k">all</span> b: <span class="t">Book</span> | <span class="k">some</span> n: <span class="t">Name</span> | <span class="k">some</span> b.addr[n] }
+<span class="k">run</span> show <span class="k">for</span> 3
+
+<span class="c">// Skolem 化后</span>
+(sn: <span class="t">Book</span> -&gt; <span class="k">one</span> <span class="t">Name</span>) <span class="k">and</span> (<span class="k">all</span> b: <span class="t">Book</span> | <span class="k">some</span> b.addr [b.sn])</code></pre>
+<p>其实例将包含一个变量 <code>sn</code>，它是一个关系，<strong>对每本书 b 展示一个它所映射的名字的见证者 <code>b.sn</code></strong>。</p>
+</div>
+
+<div class="callout warn">
+  <span class="tag">Skolem 化也适用于集合与关系，不只标量</span>
+  <p>上面的论证<strong>没有任何一步要求存在量化的变量是标量</strong>。</p>
+  <ul>
+    <li><strong>最外层量词</strong>的简单情形：引入的变量成为一个<strong>集合或关系</strong>。</li>
+    <li><strong>内层量词</strong>的情形：引入的变量<strong>不再是函数</strong>，而是一个<strong>关系</strong>（为得到集合）或一个<strong>多关系（multirelation）</strong>（为得到关系）。</li>
+  </ul>
+</div>
+
+<div class="card">
+<h4>例：对集合做 Skolem 化（BadUnionRule）</h4>
+<pre><code><span class="c">// 断言（4.5.3 中提到的错误恒等式）</span>
+<span class="k">assert</span> BadUnionRule {
+  <span class="k">all</span> s, t, u: <span class="k">set</span> univ | s = t + u  <span class="k">iff</span>  s - t = u
+}
+<span class="k">check</span> BadUnionRule
+
+<span class="c">// 否定后 Skolem 化：</span>
+ss: <span class="k">set</span> univ <span class="k">and</span>
+st: <span class="k">set</span> univ <span class="k">and</span>
+su: <span class="k">set</span> univ <span class="k">and</span>
+<span class="k">not</span> (ss = st + su  <span class="k">iff</span>  ss - st = su)
+
+<span class="c">// 给出的反例展示了绑定变量的见证者，例如：</span>
+ss = {(U0)}
+st = {(U0)}
+su = {(U0)}</code></pre>
+</div>
+
+<div class="callout key">
+  <span class="tag">Skolem 常量如何命名</span>
+  <p>Skolem 常量的命名方式是：<strong>把相应的变量名前缀上它所在的谓词或函数的名字</strong>（如果同一词法作用域内某个名字被用了多次，再加一个额外的索引）。所以 <code>addLocal</code> 里的 <code>b</code> 变成 <code>addLocal_b</code>，<code>add</code> 里的 <code>b</code> 变成 <code>add_b</code>。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Skolem 化有什么好处？</div>
+  <div class="a"><strong>三个好处：</strong>
+    <ol>
+      <li>它<strong>为绑定变量生成见证者</strong>（如前所述与图示）。</li>
+      <li>它让许多<strong>高阶量化</strong>——比如断言 BadUnionRule 里的那种——<strong>变得可以分析，否则根本无从分析</strong>。</li>
+      <li>它往往<strong>即使对一阶量化也能提升分析性能</strong>，因为存在量词相关的<strong>展开会让约束急剧膨胀</strong>。</li>
+    </ol></div>
+</div>
+
+<h2 id="s53"><span class="num">5.3</span>Unbounded Universal Quantifiers · 无界全称量词</h2>
+<div class="callout warn">
+  <span class="tag">一个重要而微妙的局限</span>
+  <p>本节解释有限实例查找的<strong>一个重要而微妙的局限</strong>。幸运的是，它在实践中<strong>并不常出现</strong>，而且它导致的是<strong>令人惊讶的反例，而不是令人惊讶的遗漏</strong>（后者会糟糕得多）。</p>
+  <p>问题的根源：<strong>当一个 signature 被意图表示「某个复合结构的所有可能值」时</strong>。这与 Alloy 的语义相矛盾——在 Alloy 中，<strong>一个 signature 只表示「某个」值的集合</strong>。这个矛盾只在<strong>全称量化以特定方式使用</strong>时才变得明显。</p>
+</div>
+
+<h3>5.3.1 Generator Axioms and Exploding Scopes · 生成器公理与作用域爆炸</h3>
+<p>假设我们想检验「<strong>集合对并运算封闭</strong>」——即任意两个集合的并也是一个集合。我们把集合表示为对象：</p>
+<pre><code><span class="k">sig</span> <span class="t">Set</span> { elements: <span class="k">set</span> <span class="t">Element</span> }
+<span class="k">sig</span> <span class="t">Element</span> {}
+
+<span class="c">// 对任意一对集合 s0、s1，存在一个集合同时含有两者的元素：</span>
+<span class="k">assert</span> Closed {
+  <span class="k">all</span> s0, s1: <span class="t">Set</span> | <span class="k">some</span> s2: <span class="t">Set</span> |
+    s2.elements = s0.elements + s1.elements
+}
+<span class="k">check</span> Closed     <span class="c">// 默认作用域 3</span></code></pre>
+<p>结果给出这样的反例：</p>
+<pre><code><span class="t">Set</span>      = {(S0), (S1)}
+<span class="t">Element</span>  = {(E0), (E1)}
+s0       = {(S0)}
+s1       = {(S1)}
+elements = {(S0, E0), (S1, E1)}</code></pre>
+<p>其中 s0 是含 E0 的原子 S0，s1 是含 E1 的原子 S1，<strong>而没有任何 Set 原子同时含有这两个元素</strong>。</p>
+<div class="callout pit">
+  <span class="tag">出了什么问题？</span>
+  <p>粗略地说，<strong>分析器找到的反例没有给 signature <code>Set</code> 填充足够多的值</strong>：它<strong>缺少一个 Set 原子</strong>（比如 S2），被 <code>elements</code> 映射到 E0 和 E1。</p>
+</div>
+
+<h4>补救办法：生成器公理 → 但作用域会爆炸</h4>
+<p>要解决所有这类问题，可以加一条<strong>生成器公理（generator axiom）</strong>强制 Set 被完全填充，例如写成一条<strong>结构归纳</strong>：存在一个没有元素的集合，并且对每个集合和每个元素，都存在一个「加上了该元素」的集合：</p>
+<pre><code><span class="k">fact</span> SetGenerator {
+  <span class="k">some</span> s: <span class="t">Set</span> | <span class="k">no</span> s.elements
+  <span class="k">all</span> s: <span class="t">Set</span>, e: <span class="t">Element</span> |
+    <span class="k">some</span> s': <span class="t">Set</span> | s'.elements = s.elements + e
+}</code></pre>
+<table>
+  <thead><tr><th>结构</th><th>生成器公理的代价</th></tr></thead>
+  <tbody>
+    <tr><td><strong>集合</strong><br><code>sig Set {elements: set Element}</code></td>
+        <td>如果 Element 有 <strong>k</strong> 个原子，Set 就必须有 <strong>2ᵏ</strong> 个原子。反过来说：<strong>如果把 Set 界为 k，那么只有 Element 至多 log k 个原子的实例会被考虑</strong>。在这个微型例子里还能做些有用的分析：<strong>4 个元素 + 16 个集合</strong>的作用域应该足以分析一些有趣的断言。</td></tr>
+    <tr><td><strong>图</strong><br><code>sig Graph {adj: Node -&gt; Node}</code></td>
+        <td>k 个节点上共有 <strong>2<sup>k×k</sup></strong> 个不同的图。所以<strong>要考察三节点的图，作用域应把 Graph 界为 512</strong>。</td></tr>
+    <tr><td><strong>递归列表</strong><br><code>abstract sig List</code> + <code>one sig EmptyList</code> + <code>sig NonEmptyList {element: Element, rest: List}</code></td>
+        <td><strong>更糟：某些情况下生成器公理会要求无穷多个原子。</strong>见下方。</td></tr>
+  </tbody>
+</table>
+<pre><code><span class="c">// 强制所有可能的列表都存在：</span>
+<span class="k">fact</span> ListGenerator {
+  <span class="k">all</span> l: <span class="t">List</span>, e: <span class="t">Element</span> |
+    <span class="k">some</span> l': <span class="t">List</span> | l'.rest = l <span class="k">and</span> l'.element = e
+}</code></pre>
+<div class="callout pit">
+  <span class="tag">灾难性后果：模型变成「有效不一致」</span>
+  <p><strong>除非 Element 为空，这条公理会让模型实际上不一致——因为唯一可能的实例将是无限的。</strong>于是<strong>任何断言都变成有效的，包括明显为假的那些</strong>，例如：</p>
+<pre><code><span class="k">assert</span> {<span class="k">all</span> l: <span class="t">List</span> | <span class="k">not</span> l = l}   <span class="c">// 竟然「通过」了</span></code></pre>
+  <p>这正是「令人惊讶的反例好过令人惊讶的遗漏」的<strong>反面案例</strong>：不一致的模型会让所有检查都假性通过，<strong>是最危险的情形</strong>。</p>
+</div>
+
+<h3>5.3.1 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：在集合的例子中，为什么要声明 Element？</div>
+  <div class="a"><p>Set signature 本可以声明成「元素任意取自原子全集」：</p>
+<pre><code><span class="k">sig</span> <span class="t">Set</span> {elements: <span class="k">set</span> univ}</code></pre>
+<p>但这会<strong>允许集合包含集合</strong>，引入一个正交的复杂性。另一个（<strong>更好的</strong>）选择是把声明对元素 signature <strong>参数化</strong>：</p>
+<pre><code><span class="k">module</span> analysis/paramSets [t]
+<span class="k">sig</span> <span class="t">Set</span> {elements: <span class="k">set</span> t}</code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么要为集合引入一个 signature？</div>
+  <div class="a"><p>「集合对并封闭」这个断言本可以写成：</p>
+<pre><code><span class="k">assert</span> {
+  <span class="k">all</span> s0, s1: <span class="k">set</span> univ | <span class="k">some</span> s2: <span class="k">set</span> univ | s2 = s0 + s1
+}</code></pre>
+<p>完全不需要引入 signature。<strong>但这个例子本意是说明一般的复合结构</strong>，集合只是其中特别简单的一个例子，而<strong>其他结构（如列表和序列）并不像集合与关系那样内建在 Alloy 里</strong>。</p>
+<p>顺带一提：<strong>即使断言写成这种形式，分析也不能很好地伸缩</strong>，因为分析器必须把内层量词「落地（ground out）」，导致与生成器公理<strong>同样的爆炸</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：递归定义的列表在 Alloy 模型中常见吗？</div>
+  <div class="a"><p><strong>没有你可能以为的那么常见</strong>——尤其如果你受过 Lisp、ML、Haskell 这类函数式语言的影响（在那里列表是首要数据结构）。</p>
+  <p><strong>在 Alloy 中，列表包含多余的结构</strong>（代表子列表的那些原子），所以<strong>使用列表常常标志着一次抽象的失败</strong>——特别是当元素的<strong>顺序无关紧要</strong>时，本该用一个简单的<strong>集合</strong>。</p>
+  <p>不过类列表结构<strong>偶尔有用</strong>：例如文件系统中的<strong>路径名</strong>可以表示为「一个前缀 + 一个目录名或文件名」，其中前缀<strong>像列表的尾部一样递归定义</strong>。</p></div>
+</div>
+
+<div class="callout key">
+  <span class="tag">需要顺序时：用「索引 → 元素」的序列，而不是递归列表</span>
+  <p>当需要顺序时，<strong>如果不允许重复，一个简单的关系就够了</strong>；否则，把序列建模为一个「字段把索引映射到元素」的 signature 更好：</p>
+<pre><code><span class="k">sig</span> <span class="t">Seq</span> { element: <span class="t">Index</span> -&gt; <span class="k">lone</span> <span class="t">Element</span> }</code></pre>
+  <p>它<strong>比递归列表引入更少的多余结构</strong>。</p>
+  <p><strong>对这类序列的全称量词可能遭遇与列表相同的问题。</strong>Alloy 库包含一个序列模块，其中有一个谓词<strong>强制所有长度不超过给定值（即 Index 的作用域）的序列都存在</strong>。这个谓词显然<strong>必须谨慎使用以避免作用域爆炸</strong>。<strong>没有</strong>「强制所有可能序列都存在」的谓词，<strong>因为那会引入矛盾</strong>。</p>
+</div>
+
+<h3>5.3.2 Omitting the Generator Axiom · 省略生成器公理</h3>
+<p>看到上一节描绘的沮丧图景，你可能想问：<strong>那 Alloy 为什么还有用？</strong>生成器公理问题在实践中很少出现，有<strong>三个原因</strong>：</p>
+<div class="grid c3">
+<div class="card"><h4>① 关系天生封闭</h4><p>其他语言中生成器公理的动机是<strong>确保每个表达式都表示一个值</strong>。但<strong>关系按定义对它的所有算子都封闭</strong>，所以不需要显式生成器公理，<strong>Alloy 中每个关系表达式都有值</strong>。</p></div>
+<div class="card"><h4>② 大多签名是问题域对象</h4><p>生成器公理是<strong>数学对象</strong>需要的，但<strong>大多数 signature 表示问题域中的对象</strong>。在文件系统模型中，你不会期望对代表目录的 signature 写一条生成器公理，说「<strong>对每一种可能的内容组合都存在一个目录</strong>」。</p></div>
+<div class="card"><h4>③ 即使合适也常可省略</h4><p><strong>只要每个全称量词都是有界的，且只使用某些表达式形式，分析器无论是否包含生成器公理都会给出相同结果。</strong>这就是<strong>有界全称规则（bounded-universal rule）</strong>。</p></div>
+</div>
+
+<div class="callout key">
+  <span class="tag">「有界（bounded）」的准确含义</span>
+  <p><strong>量化变量的界定表达式不提及「被生成的 signature」的名字</strong>（即那些我们本想为它们写生成器公理的 signature）。</p>
+  <p>允许的表达式形式<strong>排除关系转置（<code>~</code>）</strong>，并且<strong>点连接只能是「左边一个集合、右边一个关系」</strong>。</p>
+  <p>这些限制确保：<strong>全称量化的约束只能「向内看」结构的内部</strong>——比如看进一个列表的子列表、一棵树的子树——<strong>因而无法分辨生成器公理有没有被应用</strong>。</p>
+</div>
+
+<div class="grid c2">
+<div class="card"><h4>❌ 不是有界全称形式</h4>
+<pre><code><span class="k">sig</span> <span class="t">Set</span> { elements: <span class="k">set</span> <span class="t">Element</span> }
+<span class="k">assert</span> Closed {
+  <span class="k">all</span> s0, s1: <span class="t">Set</span> | <span class="k">some</span> s2: <span class="t">Set</span> |
+    s2.elements = s0.elements + s1.elements
+}</code></pre>
+<p>否定后变成：</p>
+<pre><code><span class="k">some</span> s0, s1: <span class="t">Set</span> |
+  <span class="k">all</span> s2: <span class="t">Set</span> |
+    <span class="k">not</span> s2.elements = s0.elements + s1.elements</code></pre>
+<p><strong>这不在有界全称形式中，因为 s2 的量化不是有界的</strong>（它的界定表达式是 <code>Set</code> 本身，而 Set 正是「被生成的 signature」）。所以检验这个断言<strong>可能（而且确实）产生伪反例</strong>——如果为 Set 加上生成器公理，这些反例就不会存在。</p></div>
+<div class="card"><h4>✅ 是有界全称形式</h4>
+<pre><code><span class="k">sig</span> <span class="t">Set</span> { elements: <span class="k">set</span> <span class="t">Element</span> }
+<span class="k">assert</span> UnionCommutative {
+  <span class="k">all</span> s0, s1, s2: <span class="t">Set</span> |
+    s0.elements + s1.elements = s2.elements
+    <span class="k">implies</span>
+    s1.elements + s0.elements = s2.elements
+}</code></pre>
+<p>分析约束是：</p>
+<pre><code><span class="k">some</span> s0, s1, s2: <span class="t">Set</span> |
+  s0.elements + s1.elements = s2.elements
+  <span class="k">and not</span> s1.elements + s0.elements = s2.elements</code></pre>
+<p><strong>这是有界全称形式，因为它根本不含全称量词。</strong>检验这个断言<strong>不会产生伪反例</strong>；即使没有生成器公理，它也有其原本的含义。</p></div>
+</div>
+
+<div class="callout pit">
+  <span class="tag">这个问题最严重的后果：前置条件断言通常无法检验</span>
+  <p><strong>声明式描述风格非常强大，但它有一个缺点：无意的过度约束（inadvertent overconstraint）。</strong>一个本意只约束<strong>后状态</strong>值的操作规范，可能<strong>无意中同时约束了前状态和参数</strong>，以致该操作<strong>不是「全的（total）」</strong>、在某些上下文中无法被应用。</p>
+  <p>为缓解这个风险，你可能想断言：「<strong>对每个前状态，至少存在一个后状态使该操作的约束得到满足</strong>」。<strong>不幸的是，这种形式的断言不属于有界全称类别，因而可能产生伪反例。</strong></p>
+</div>
+
+<div class="card">
+<h4>例：add 操作的「全性」断言</h4>
+<pre><code><span class="k">sig</span> <span class="t">Name</span>, <span class="t">Addr</span> {}
+<span class="k">sig</span> <span class="t">Book</span> { addr: <span class="t">Name</span> -&gt; <span class="t">Addr</span> }
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span>) {
+  b'.addr = b.addr + n -&gt; a
+}
+<span class="k">assert</span> AddTotal {
+  <span class="k">all</span> b: <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    <span class="k">some</span> b': <span class="t">Book</span> | add (b, b', n, a)
+}
+<span class="k">check</span> AddTotal</code></pre>
+<p><strong>你可能以为这是有效的</strong>——因为每个映射都能被一个新的键值对扩展。<strong>相反地</strong>，如果字段 addr 声明为 <code>addr: Name -&gt; lone Addr</code>（每个名字至多关联一个地址），你就<strong>不再期望该操作是全的</strong>：如果给一个已存在的名字提供一个新地址，就<strong>无法在不违反重数约束的前提下扩展这个地址簿</strong>。</p>
+<p>确实，在第二种情形下断言是无效的。<strong>令人惊讶的是，在第一种情形下它也是无效的</strong>，分析器会生成这样的反例：</p>
+<pre><code>b    = {(B0)}
+n    = {(N0)}
+a    = {(A0)}
+addr = {(B0, N0, A1)}</code></pre>
+<p><strong>其中不存在任何 Book 可以绑定给 b' 以满足操作约束。</strong></p>
+<div class="callout warn" style="margin-top:.7em">
+  <span class="tag">为什么两条路都走不通</span>
+  <p>问题在于：<strong>要让断言有其原本的含义，我们需要确保所有可能的 Book 结构都存在。</strong></p>
+  <ul>
+    <li><strong>加公理不切实际</strong>：Name 与 Addr 作用域为 3 时，Book 需要作用域 <strong>512</strong>！</li>
+    <li><strong>省略公理也不可接受</strong>：因为该断言归约为 <code>all b': Book | not b'.addr = b.addr + n -&gt; a</code>，<strong>不是有界全称公式</strong>。</li>
+  </ul>
+</div>
+</div>
+
+<h3>5.3.2 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：有界全称规则是否允许「只考虑有限情形」来分析一个无限模型？</div>
+  <div class="a"><p><strong>是的，这正是它允许的。</strong>不过这并不太令人惊讶，因为<strong>落在有界全称类别里的性质只「向下看」一个无限实例的有限部分</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：那是不是说，在有限作用域里的一次检查就自动适用于无限情形？</div>
+  <div class="a"><p><strong>不。</strong>它的意思是：<strong>如果一个断言有反例，那么在某个作用域里存在一个有限的反例。</strong>你仍然可能因为作用域太小而<strong>漏掉</strong>反例。</p>
+  <p>对刚才讨论的例子而言，它的意思是：<strong>在所有有限作用域中检验这些断言，覆盖了一个假想分析的情形——那个分析包含生成器公理且作用域是无限的。</strong>所以简言之：<strong>省略公理、且不考虑无限作用域的情形，并不会让漏掉反例的可能性变得更大。</strong></p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：不能通过加否定，把一个全称量词转成存在量词吗？</div>
+  <div class="a"><strong>不能。</strong>有界全称规则<strong>假定公式处于一种范式：所有量词都在最外层，且没有被否定</strong>。一篇研究论文更详细地给出了这条规则，并在「代数数据类型 + 一阶逻辑」的一般设定下证明了它的可靠性 [44]。</div>
+</div>
+
+<h2 id="s54"><span class="num">5.4</span>Scope Selection and Monotonicity · 作用域选择与单调性</h2>
+<p>作用域给每个<strong>顶层 signature</strong> 的大小设一个上界，<strong>可选地</strong>也给子签名设界（见 4.6）。<strong>一个实例在作用域之内</strong>，当且仅当<strong>被作用域约束的每个 signature 的元素个数都不超过其对应的界限</strong>。</p>
+<div class="callout key">
+  <span class="tag">剪枝与保证</span>
+  <p>为执行一次分析，分析器考虑作用域内的<strong>所有候选实例</strong>。当然，候选的数量通常大到<strong>显式枚举不可行</strong>。所以分析使用<strong>剪枝技术（pruning），一次排除掉整组的候选情形</strong>。</p>
+  <p><strong>如果它没有找到实例，就保证在该作用域内确实不存在</strong>——尽管更大的作用域里可能存在。</p>
+</div>
+
+<h3>5.4.1 Selecting a Scope · 选择作用域</h3>
+<p>选择一个合适的作用域可能需要一些仔细的思考。<strong>大多数情况下，从默认作用域开始是有意义的</strong>——它被选为「空间小到足以让分析快速终止，但又大到足以包含有趣的实例」。</p>
+<div class="grid c2">
+<div class="card"><h4>如果找到了实例</h4>
+<p>它可能<strong>立刻就能达成目的</strong>：对断言来说是暴露一个问题；对谓词来说是<strong>展示一致性</strong>、说明一个预期（或意外）的情形。</p>
+<p>但它也可能显得<strong>比必要的更复杂</strong>。在试图消化它之前，你可能想<strong>在更小的作用域上重复分析</strong>——这通常会给出一个<strong>更小、更易理解</strong>的例子。</p></div>
+<div class="card"><h4>如果没找到实例</h4>
+<p>你可能想<strong>增大作用域</strong>，以获得「确实不存在实例」的更大信心——即被检验的断言有效、或被运行的谓词不一致。</p>
+<p><strong>作用域越大，越有理由有信心，但分析耗时越长。</strong>到某个点分析会变得<strong>难以忍受地慢</strong>。如果这是一次<strong>结果攸关</strong>的分析，你可能想把它<strong>放到一边、通宵运行</strong>，也许在更大的机器上。<strong>不过通常，几分钟内就能在给出足够信心的作用域上完成一次会终止的分析。</strong></p></div>
+</div>
+
+<h4>四条粗略指引</h4>
+<dl class="term">
+  <dt>① 界限要能容纳你声明的常量</dt>
+  <dd>确保一个 signature 的界限<strong>足以容纳你为它声明的任何常量</strong>。
+<pre><code><span class="c">// 分析约束涉及图中的一条路径：</span>
+<span class="k">some disj</span> start, end: <span class="t">Node</span> | …</code></pre>
+<p>这要求 Node <strong>至少有两个元素</strong>，以容纳 Skolem 变量 start 和 end。</p></dd>
+
+  <dt>② 尽量用 signature 重数声明来约束集合大小</dt>
+  <dd>因为<strong>分析器会利用重数</strong>，在作用域设置与 signature 声明<strong>互相矛盾时生成警告</strong>，或在需要时<strong>覆盖默认作用域</strong>。
+<div class="grid c2" style="margin-top:.5em">
+<div class="card"><h4>✅ 会得到编译错误</h4>
+<pre><code><span class="k">sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Green</span>, <span class="t">Blue</span>
+  <span class="k">extends</span> <span class="t">Color</span> {}
+<span class="k">pred</span> show () {}
+<span class="k">run</span> show <span class="k">for</span> 2</code></pre>
+<p>你会得到一个<strong>编译错误</strong>，告诉你 Color 的作用域 2 <strong>太低了</strong>，因为子签名声明要求它至少有三个孩子。</p></div>
+<div class="card"><h4>❌ 没有任何错误或警告</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">sig</span> <span class="t">Red</span>, <span class="t">Green</span>, <span class="t">Blue</span>
+  <span class="k">extends</span> <span class="t">Color</span> {}
+<span class="k">fact</span> {<span class="k">one</span> <span class="t">Red</span> <span class="k">and one</span> <span class="t">Green</span> <span class="k">and one</span> <span class="t">Blue</span>}
+<span class="k">pred</span> show () {}
+<span class="k">run</span> show <span class="k">for</span> 2</code></pre>
+<p><strong>没有任何错误或警告消息</strong>，你需要<strong>执行命令</strong>才能发现模型是不一致的。</p></div>
+</div></dd>
+
+  <dt>③ 如果所有相关值都被显式命名为变量，就没必要设更大的作用域</dt>
+  <dd>
+<div class="grid c2" style="margin-top:.5em">
+<div class="card"><h4>只需两本书</h4>
+<pre><code><span class="k">sig</span> <span class="t">Name</span>, <span class="t">Address</span> {}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> -&gt; <span class="t">Address</span>}
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Address</span>) {
+  b'.addr = b.addr + n -&gt; a
+}
+<span class="k">run</span> add <span class="k">for</span> 3 <span class="k">but</span> 2 <span class="t">Book</span></code></pre>
+<p>运行地址簿的 add 操作<strong>不需要超过两本书</strong>（因为只有 b 和 b' 两个变量涉及 Book）。</p></div>
+<div class="card"><h4>但不应限制为两个节点</h4>
+<pre><code><span class="k">sig</span> <span class="t">Node</span> {adj: <span class="t">Node</span>}
+<span class="k">fact</span> {<span class="k">all</span> n, n': <span class="t">Node</span> | n' <span class="k">in</span> n.*adj}
+<span class="k">pred</span> show () {<span class="k">some</span> <span class="t">Node</span>}
+<span class="k">run</span> show <span class="k">for</span> 3</code></pre>
+<p>对这个图模型 show 谓词的分析<strong>不应被限制为两个节点</strong>，因为变量 n 和 n' 是<strong>对所有节点全称量化</strong>的。</p></div>
+</div></dd>
+
+  <dt>④ 如果实例预期构成某个已知形状的结构，该形状的性质可以提示作用域约束</dt>
+  <dd>
+<pre><code><span class="c">// 铁路模型：连接点与轨道段</span>
+<span class="k">sig</span> <span class="t">Point</span> {}
+<span class="k">sig</span> <span class="t">Segment</span> {from, to: <span class="t">Point</span>}</code></pre>
+<p>要包含「某个连接点处有一个道岔（junction）」的情形，看起来我们<strong>至少需要三条轨道段，因而总共至少四个连接点</strong>：一个用于道岔本身，另外每条轨道段的另一端各一个。</p></dd>
+</dl>
+
+<h3>5.4.2 Scope Monotonicity · 作用域单调性</h3>
+<div class="callout key">
+  <span class="tag">作用域单调性</span>
+  <p>作用域指定的是一个 signature 大小的<strong>上界</strong>，而不是它的确切大小。这给分析带来一个叫<strong>作用域单调性（scope monotonicity）</strong>的性质，简单地说就是：</p>
+  <p style="text-align:center;font-size:1.05em;margin:.5em 0"><strong>如果一个分析约束在某个作用域内有实例，那么它在任何更大的作用域内也有实例。</strong></p>
+  <p>作用域单调性在实践中<strong>非常重要</strong>，因为它意味着：<strong>如果一个断言在某个作用域内看起来是有效的（即没有反例），那么在更小的作用域里重复分析不会有任何收获。</strong></p>
+</div>
+<div class="callout pit">
+  <span class="tag"><code>exactly</code> 会破坏单调性</span>
+  <p><code>exactly</code> 关键字（4.6 节）让你指定一个 signature 有<strong>某个确切数量</strong>的元素，<strong>因此它的使用违反了作用域单调性，应当极其小心地使用</strong>。</p>
+  <ul>
+    <li>在<strong>模拟（simulation）</strong>中，它提供了一种简单办法来<strong>强制生成更有趣的实例</strong>；</li>
+    <li>但在<strong>检验（checking）</strong>中，<strong>不推荐使用它</strong>。</li>
+  </ul>
+</div>
+
+<h3>5.4 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：实践中多大的作用域是可行的？</div>
+  <div class="a"><p>在一台<strong>配置普通的机器</strong>上（比如 1 GHz PowerMac、1 GB 内存），使用<strong>最新版本（2005 年）的 Alloy Analyzer</strong>，对一个含<strong>约 20 个 signature、20～30 个字段</strong>的模型，<strong>作用域 5 到 10 的分析通常是可行的</strong>。</p>
+  <p>在模型的<strong>增量开发</strong>过程中，<strong>作用域 3 的分析通常就足够，并且在一分钟内终止</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：signature 不是笛卡尔积吗？那不会让作用域爆炸吗？</div>
+  <div class="a"><p>许多 signature（<strong>但不是全部</strong>）是作为「构造元组的手段」被引入的。例如：</p>
+<pre><code><span class="k">sig</span> <span class="t">Coord</span> {x: <span class="t">X</span>, y: <span class="t">Y</span>}   <span class="c">// 表示二维空间中的坐标</span></code></pre>
+<p>如果 signature X 和 Y 的大小分别是 scope(X) 与 scope(Y)，那么<strong>要表示所有可能的坐标对，就需要至少 scope(X) × scope(Y) 个 Coord 值</strong>。</p>
+<p>你可能以为这应当决定 Coord 的作用域，而<strong>如果真是这样，几乎没有任何分析是可行的</strong>。</p>
+<div class="callout key" style="margin-top:.6em">
+  <span class="tag">这里的误解</span>
+  <p><strong>作用域并不约束「可能值的集合」的大小，它约束的是「可以出现在实例中的值的集合」的大小。</strong></p>
+  <p>如果被检验的断言有一个<strong>只涉及一个坐标</strong>的反例，那么它会在<strong>作用域 1</strong> 中被找到，<strong>无论 Coord 的字段组合能取多少种可能的值</strong>。类似地，如果分析约束涉及<strong>两条直线的交点</strong>，那么 Coord 的作用域 <strong>5 可能就够了</strong>，因为它足以包含两条直线的端点及其交点所需的坐标。</p>
+</div>
+<p><strong>「一个结构可能取的值集合」与「出现在实例中的值集合」之间的这个区别，正是 5.3 节讨论的实质。</strong></p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：作用域为零可能吗？</div>
+  <div class="a"><p><strong>可能，作用域设为零是被允许的，而且并不一定是胡闹。</strong>命令</p>
+<pre><code><span class="k">run</span> P <span class="k">for</span> 0</code></pre>
+<p>问的是：<strong>是否存在一个 P 的实例，其中宇宙是空的</strong>。实践中这很少见——例如每个文件系统至少有一个根。</p>
+<p>但<strong>「对集合非空做尽可能少的假设」是一个好的设计原则</strong>。例如一个<strong>客户-服务器系统应当能处理「没有任何客户」的情形</strong>。</p>
+<p><strong>「集合能不能为空」这个问题常常暴露设计中的根本问题。</strong>例如大多数<strong>文本排版程序</strong>都假设样式表<strong>至少包含一个样式</strong>。其实完全可以设计一个排版程序，<strong>不是所有段落都有样式</strong>，于是<strong>样式表可以为空</strong>。这会让「<strong>删除一个样式</strong>」的情形更容易处理：程序可以<strong>简单保留该段落的所有格式，只是不给它指派任何样式</strong>。</p></div>
+</div>
+
+<h2 id="sum">第 5 章小结</h2>
+<div class="card">
+  <ol>
+    <li><strong>分析的三重价值</strong>：探索时<strong>给具体例子强化直觉</strong>；开发中<strong>让你保持诚实</strong>（写下的就是你以为的）；<strong>揭示微妙缺陷</strong>。核心机制是<strong>作用域 + 作用域内穷尽搜索</strong>。</li>
+    <li><strong>逻辑不可判定，必须妥协</strong>。定理证明尝试<strong>构造证明</strong>（成功⇒有效；失败⇒<strong>结论不明</strong>，且难以分辨是断言错、证明器弱、还是引导不足）。实例查找尝试<strong>寻找反驳</strong>（找到反例⇒无效且给出场景；找不到⇒仍可能无效）。<strong>后者更契合轻量级建模</strong>：因为开发中最常见的是<strong>无效断言</strong>，而无效断言<strong>分析得更快</strong>（找到第一个实例即可停），且反例<strong>易于追溯回描述中的问题</strong>。</li>
+    <li><strong>作用域不是一个数字，而是多维的</strong>：每个 signature 单独设界、由用户控制（铁路例子：2 个状态、1 个路口、多个轨道段与列车）。<strong>默认作用域 3 下，每个二元关系贡献 9 比特 = 512 倍</strong>，四个关系的微型模型就有<strong>超过十亿个用例</strong>。</li>
+    <li><strong>小作用域假设：「大多数 bug 都有小的反例。」</strong>它是<strong>假设，不能被证明</strong>（否则会与不可判定性矛盾）；它针对的是<strong>实践中的断言</strong>而非所有可能断言。<strong>在大实例上失效的系统，几乎总会在性质相似的小实例上同样失效</strong>——所以检查所有小实例，等于也在为大实例做检查。资源分配上限类的失效<strong>不构成反例</strong>，因为抽象中资源分配要么被抽象掉，要么用可任意调低的参数或非确定性表示。</li>
+    <li><strong>run 与 check 的对称结构</strong>：<code>run P</code> 的分析约束是 <code>P ∧ 所有 fact</code>（含声明隐含的），实例叫<strong>例子</strong>；<code>check A</code> 的分析约束是 <code>¬A ∧ 所有 fact</code>，实例叫<strong>反例</strong>。被赋值的变量 = 各 signature 的集合 + 各字段的关系 +（谓词的）参数。</li>
+    <li><strong>变量不「变」</strong>：<code>b</code> 与 <code>b'</code> 只是两个普通变量，对分析器而言毫无特殊关联。这继承数学/物理的传统（不同时刻用不同名字，才使代数推理成为可能），可上溯到 <strong>Hoare 逻辑的辅助变量</strong>与 <strong>McCarthy 的 situation calculus</strong>。<strong>本书不用 Z 式的「字段加撇号」</strong>，而把随时间变化的现象建模为「从时刻到值的函数」；第 6 章进一步把<strong>时刻放在关系的最后一列</strong>，于是 <code>f.t</code> 就是时刻 t 的值。</li>
+    <li><strong>Analyzer 实际上是一个编译器 + SAT 求解器</strong>：把关系表示为<strong>布尔变量组成的邻接矩阵</strong>（作用域 A=3、B=4 ⇒ 3×4 矩阵、12 个变量、2¹² 种值）；关系表达式⇒布尔表达式矩阵（<code>p+q</code> ⇒ <code>p<sub>i,j</sub> ∨ q<sub>i,j</sub></code>），关系公式⇒布尔公式（<code>p in q</code> ⇒ 全部 <code>p<sub>i,j</sub> ⇒ q<sub>i,j</sub></code> 的合取）。求解后<strong>把真变量映射回元组</strong>。捆绑的求解器中 Chaff 与 Berkmin 最快。</li>
+    <li><strong>对称破缺是最重要的优化</strong>：因为原子无解释，<strong>置换原子可从任一实例造出另一实例</strong>，所以解空间天然分成巨大的等价类。Analyzer <strong>间接影响搜索</strong>——生成较小的对称破缺约束合取上去，<strong>只破除部分对称性，却消除了超过 99% 的赋值</strong>（完美的约束太大反而拖慢求解器）。最简单的例子是 <code>util/ordering</code>：<strong>被排序原子可互换，故按字典序排定 ⇒ 元素总是 S0、S1、S2…</strong>，兼顾性能与可视化。</li>
+    <li><strong>Skolem 化：把绑定变量换成自由变量</strong>，从而<strong>产生见证者</strong>。最外层量词 ⇒ 引入标量/集合/关系变量；内层量词 ⇒ 引入<strong>函数</strong>（<code>sy: S -&gt; one T</code>，把 y 替换为 <code>x.sy</code>），对集合/关系则引入关系或多关系。命名规则是<strong>「所在谓词/函数名 + _ + 变量名」</strong>（<code>addLocal_b</code>）。三个好处：<strong>生成见证者</strong>、<strong>让高阶量化变得可分析</strong>、<strong>避免存在量词展开导致的约束膨胀（提升性能）</strong>。</li>
+    <li><strong>无界全称量词是有限实例查找的主要微妙局限</strong>。当 signature 被意图表示「某复合结构的所有可能值」时，与 Alloy 语义（signature 只表示<em>某个</em>集合）矛盾。<strong>补生成器公理会导致作用域爆炸</strong>：集合需 2ᵏ、k 节点的图需 2<sup>k×k</sup>（三节点⇒512）、<strong>递归列表的公理甚至要求无穷原子 ⇒ 模型有效不一致 ⇒ 连 <code>all l: List | not l = l</code> 都会「通过」</strong>。</li>
+    <li><strong>有界全称规则（bounded-universal rule）</strong>是出路：只要<strong>每个全称量词都是有界的</strong>（界定表达式<strong>不提及被生成的 signature 名</strong>）、<strong>不用转置 <code>~</code></strong>、<strong>点连接只以「集合 . 关系」形式出现</strong>，那么<strong>加不加生成器公理结果相同</strong>。直觉：这类约束只能「<strong>向内看</strong>」结构内部（子列表、子树），<strong>无法察觉公理是否被应用</strong>。<code>Closed</code>（<code>all s0,s1 | some s2</code>）❌ 非有界全称，会产生伪反例；<code>UnionCommutative</code>（否定后无全称量词）✅ 有界全称，含义正确。</li>
+    <li><strong>最严重的实践后果：全性/前置条件断言通常无法检验。</strong>声明式风格的代价是<strong>无意的过度约束</strong>；而「对每个前状态都存在一个后状态」这类断言<strong>不属于有界全称类别</strong>。<code>AddTotal</code> 在 <code>addr: Name -&gt; Addr</code>（本应有效）下<strong>也会给出伪反例</strong>——加公理需要 Book 作用域 512，省略公理则公式不是有界全称。<strong>两条路都走不通，所以这类性质只能靠人工推理。</strong></li>
+    <li><strong>有界全称规则允许用有限情形分析无限模型</strong>：含义是「若断言有反例，则某个作用域内有有限反例」，<strong>不是</strong>「有限作用域的检查自动适用于无限情形」（作用域太小仍可能漏）。它保证的是：<strong>省略公理并不让漏掉反例的可能性变大</strong>。规则要求公式处于「<strong>所有量词最外层且未被否定</strong>」的范式；可靠性证明见 [44]。</li>
+    <li><strong>作用域单调性</strong>：作用域是<strong>上界</strong>，故「某作用域内有实例 ⇒ 任何更大作用域内也有实例」。<strong>推论：断言在某作用域内无反例，就不必在更小作用域重跑。</strong><code>exactly</code> <strong>破坏单调性</strong>：模拟时可用它强制生成更有趣的实例，<strong>检验时不推荐</strong>。</li>
+    <li><strong>作用域选择的四条指引</strong>：① 界限要能容纳声明的常量与 Skolem 变量（<code>some disj start, end: Node</code> ⇒ Node ≥ 2）；② <strong>尽量用重数声明</strong>而非 fact 来约束大小，这样矛盾时<strong>编译期就报错</strong>（<code>one sig Red,Green,Blue extends Color</code> + <code>for 2</code> ⇒ 编译错误；改用 fact 则<strong>静默不一致</strong>）；③ 值都被显式命名为变量时不必设更大界限（<code>add</code> 只需 2 个 Book；但<strong>全称量化</strong>的图模型不能只给 2 个 Node）；④ 按预期结构的<strong>形状</strong>推算（铁路道岔 ⇒ ≥3 段、≥4 点）。</li>
+    <li><strong>可行规模（2005 年硬件）</strong>：约 20 个 signature、20–30 个字段的模型，<strong>作用域 5–10 通常可行</strong>；增量开发中<strong>作用域 3 通常足够，且一分钟内终止</strong>。找不到实例时<strong>增大作用域提升信心但耗时增长</strong>；攸关的分析可以<strong>放到大机器上通宵跑</strong>。</li>
+    <li><strong>「signature 是笛卡尔积」的误解</strong>：<code>sig Coord {x: X, y: Y}</code> 的可能值有 scope(X)×scope(Y) 个，但<strong>作用域约束的是「能出现在实例中的值」而非「可能值的集合」</strong>。只涉及一个坐标的反例在作用域 1 就能找到；两条直线相交只需作用域约 5。<strong>这正是 5.3 节讨论的实质。</strong></li>
+    <li><strong>作用域为零是合法的</strong>（<code>run P for 0</code> 问「宇宙为空时 P 是否有实例」）。<strong>「对集合非空做尽可能少的假设」是好的设计原则</strong>——客户-服务器系统应能处理没有客户的情形。这个问题常<strong>暴露设计的根本问题</strong>：排版程序若允许「段落没有样式」，样式表就可为空，<strong>删除样式</strong>也因此更容易处理（保留格式、不指派样式）。</li>
+  </ol>
+</div>
+
+<div class="pager">
+  <a href="ch4.html"><div class="d">← 上一章</div><div class="n">4 · Language 语言</div></a>
+  <a href="ch6.html" class="next"><div class="d">下一章</div><div class="n">6 · Examples 案例 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 第 5 章</div>
+
+</div>
+</body>
+</html>
