@@ -1,0 +1,192 @@
+/* ===== Alloy Book 静态站 · 共享样式 ===== */
+:root{
+  --bg:#0f1115;
+  --bg-soft:#151922;
+  --panel:#1a1f2b;
+  --panel-2:#202735;
+  --line:#2a3242;
+  --ink:#e6e9ef;
+  --ink-soft:#b6bfce;
+  --ink-dim:#8892a4;
+  --accent:#7aa2f7;
+  --accent-2:#9ece6a;
+  --warn:#e0af68;
+  --danger:#f7768e;
+  --violet:#bb9af7;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Songti SC","Noto Serif CJK SC",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --maxw:960px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.85;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ---- 布局 ---- */
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px 96px}
+.topbar{
+  position:sticky;top:0;z-index:50;
+  background:rgba(15,17,21,.92);backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.topbar-in{max-width:var(--maxw);margin:0 auto;padding:10px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.3px;color:var(--ink);font-size:15px}
+.brand span{color:var(--accent)}
+.crumb{color:var(--ink-dim);font-size:13px}
+.navlinks{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.navlinks a{
+  font-size:12.5px;color:var(--ink-soft);padding:4px 9px;border-radius:6px;
+  border:1px solid transparent;
+}
+.navlinks a:hover{background:var(--panel);border-color:var(--line);text-decoration:none}
+.navlinks a.on{background:var(--panel-2);border-color:var(--line);color:var(--ink)}
+
+/* ---- 标题 ---- */
+h1,h2,h3,h4{line-height:1.35;font-weight:700;letter-spacing:-.2px}
+h1{font-size:34px;margin:36px 0 8px}
+h2{font-size:25px;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+h3{font-size:19.5px;margin:36px 0 10px;color:#dfe6f3}
+h4{font-size:16.5px;margin:26px 0 8px;color:var(--ink-soft)}
+.sub{color:var(--ink-dim);font-size:14.5px;margin:0 0 26px}
+h2 .num,h3 .num{color:var(--accent);font-family:var(--mono);font-size:.78em;margin-right:10px}
+
+/* ---- 正文块 ---- */
+p{margin:14px 0}
+ul,ol{margin:14px 0;padding-left:26px}
+li{margin:7px 0}
+strong{color:#fff}
+em{color:var(--ink-soft)}
+code{font-family:var(--mono);font-size:.87em;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#c9d6ff}
+
+/* ---- Alloy 代码块 ---- */
+pre{
+  background:#11151d;border:1px solid var(--line);border-left:3px solid var(--accent);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;margin:16px 0;
+  font-family:var(--mono);font-size:13.2px;line-height:1.7;color:#d7e0f0;
+}
+pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+pre .k{color:#bb9af7}      /* 关键字 sig/fact/assert/run/check */
+pre .t{color:#7aa2f7}      /* 类型/签名名 */
+pre .o{color:#89ddff}      /* 运算符 */
+pre .s{color:#9ece6a}      /* 字符串 */
+pre .n{color:#ff9e64}      /* 数字 */
+pre .c{color:#5c6773;font-style:italic} /* 注释 */
+
+/* ---- 卡片 / 面板 ---- */
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  padding:18px 20px;margin:20px 0;
+}
+.card h4{margin-top:0}
+.grid{display:grid;gap:16px;margin:20px 0}
+.grid.c2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.grid.c3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+
+.callout{
+  border-radius:10px;padding:16px 20px;margin:22px 0;border:1px solid var(--line);
+  background:var(--bg-soft);border-left:4px solid var(--accent);
+}
+.callout.key{border-left-color:var(--accent-2)}
+.callout.warn{border-left-color:var(--warn)}
+.callout.pit{border-left-color:var(--danger)}
+.callout.idea{border-left-color:var(--violet)}
+.callout .tag{
+  display:inline-block;font-size:11.5px;letter-spacing:.8px;text-transform:uppercase;
+  font-weight:700;margin-bottom:6px;color:var(--accent);
+}
+.callout.key .tag{color:var(--accent-2)}
+.callout.warn .tag{color:var(--warn)}
+.callout.pit .tag{color:var(--danger)}
+.callout.idea .tag{color:var(--violet)}
+.callout p:first-of-type{margin-top:2px}
+.callout p:last-child{margin-bottom:0}
+
+/* Q&A（原书 "But isn't ...?" 问答体） */
+.qa{background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:20px 0}
+.qa .q{font-weight:700;color:var(--warn);margin-bottom:6px}
+.qa .a{color:var(--ink-soft)}
+.qa .a p:last-child{margin-bottom:0}
+
+/* ---- 表格 ---- */
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14.2px}
+th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+th{background:var(--panel-2);color:var(--ink);font-weight:700;white-space:nowrap}
+tbody tr:nth-child(odd){background:rgba(255,255,255,.018)}
+td code{white-space:nowrap}
+
+/* ---- 术语表 ---- */
+dl.term{margin:18px 0}
+dl.term dt{font-weight:700;color:var(--accent);font-family:var(--mono);font-size:14px;margin-top:14px}
+dl.term dd{margin:4px 0 0 0;color:var(--ink-soft);padding-left:0}
+
+/* ---- 图示（纯 CSS 关系图/实例图） ---- */
+.fig{
+  background:#11151d;border:1px solid var(--line);border-radius:10px;
+  padding:18px;margin:22px 0;overflow-x:auto;
+}
+.fig .cap{color:var(--ink-dim);font-size:13px;margin-top:12px;text-align:center}
+.rel{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.atom{
+  border:1.5px solid var(--accent);border-radius:8px;padding:6px 12px;
+  font-family:var(--mono);font-size:12.5px;color:#cfe0ff;background:#161d2a;
+}
+.atom.b{border-color:var(--accent-2);color:#d5ecc4;background:#161f18}
+.atom.c{border-color:var(--warn);color:#f0dcb4;background:#201c15}
+.atom.d{border-color:var(--violet);color:#e0d4fb;background:#1b1826}
+.tuple{
+  display:inline-flex;align-items:center;gap:8px;border:1px dashed var(--line);
+  border-radius:8px;padding:5px 10px;background:#141924;font-family:var(--mono);font-size:12.5px;
+}
+.tuple .arw{color:var(--ink-dim)}
+
+/* ---- 目录（章节内 TOC） ---- */
+.toc{background:var(--bg-soft);border:1px solid var(--line);border-radius:10px;padding:16px 22px;margin:26px 0}
+.toc .t{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--ink-dim);font-weight:700;margin-bottom:8px}
+.toc ol{margin:0;padding-left:20px;columns:2;column-gap:32px}
+.toc li{margin:5px 0;font-size:14.5px;break-inside:avoid}
+@media(max-width:640px){.toc ol{columns:1}}
+
+/* ---- 首页 ---- */
+.hero{padding:56px 0 24px;border-bottom:1px solid var(--line);margin-bottom:34px}
+.hero h1{font-size:42px;margin:0 0 10px}
+.hero .lead{font-size:17px;color:var(--ink-soft);max-width:760px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 0}
+.badge{
+  font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink-soft)
+}
+.chlist{list-style:none;padding:0;margin:24px 0;display:grid;gap:12px}
+.chlist a{
+  display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:16px 18px;color:var(--ink);transition:.15s;
+}
+.chlist a:hover{border-color:var(--accent);background:var(--panel-2);text-decoration:none;transform:translateX(3px)}
+.chlist .no{
+  font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent);
+  text-align:center;
+}
+.chlist .ti{font-size:16.5px;font-weight:700}
+.chlist .de{font-size:13.5px;color:var(--ink-dim);font-weight:400;margin-top:3px}
+.chlist .pg{font-family:var(--mono);font-size:12px;color:var(--ink-dim);white-space:nowrap}
+
+/* ---- 底部翻页 ---- */
+.pager{display:flex;gap:14px;margin-top:64px;padding-top:24px;border-top:1px solid var(--line);flex-wrap:wrap}
+.pager a{
+  flex:1;min-width:220px;background:var(--panel);border:1px solid var(--line);
+  border-radius:10px;padding:14px 18px;color:var(--ink);
+}
+.pager a:hover{border-color:var(--accent);text-decoration:none}
+.pager .d{font-size:11.5px;color:var(--ink-dim);letter-spacing:.6px;text-transform:uppercase}
+.pager .n{font-size:15px;font-weight:700;margin-top:4px}
+.pager a.next{text-align:right}
+
+.foot{color:var(--ink-dim);font-size:13px;margin-top:40px;text-align:center}
+hr{border:none;border-top:1px solid var(--line);margin:40px 0}
+.kbd{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 6px;color:#cfe0ff}
