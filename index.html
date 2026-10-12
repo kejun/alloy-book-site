@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Software Abstractions 全书解读 · Alloy 静态站</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">全书逐章解读</div>
+  <nav class="navlinks">
+    <a href="index.html" class="on">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+
+<div class="hero">
+  <h1>Software Abstractions</h1>
+  <div class="lead">
+    <strong>Logic, Language, and Analysis</strong> —— Daniel Jackson（MIT Press, 2006）。
+    本书用一门极简的关系逻辑语言 <strong>Alloy</strong>，把「软件抽象的设计」变成可以<strong>全自动分析</strong>的对象：
+    你写出结构与性质，分析器在有限作用域（scope）内穷举数十亿种情形，直接给你实例或反例。
+    本站按原书章节逐章做总结与解读，一章一页，覆盖全部 6 章正文与 5 个附录。
+  </div>
+  <div class="badges">
+    <span class="badge">逻辑 · Logic</span>
+    <span class="badge">语言 · Language</span>
+    <span class="badge">分析 · Analysis</span>
+    <span class="badge">SAT 求解</span>
+    <span class="badge">有限作用域完备</span>
+    <span class="badge">369 页 / 6 章 / 5 附录</span>
+  </div>
+</div>
+
+<h2>全书脉络：为什么是「逻辑 + 语言 + 分析」</h2>
+<p>
+  Jackson 的核心论点是：<strong>软件开发的核心是抽象的设计</strong>，而抽象不是模块、接口、类或方法，
+  而是「被还原到本质形式的想法」——一种纯粹的结构。设计期最容易犯的错误是
+  <em>wishful thinking</em>（一厢情愿）：抽象在纸上看起来简洁健壮，一到编码就暴露出不连贯甚至自相矛盾。
+  代码不适合用来探索抽象（可执行性带来大量无关细节），而传统形式化方法又依赖定理证明、
+  需要数学专家手工引导，投入产出比不适合大多数项目。
+</p>
+<p>Alloy 的答案是把三件事拆开又组合起来：</p>
+<div class="grid c3">
+  <div class="card">
+    <h4>① 逻辑（第 3 章）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">一切结构都是<strong>关系</strong>（原子的集合上的元组集合）。
+    用极少的算子表达结构性质；状态与执行都用约束描述，于是行为可以「加约束」的方式增量细化。</p>
+  </div>
+  <div class="card">
+    <h4>② 语言（第 4 章）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">在逻辑之上加一点点语法：<code>sig</code> 分类、字段导航、
+    带子类型与并集的灵活类型系统（<strong>无需向下转型</strong>）、模块与多态复用。</p>
+  </div>
+  <div class="card">
+    <h4>③ 分析（第 5 章）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">约束求解：<code>run</code> 找实例，<code>check</code> 找反例。
+    搜索空间由用户给定的 <strong>scope</strong> 限定维度；小 scope 也已是天文数字级别的空间。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">贯穿全书的关键洞见</span>
+  <p><strong>Small Scope Hypothesis（小作用域假设）</strong>：如果一个性质在某个小作用域内不成立，
+  那么它在更大的作用域内也大概率不成立。所以「在 scope=5 内找不到反例」这件事，
+  给出的信心远超「跑了 5000 个单元测试」。这正是把定理证明换成有限穷举的正当性来源。</p>
+</div>
+
+<h2>章节目录</h2>
+<ul class="chlist">
+  <li><a href="preface.html"><span class="no">P</span><span><span class="ti">前言 &amp; 致谢</span><span class="de">从 Larch / Z / SMV 到 Alloy：十年 bridging the gap 的动机；分析「不完备」为何反而更好用；本书读者与阅读方式</span></span><span class="pg">p. xi–xv</span></a></li>
+  <li><a href="ch1.html"><span class="no">1</span><span><span class="ti">Introduction · 导论</span><span class="de">抽象是软件设计的核心；代码是糟糕的抽象载体；形式化方法的两大障碍；逻辑/语言/分析三要素总览</span></span><span class="pg">p. 1–3</span></a></li>
+  <li><a href="ch2.html"><span class="no">2</span><span><span class="ti">A Whirlwind Tour · 速览</span><span class="de">文件系统模型贯穿全章：静态状态探索、加操作变成动态、分类层次、执行轨迹；一个真实 bug 的发现过程</span></span><span class="pg">p. 5–31</span></a></li>
+  <li><a href="ch3.html"><span class="no">3</span><span><span class="ti">Logic · 逻辑</span><span class="de">三种逻辑合一（关系/集合/布尔）；原子与关系；快照；全部算子（join、transpose、closure、box join、quantifier、let…）；约束、声明与重数、基数约束</span></span><span class="pg">p. 33–81</span></a></li>
+  <li><a href="ch4.html"><span class="no">4</span><span><span class="ti">Language · 语言</span><span class="de">Self-Grandpas 示例；sig 与 field；模型图；类型与类型检查；fact / pred / fun / assert；command 与 scope；模块与多态；整数与算术</span></span><span class="pg">p. 83–137</span></a></li>
+  <li><a href="ch5.html"><span class="no">5</span><span><span class="ti">Analysis · 分析</span><span class="de">作用域内完备分析；实例/例子/反例的读法；无界全称量词的陷阱；scope 选择与单调性——什么时候可以放心说「没有 bug」</span></span><span class="pg">p. 139–167</span></a></li>
+  <li><a href="ch6.html"><span class="no">6</span><span><span class="ti">Examples · 案例</span><span class="de">环上领导者选举、酒店房卡锁（真实安全漏洞）、媒体资产管理（版权与权限）、内存抽象（堆模型）</span></span><span class="pg">p. 169–227</span></a></li>
+  <li><a href="appA.html"><span class="no">A</span><span><span class="ti">Exercises · 习题</span><span class="de">逻辑练习、扩展现有模型、经典谜题（握手/过河/农夫）、元模型、小案例研究、开放式案例研究</span></span><span class="pg">p. 229–252</span></a></li>
+  <li><a href="appB.html"><span class="no">B</span><span><span class="ti">Alloy Language Reference · 语言参考手册</span><span class="de">词法、命名空间、完整语法、优先级与结合性、语义基础、类型与重载、全部语言特性逐条说明</span></span><span class="pg">p. 253–289</span></a></li>
+  <li><a href="appC.html"><span class="no">C</span><span><span class="ti">Kernel Semantics · 内核语义</span><span class="de">Alloy 内核的形式化语义；整数表达式与公式的语义</span></span><span class="pg">p. 291–293</span></a></li>
+  <li><a href="appD.html"><span class="no">D</span><span><span class="ti">Diagrammatic Notation · 图形记法</span><span class="de">模型图（model diagram）的完整记号约定</span></span><span class="pg">p. 295–296</span></a></li>
+  <li><a href="appE.html"><span class="no">E</span><span><span class="ti">Alternative Approaches · 其他方法对比</span><span class="de">同一示例分别用 Alloy / B / OCL / VDM / Z 表达，逐一比较表达力、可分析性与工程成本</span></span><span class="pg">p. 297–331</span></a></li>
+</ul>
+
+<h2>阅读建议</h2>
+<div class="grid c2">
+  <div class="card">
+    <h4>第一次接触 Alloy</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">
+      按 <a href="ch1.html">1</a> → <a href="ch2.html">2</a> → <a href="ch3.html">3</a> → <a href="ch4.html">4</a> → <a href="ch5.html">5</a> 顺序读。
+      第 2 章用同一个文件系统例子把「建模—分析—发现 bug」的完整体感建立起来，是最值得慢读的一章；
+      第 3、4 章是语法与语义字典，可以先扫一遍再回头查。
+    </p>
+  </div>
+  <div class="card">
+    <h4>已经会一点 Alloy</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">
+      直接看 <a href="ch5.html">第 5 章</a>（分析的边界在哪里）与 <a href="ch6.html">第 6 章</a>（四个完整案例），
+      再配 <a href="appB.html">附录 B</a> 当手册。第 6 章的酒店房卡锁是全书最有说服力的例子：
+      一个真实的、已在生产系统里存在的漏洞，被 30 行模型 + 一次 <code>check</code> 抓出来。
+    </p>
+  </div>
+</div>
+
+<div class="callout warn">
+  <span class="tag">关于本站</span>
+  <p>本站是对原书的<strong>结构化总结与解读</strong>，不是原文翻译。每页包含：本章地图、逐节要点、
+  关键 Alloy 代码片段、原书中的 Q&amp;A 辨析（<span style="color:var(--warn)">橙色块</span>）、
+  以及解读者的补充说明（<span style="color:var(--violet)">紫色块</span>）。
+  所有代码示例均来自原书，为便于阅读做了着色处理。深入学习请下载
+  Alloy Analyzer（<code>http://alloy.mit.edu</code>）亲手跑一遍。</p>
+</div>
+
+<div class="foot">Software Abstractions: Logic, Language, and Analysis · Daniel Jackson · The MIT Press, 2006<br>本站为学习笔记性质的静态站点</div>
+
+</div>
+</body>
+</html>
