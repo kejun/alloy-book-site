@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第 3 章 · Logic 逻辑 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">第 3 章 · 逻辑</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html" class="on">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">3</span>Logic · 逻辑</h1>
+<p class="sub">原书 p. 33–81 · Alloy 的语义地基：一种把一阶逻辑量词与关系演算算子结合起来的关系逻辑。本章是全书的「字典」，也是理解一切 Alloy 代码的前提。</p>
+
+<div class="callout">
+  <span class="tag">开篇的三个要求</span>
+  <p>每个建模语言的核心都是一种提供基本概念的逻辑。它必须<strong>小、简单、富有表达力</strong>（small, simple, and expressive）。
+  但一种为「表达抽象」而设计的<strong>「工作逻辑」（working logic）</strong>，与为理论研究设计的逻辑不同，
+  <strong>不可能完全极小</strong>——它必须<strong>足够灵活，允许同一个想法用不同的方式表达</strong>。</p>
+</div>
+
+<div class="toc">
+  <div class="t">本章地图</div>
+  <ol>
+    <li><a href="#s31">3.1 三种逻辑合一</a></li>
+    <li><a href="#s32">3.2 原子与关系</a></li>
+    <li><a href="#s33">3.3 快照（图形表示）</a></li>
+    <li><a href="#s34">3.4 算子（常量 / 集合 / 关系）</a></li>
+    <li><a href="#s35">3.5 约束（逻辑算子 / 量词 / let / 集合构造）</a></li>
+    <li><a href="#s36">3.6 声明与重数约束</a></li>
+    <li><a href="#s37">3.7 基数约束</a></li>
+    <li><a href="#cheat">全章算子总表</a></li>
+  </ol>
+</div>
+
+<h2 id="intro">本章的四个设计决定</h2>
+<p>作者在开头就用一段话交代了这套逻辑区别于传统逻辑的关键特征，值得逐条列出：</p>
+<table>
+  <thead><tr><th>决定</th><th>内容</th><th>带来的好处</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>① 关系的 join 被推广</strong></td>
+      <td>这是它区别于传统逻辑的<strong>关键特征</strong>。像关系数据库一样，关系是元组的集合。</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>② 集合是单列关系，标量是单元素集合</strong></td>
+      <td>Sets are represented as relations with a single column, and scalars as singleton sets.</td>
+      <td>于是<strong>同一个 join 算子</strong>可以作用于标量、集合和关系。</td>
+    </tr>
+    <tr>
+      <td><strong>③ 改变重数不影响约束</strong></td>
+      <td>在声明中改变一个关系的「重数」（即它把一个元素映射到标量还是集合），<strong>不需要改动它出现的那些约束</strong>。</td>
+      <td>模型可以无痛演化——这是「增量细化」的技术基础。</td>
+    </tr>
+    <tr>
+      <td><strong>④ 取消集合与标量的区分</strong></td>
+      <td>Dispensing with the distinction between sets and scalars.</td>
+      <td>约束更统一、更好写；而且<strong>消除了偏函数应用问题，因此不需要特殊的「未定义」值</strong>。</td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">还有两点</span>
+  <p>· 逻辑被刻意<strong>保持不含任何会把它绑定到特定编程语言或执行模型的概念</strong>；<br>
+  · 另有少量新意，比如<strong>声明中可以嵌套重数</strong>（nested multiplicities，见 3.6.5）。</p>
+</div>
+
+<hr>
+
+<h2 id="s31"><span class="num">3.1</span>Three Logics in One · 三种逻辑合一</h2>
+<p>本章介绍的是一种<strong>关系逻辑</strong>（relational logic），它把<strong>一阶逻辑的量词</strong>与<strong>关系演算的算子</strong>结合起来。
+「It's easy to learn—especially if you're familiar with basic set theory, or with relational query languages—and surprisingly powerful.」</p>
+<p>这套逻辑支持<strong>三种不同的风格</strong>，可以随意混合与变换。同一个约束——
+「一个地址簿（由从名字到地址的关系 <code>address</code> 表示）把每个名字至多映射到一个地址」——可以写成三种样子：</p>
+
+<div class="grid c3">
+  <div class="card">
+    <h4>① 谓词演算风格<br><span style="font-weight:400;color:var(--ink-dim);font-size:13px">predicate calculus</span></h4>
+    <p style="font-size:13.5px;color:var(--ink-dim);margin-bottom:8px">只有两类表达式：<strong>用作谓词的关系名</strong>，以及<strong>由量化变量构成的元组</strong>。</p>
+<pre style="margin:0;font-size:12.2px"><code><span class="k">all</span> n: <span class="t">Name</span>, d, d': <span class="t">Address</span> |
+  n <span class="o">-&gt;</span> d <span class="k">in</span> address <span class="k">and</span>
+  n <span class="o">-&gt;</span> d' <span class="k">in</span> address
+    <span class="k">implies</span> d <span class="o">=</span> d'</code></pre>
+  </div>
+  <div class="card">
+    <h4>② 导航表达式风格<br><span style="font-weight:400;color:var(--ink-dim);font-size:13px">navigation expression</span></h4>
+    <p style="font-size:13.5px;color:var(--ink-dim);margin-bottom:8px">表达式表示<strong>集合</strong>，由量化变量出发<strong>沿关系「导航」</strong>构成。</p>
+<pre style="margin:0;font-size:12.2px"><code><span class="k">all</span> n: <span class="t">Name</span> |
+  <span class="k">lone</span> n.address</code></pre>
+    <p style="font-size:13px;color:var(--accent-2);margin:10px 0 0">← 最常用</p>
+  </div>
+  <div class="card">
+    <h4>③ 关系演算风格<br><span style="font-weight:400;color:var(--ink-dim);font-size:13px">relational calculus</span></h4>
+    <p style="font-size:13.5px;color:var(--ink-dim);margin-bottom:8px">表达式表示<strong>关系</strong>，而且<strong>完全没有量词</strong>。</p>
+<pre style="margin:0;font-size:12.2px"><code><span class="k">no</span> <span class="o">~</span>address.address <span class="o">-</span> iden</code></pre>
+    <p style="font-size:13px;color:var(--ink-dim);margin:10px 0 0">读作：「不存在两个不同的地址被同一个名字映射到」</p>
+  </div>
+</div>
+
+<div class="callout key">
+  <span class="tag">作者的取舍结论</span>
+  <p>「The predicate calculus style is usually <strong>too verbose</strong>, and the relational calculus is often <strong>too cryptic</strong>.
+  The most common style is therefore the <strong>navigational</strong> one, with occasional uses of the other styles when appropriate.」</p>
+  <p style="margin-bottom:0">谓词演算风格通常<strong>太啰嗦</strong>，关系演算风格常常<strong>太隐晦</strong>。
+  因此最常用的风格是<strong>导航式</strong>，另两种在合适时偶尔使用。</p>
+</div>
+
+<h3>Discussion · 五个问答</h3>
+
+<div class="qa">
+  <div class="q">Q：这个约束你实际上会选哪种写法？</div>
+  <div class="a">
+    <p><strong>都不选。</strong>这类重数约束太常见了，所以我们的逻辑有<strong>特殊语法</strong>，允许把约束直接写进声明里。
+    这种情况下你会写：</p>
+<pre style="margin:8px 0 0"><code>address: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="k">lone</span> <span class="t">Address</span></code></pre>
+    <p style="margin-bottom:0;color:var(--ink-dim);font-size:13.5px">→ 这就是第 2 章 <code>addr: Name -&gt; lone Addr</code> 的由来。详见 3.6.2。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：谓词演算风格用在哪里？</div>
+  <div class="a">
+    <p>一个常见用途是<strong>集合构造表达式</strong>（comprehension expressions），它允许你从一个约束构造出一个集合或关系。
+    例如，若关系 <code>r</code> 关联来自集合 A、B、C 的三个元素，而你想要列的顺序变成 B、A、C，可以用集合构造定义一个新关系：</p>
+<pre style="margin:8px 0"><code>r' <span class="o">=</span> {b: <span class="t">B</span>, a: <span class="t">A</span>, c: <span class="t">C</span> | a <span class="o">-&gt;</span> b <span class="o">-&gt;</span> c <span class="k">in</span> r}</code></pre>
+    <p style="margin-bottom:0">谓词演算风格在写<strong>非常微妙的约束</strong>时也有吸引力，因为它<strong>具体而直白</strong>，
+    而且量词化往往<strong>与自然语言表述一一对应</strong>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：关系演算风格用在哪里？</div>
+  <div class="a">
+    <p>有经验的建模者发现它对<strong>某些反复出现的约束</strong>很有用，因为这样能写得更简洁。例如：</p>
+<pre style="margin:8px 0"><code><span class="k">no</span> <span class="o">^</span>r <span class="o">&amp;</span> iden      <span class="c">// 关系 r 是无环的（acyclic）</span></code></pre>
+    <p>另外，你可能先用导航风格写一个约束，然后注意到某个量化变量<strong>可以被「消掉」（cancelled out）</strong>。例如：</p>
+<pre style="margin:8px 0"><code><span class="c">// 导航风格</span>
+<span class="k">all</span> p: <span class="t">Person</span> | p.uncle <span class="o">=</span> p.parent.brother
+
+<span class="c">// 关系演算风格，更简洁</span>
+uncle <span class="o">=</span> parent.brother</code></pre>
+    <p style="margin-bottom:0"><strong>前提条件</strong>：<code>uncle</code> 和 <code>parent</code> 只映射 <code>Person</code> 集合的成员
+    （so long as uncle and parent only map members of the set Person）。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这些风格的表达力等价吗？</div>
+  <div class="a">
+    <p><strong>不等价。导航风格表达力最强。</strong></p>
+    <ul style="margin-bottom:0">
+      <li><strong>谓词演算缺少传递闭包</strong>，所以<strong>可达性性质无法表达</strong>。</li>
+      <li><strong>关系演算没有量词</strong>，而且并非谓词演算中量词的所有出现都能纯关系式地表达。</li>
+    </ul>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这条问答的技术含金量最高</span>
+  <p>「谓词演算缺少传递闭包 → 可达性无法表达」是数理逻辑里的一个经典事实：
+  一阶逻辑<strong>无法</strong>定义「传递闭包」/「可达性」（这需要无穷多个公式或二阶量词）。
+  Alloy 通过在关系演算一侧<strong>把 <code>^</code> 和 <code>*</code> 作为原语算子加进来</strong>，
+  得到了一个严格强于一阶逻辑的系统——却<strong>仍然可判定</strong>（在有界作用域内）。
+  这是 Alloy 表达力/可分析性平衡的核心：<em>用导航语法糖 + 闭包原语</em>，而不是<em>用高阶量词</em>。
+  这也解释了为什么第 2 章的 <code>no n: Name | n in n.^addr</code> 那类约束在纯一阶逻辑里根本写不出来。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：风格会影响分析的性能吗？</div>
+  <div class="a">
+    <p style="margin-bottom:0"><strong>一般不会。</strong>关于「用多少个关系、每个关系多少列」的<strong>基本建模决策</strong>，
+    影响要大得多。（Basic modeling decisions about how many relations to use, and how many columns each relation has,
+    have a far bigger impact.）</p>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="s32"><span class="num">3.2</span>Atoms and Relations · 原子与关系</h2>
+<div class="callout key">
+  <span class="tag">本节的一句话</span>
+  <p>「All structures in our models will be built from <strong>atoms</strong> and <strong>relations</strong>,
+  corresponding to the basic entities and the relationships between them.」<br>
+  模型中的所有结构都由<strong>原子</strong>和<strong>关系</strong>构成，分别对应基本实体与它们之间的关系。</p>
+</div>
+
+<h3 id="s321">3.2.1 Atoms · 原子</h3>
+<p>原子是一个<strong>原始实体</strong>（primitive entity），具有三个性质：</p>
+<div class="grid c3">
+  <div class="card"><h4>indivisible<br><span style="font-weight:400;font-size:13px;color:var(--ink-dim)">不可分</span></h4>
+    <p style="font-size:14px;color:var(--ink-soft);margin:0">不能被拆成更小的部分。</p></div>
+  <div class="card"><h4>immutable<br><span style="font-weight:400;font-size:13px;color:var(--ink-dim)">不可变</span></h4>
+    <p style="font-size:14px;color:var(--ink-soft);margin:0">它的性质不随时间改变。</p></div>
+  <div class="card"><h4>uninterpreted<br><span style="font-weight:400;font-size:13px;color:var(--ink-dim)">无解释</span></h4>
+    <p style="font-size:14px;color:var(--ink-soft);margin:0">没有任何内建性质——不像数字那样。</p></div>
+</div>
+<p>作者立刻承认：<strong>除了基本粒子，现实世界里几乎没有东西是原子的</strong>；这是一种<strong>建模抽象</strong>。
+那么如果你想建模可分的、可变的、有解释的东西怎么办？</p>
+<div class="callout key">
+  <span class="tag">统一答案</span>
+  <p><strong>「You just introduce relations to capture these properties as additional structure.」</strong><br>
+  引入关系，把这些性质捕捉为<strong>额外的结构</strong>。3.2.3 节会给出三种情形的完整配方。</p>
+</div>
+
+<h3 id="s322">3.2.2 Relations · 关系</h3>
+<p>关系是一个<strong>关联原子的结构</strong>，由一组<strong>元组</strong>构成，每个元组是一个<strong>原子的序列</strong>。
+可以把关系想成一张<strong>表</strong>，表中每个条目是一个原子。</p>
+<table>
+  <thead><tr><th>规则</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><strong>列的顺序重要</strong></td><td>The order of the columns matters.</td></tr>
+    <tr><td><strong>行的顺序不重要</strong></td><td>but not the order of the rows.</td></tr>
+    <tr><td><strong>每行每列都必须有值</strong></td><td>Each row must have an entry in every column.（关系是「平坦」的，没有空洞）</td></tr>
+  </tbody>
+</table>
+
+<h4>size 与 arity</h4>
+<table>
+  <thead><tr><th>术语</th><th>定义</th><th>取值</th></tr></thead>
+  <tbody>
+    <tr><td><strong>size</strong>（大小）</td><td>关系的<strong>行数</strong></td><td>任意，<strong>包括 0</strong></td></tr>
+    <tr><td><strong>arity</strong>（元数 / 列数）</td><td>关系的<strong>列数</strong></td><td><strong>必须是 1 或更多</strong>（不能为 0）</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>arity</th><th>名称</th><th>对应概念</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>unary</strong>（一元）</td><td>一个<strong>集合</strong>（set of atoms）</td></tr>
+    <tr><td>1 且只有 1 个元组</td><td>—</td><td>一个<strong>标量</strong>（scalar）</td></tr>
+    <tr><td>2</td><td><strong>binary</strong>（二元）</td><td>普通二元关系</td></tr>
+    <tr><td>3</td><td><strong>ternary</strong>（三元）</td><td rowspan="2">arity ≥ 3 统称 <strong>multirelation</strong>（多重关系）<br><span style="font-size:12.5px;color:var(--ink-dim)">注：<code>multirelation</code> 是 Alloy 特有术语</span></td></tr>
+    <tr><td>≥ 4</td><td>—</td></tr>
+    <tr><td>0 个元组</td><td><strong>empty</strong>（空）</td><td>空关系</td></tr>
+    <tr><td>1 且至多 1 个元组</td><td><strong>option</strong></td><td>要么是标量，要么为空<br><span style="font-size:12.5px;color:var(--ink-dim)">注：<code>option</code> 也是 Alloy 特有术语</span></td></tr>
+  </tbody>
+</table>
+
+<h4>示例：从集合到三元关系</h4>
+<pre><code><span class="c">// 集合（一元关系），各 size 为 3、3、2</span>
+Name <span class="o">=</span> {(N0), (N1), (N2)}
+Addr <span class="o">=</span> {(D0), (D1), (D2)}
+Book <span class="o">=</span> {(B0), (B1)}
+
+<span class="c">// 标量（只含一个元组的一元关系）</span>
+myName   <span class="o">=</span> {(N0)}
+yourName <span class="o">=</span> {(N1)}
+myBook   <span class="o">=</span> {(B0)}
+
+<span class="c">// 二元关系：只有一个地址簿的世界（因此无需显式建模地址簿）</span>
+address <span class="o">=</span> {(N0, D0), (N1, D1)}
+
+<span class="c">// 三元关系（第 2 章用的那种）：多个地址簿，各有自己的映射</span>
+addr <span class="o">=</span> {(B0, N0, D0), (B0, N1, D1), (B1, N1, D2), (B1, N2, D2)}</code></pre>
+<p>解读：<code>Book B0</code> 把 <code>N0→D0</code>、<code>N1→D1</code>；<code>B1</code> 把 <code>N1</code> 和 <code>N2</code> 都映射到 <code>D2</code>。</p>
+
+<div class="fig">
+  <table style="margin:0 auto;width:auto;font-size:13px">
+    <thead><tr><th>Book</th><th>Name</th><th>Addr</th></tr></thead>
+    <tbody>
+      <tr><td>B0</td><td>N0</td><td>D0</td></tr>
+      <tr><td>B0</td><td>N1</td><td>D1</td></tr>
+      <tr><td>B1</td><td>N1</td><td>D2</td></tr>
+      <tr><td>B1</td><td>N2</td><td>D2</td></tr>
+    </tbody>
+  </table>
+  <div class="cap">图 3-1　三元关系看作一张表（对应原书 fig. 3.1）· arity = 3，size = 4</div>
+</div>
+
+<h4>option 的实用场景</h4>
+<div class="card">
+  <p style="margin:0;font-size:14.5px;color:var(--ink-soft)">一个邮件应用可能存储用户的邮件地址，
+  以及<strong>可选地</strong>一个用于消息「reply-to」字段的<em>不同</em>地址。
+  前者可以建模为<strong>标量</strong> <code>userAddress</code>，后者建模为 <strong>option</strong> <code>replyAddress</code>——
+  它要么包含一个地址，要么为空。</p>
+</div>
+
+<div class="callout warn">
+  <span class="tag">术语约定：tuple = 单例关系</span>
+  <p>在 Alloy 逻辑中<strong>所有值都是关系</strong>，所以一个元组由<strong>包含它的那个关系</strong>来表示，
+  正如一个标量由一个单例集合表示。因此本书用 <strong>tuple</strong> 一词来描述<strong>单例关系</strong>——恰好包含一个元组的关系。</p>
+<pre style="margin:10px 0 0"><code>myName    <span class="o">=</span> {(N0)}        <span class="c">// 标量</span>
+myAddress <span class="o">=</span> {(A1)}        <span class="c">// 标量</span>
+myLink    <span class="o">=</span> {(N0, A1)}    <span class="c">// 关联二者的元组</span></code></pre>
+</div>
+
+<h3 id="s323">3.2.3 Expressing Structure with Relations · 用关系表达结构</h3>
+<div class="callout key">
+  <span class="tag">本节的总纲</span>
+  <p>「With relations, you can express structures <strong>in space and time</strong>,
+  <strong>overcoming the apparent limitations of atoms</strong> as a modeling construct.」<br>
+  借助关系，你可以表达<strong>空间和时间上的</strong>结构，从而克服原子作为建模构造的<em>表面</em>局限。</p>
+</div>
+<p>本节给出了<strong>三个「原子的限制 → 关系的解法」配方</strong>，这是整章最实用的部分之一：</p>
+
+<h4>配方 ①　原子不可分 → 用关系绑定组件（组合对象）</h4>
+<p>虽然逻辑中唯一的对象是不可分的原子，但你可以<strong>用原子表示组件、用一个关系把它们绑在一起</strong>，来建模一个复合对象。</p>
+<div class="grid c2">
+  <div class="card">
+    <h4>例：目录包含文件</h4>
+    <p style="font-size:14.3px;color:var(--ink-soft);margin:0">引入关系 <code>contents</code>，把目录映射到它包含的文件。
+    当目录 <code>D0</code> 包含文件 <code>F0</code> 和 <code>F1</code> 时，它包含元组 <code>(D0, F0)</code> 和 <code>(D0, F1)</code>。</p>
+  </div>
+  <div class="card">
+    <h4>例：酒店房卡（两个密钥）</h4>
+    <p style="font-size:14.3px;color:var(--ink-soft);margin:0">每张房卡持有<strong>两个</strong>加密密钥。建模为：
+    卡集合 <code>Card</code>、密钥集合 <code>Key</code>，以及两个从 Card 到 Key 的关系 <code>fst</code> 和 <code>snd</code>。</p>
+<pre style="margin:8px 0 0;font-size:12.3px"><code>fst <span class="o">=</span> {(C1, K11), (C2, K21)}
+snd <span class="o">=</span> {(C1, K12), (C2, K22)}</code></pre>
+    <p style="font-size:13px;color:var(--ink-dim);margin:6px 0 0">→ 这正是第 6.2 节酒店案例的核心数据结构，此处已埋伏笔。</p>
+  </div>
+</div>
+<div class="fig">
+  <div class="rel" style="gap:60px">
+    <div>
+      <div style="text-align:center;color:var(--ink-dim);font-size:12.5px;margin-bottom:8px">一张含两个密钥的房卡</div>
+      <div class="atom c" style="display:inline-block">C1</div>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <div class="atom">K11</div><div class="atom">K12</div>
+      </div>
+    </div>
+    <div>
+      <div style="text-align:center;color:var(--ink-dim);font-size:12.5px;margin-bottom:8px">用原子与关系表示</div>
+      <div class="rel">
+        <span class="tuple"><span class="atom c">C1</span><span class="arw">─fst→</span><span class="atom">K11</span></span>
+        <span class="tuple"><span class="atom c">C1</span><span class="arw">─snd→</span><span class="atom">K12</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="cap">图 3-2　复合对象的关系化（对应原书 fig. 3.2）</div>
+</div>
+<p style="color:var(--ink-dim);font-size:14px">
+  <strong>当对象的内容本身是一个关系时，就用 multirelation 来建模包含关系。</strong>
+  例如上一节的 <code>addr</code> 关联地址簿、名字、地址——每本地址簿都可以看作包含一张 name/address 表。
+</p>
+
+<h4>配方 ②　原子不可变 → 把「身份」与「值」分成不同原子（变化）</h4>
+<p>虽然原子不可变，但你可以通过<strong>把对象的身份（identity）与它的值（value）分离成不同的原子</strong>，
+并把身份、值、时间三者关联起来，从而建模<strong>mutation</strong>（对象值随时间变化）。</p>
+<pre><code><span class="c">// 股票取值的历史：value 含 (S0, V0, T0) 表示股票 S0 在时刻 T0 取值 V0</span>
+value <span class="o">=</span> {(S0, V0, T0), (S0, V1, T1), ...}
+
+<span class="c">// 地址簿内容的变化：addrT 定义在名字、地址、时间上</span>
+addrT <span class="o">=</span> {(N0, D0, T0), (N1, D1, T0), (N2, D2, T1)}</code></pre>
+<div class="callout idea">
+  <span class="tag">回头理解第 2 章的 Book</span>
+  <p>作者点出一个关键事实：第 2 章的 <code>addr</code> 关联 book、name、address，
+  它<em>本来可以</em>用来建模「一个静态世界，其中有多本地址簿，每本含自己的 name/address 表」。</p>
+  <p style="margin-bottom:0">但<strong>实际上它被用来表示单个地址簿的变化值</strong>——
+  <strong>book 原子扮演的角色与 <code>addrT</code> 中 time 原子的角色完全相同</strong>。
+  这就从逻辑层面解释了 2.4 节「加轨迹只需给 Book 加个排序」为什么行得通：
+  <em>Book 本来就是时间维度的化身</em>。</p>
+</div>
+<p style="color:var(--ink-dim);font-size:14px">
+  作者还补充：当模型只关心<strong>单个对象及其变化的值</strong>时，可以用<strong>一组原子</strong>表示该对象在不同时刻的值。
+</p>
+
+<h4>配方 ③　原子无解释 → 用关系赋予性质</h4>
+<p>虽然原子是无解释的，你可以通过<strong>引入它们之间的关系</strong>来赋予它们性质。</p>
+<div class="grid c2">
+  <div class="card">
+    <h4>例：网络协议的序列号</h4>
+    <p style="font-size:14.3px;color:var(--ink-soft);margin:0">序列号可以表示为集合
+    <code>SeqNumber = {(N0), (N1), …}</code> 的原子，并用关系 <code>precedes</code> 排序——
+    当序列号 N0 在 N1 之前时，它包含元组 <code>(N0, N1)</code>。</p>
+  </div>
+  <div class="card">
+    <h4>例：2.4 节的 book 原子</h4>
+    <p style="font-size:14.3px;color:var(--ink-soft);margin:0">那些 book 原子被排序为 B0, B1, …，
+    B0 表示书的初始值，B1 表示一步之后的值，以此类推。
+    这个排序是<strong>通过导入一个库模块</strong>施加的，该模块包含一个关系 <code>next</code>，把 B0 映射到 B1、B1 映射到 B2，等等。</p>
+  </div>
+</div>
+<div class="card">
+  <h4>例：图像编辑程序（Adobe Photoshop）——抽象层次的示范</h4>
+  <p style="font-size:14.5px;color:var(--ink-soft)">
+  图像编辑程序允许你对图像施加颜色变换。若要探索<strong>某个特定变换</strong>的性质，
+  你需要一个关于颜色和变换函数的<strong>详细模型</strong>。</p>
+  <p style="font-size:14.5px;color:var(--ink-soft)">
+  但若要探索<strong>支撑这类方案的抽象</strong>——把变换施加到<em>部分图像选区</em>、
+  把变换与<em>图层</em>结合、<em>撤销与重做</em>变换等等——采取一个<strong>更抽象的视角</strong>可能就足够了：
+  图像只是「从像素位置到 RGB 值的映射」，颜色变换只是「从 RGB 值到 RGB 值的函数」。</p>
+<pre style="margin:8px 0 0"><code><span class="c">// 交换 RGB0 与 RGB1 的变换</span>
+transform <span class="o">=</span> {(RGB0, RGB1), (RGB1, RGB0)}</code></pre>
+  <p style="font-size:13.5px;color:var(--accent-2);margin:8px 0 0">→ 这是全书关于「抽象层次选择」最好的示范：
+  <strong>你想探索什么问题，决定了你需要多细的模型。</strong>第 2.5 节「十行模型就很有用」的论断在此得到具体支撑。</p>
+</div>
+
+<h3>Discussion · 关于原子与关系的九个问答</h3>
+
+<div class="qa">
+  <div class="q">Q1：原子的名字有意义吗？</div>
+  <div class="a">
+    <p style="margin-bottom:0"><strong>没有。</strong>原子名<strong>从不出现在模型中</strong>；它们只用于<strong>描述模拟或检查所产生的实例</strong>。
+    Alloy Analyzer 允许你为每个集合的原子指定自己的名字，但<strong>默认使用集合的全名</strong>——
+    所以 <code>Book</code> 的原子是 <code>Book0</code>、<code>Book1</code>…，而不是 <code>B0</code>、<code>B1</code>…。
+    <span style="color:var(--ink-dim);font-size:13.5px">（这解释了第 2 章图里为什么是 <code>Name0</code>、<code>Group1</code>。）</span></p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q2：像 <code>{(N0, D0), (N1, D1)}</code> 这样的表达式是什么意思？</div>
+  <div class="a">
+    <p>它是<strong>传统数学语言</strong>中的表达式。这里它表示由两个元组构成的集合，
+    第一个元组以 N0 为第一元素、D0 为第二元素，第二个以 N1、D1 为元素。
+    术语 N0、N1、D0、D1 是原子的名字。</p>
+    <p style="margin-bottom:0"><strong>这些都不属于逻辑本身</strong>；作者只是用它来解释基本概念的含义。
+    <strong>在 Alloy 中，你完全无法显式地引用原子。</strong>
+    不过你可以声明标量变量 N0、N1、D0、D1，然后（后面会看到）这个关系可以用表达式
+    <code>N0 -&gt; D0 + N1 -&gt; D1</code> 来表示。</p>
+  </div>
+</div>
+<div class="callout pit">
+  <span class="tag">必须记住的一条硬规则</span>
+  <p><strong>「In Alloy, you can't refer to atoms explicitly at all.」</strong>——在 Alloy 中你<strong>根本不能</strong>显式引用原子。
+  没有 <code>Name0</code> 这样的字面量。要指涉特定原子，只能通过<strong>声明标量变量</strong>或用 <code>one</code>/<code>lone</code> 重数让工具去选。
+  这条规则是「模型不依赖具体实例」的保证，也是 Alloy 能做到<strong>符号执行</strong>的前提。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q3：为什么集合表达式 <code>{(N0)}</code> 里要多一层括号？</div>
+  <div class="a">
+    <p>在 Alloy 中<strong>所有结构都是关系</strong>，而集合不过是一种<strong>所有元组都只含一个元素</strong>的关系。
+    集合 <code>{N0}</code> 在 Alloy 中会被建模成这个关系；它无法被直接表示。</p>
+    <p style="margin-bottom:0">因为这类表达式<strong>从不出现在模型里</strong>，多出的括号语法并不造成不便。
+    恰恰相反，<strong>集合与关系的统一让语法更简单</strong>——因为<strong>不需要在集合与关系之间、或标量与集合之间做转换</strong>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q4：关系能包含关系吗？</div>
+  <div class="a">
+    <p><strong>不能。</strong>我们的关系是<strong>平坦的（flat）</strong>或<strong>一阶的（first order）</strong>，
+    意味着条目<strong>永远是原子，绝不本身是关系</strong>。</p>
+    <p>拿 <code>addr</code> 举例（用来建模「地址簿包含 name/address 映射」这个想法）。在平坦表示下，它的值是一个三元关系：</p>
+<pre style="margin:8px 0"><code>addr <span class="o">=</span> {(B0, N0, D0), (B0, N1, D1), (B1, N1, D2), (B1, N2, D2)}
+
+<span class="c">// 更传统的（高阶）写法：从地址簿到「从名字到地址集合的函数」的函数</span>
+addrC <span class="o">=</span>
+  {(B0, {(N0, {D0}), (N1, {D1, D2})}),
+   (B1, {(N1, {D2}), (N2, {D2})})}</code></pre>
+    <p style="margin-bottom:0"><strong><code>addrC</code> 无法在 Alloy 中直接表示。</strong>
+    本章后面（3.4.3）会看到：书 b 的 name/address 映射（传统上写作 <code>addrC(b)</code>）在 Alloy 中写作 <code>b.addr</code>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q5：为什么不允许高阶关系？</div>
+  <div class="a">
+    <p>限制为平坦关系<strong>让逻辑对分析更可控</strong>（more tractable）。
+    正如关系数据库社区已经发现的，<strong>平坦关系对几乎所有应用都足够有表达力</strong>，
+    而且它们的<strong>简单性和统一性很有吸引力</strong>。</p>
+    <p style="margin-bottom:0">上面 <code>addrC</code> 中<strong>对称性的缺失</strong>意味着它<strong>不能像从左访问那样容易地从右访问</strong>。对比一下：</p>
+    <table style="margin:8px 0 0;font-size:13.5px">
+      <thead><tr><th>表达式</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>addr.a</code></td><td>从地址簿到「它们为地址 a 所用的名字」的映射</td></tr>
+        <tr><td><code>addr.n.Addr</code></td><td>含有名字 n 的条目的那些地址簿的集合</td></tr>
+      </tbody>
+    </table>
+    <p style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px">对 <code>addrC</code> 而言，这两个都需要更复杂的构造。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q6：限制为平坦关系会损失表达力吗？</div>
+  <div class="a">
+    <p><strong>会，但通常可以绕过去。</strong>几乎总是，一个看似需要高阶关系的情形都可以<strong>不用它而重新表述</strong>。</p>
+    <p><strong>经典例子：大学课程的先修结构。</strong>每门课有一组先修课；要选修一门课，
+    学生需要修完<strong>该课的先修课集合中至少一组里的全部课程</strong>。高阶写法：</p>
+<pre style="margin:8px 0"><code><span class="c">// 想修 C3，必须修过 (C0 和 C1) 或 (C0 和 C2)</span>
+prereqC <span class="o">=</span> {(C3, {(C0), (C1)}), (C3, {(C0), (C2)})}
+
+<span class="c">// 简单地把它压平是错的 —— 丢失了分组信息！</span>
+prereqBad <span class="o">=</span> {(C3, C0), (C3, C1), (C3, C2)}</code></pre>
+    <p><strong>正确的解法：引入一组新原子来建模「先修组合」</strong>，再加一个把组合映射到其构成课程的关系：</p>
+<pre style="margin:8px 0"><code>prereq  <span class="o">=</span> {(C3, P0), (C3, P1)}
+courses <span class="o">=</span> {(P0, C0), (P0, C1), (P1, C0), (P1, C2)}</code></pre>
+    <p style="margin-bottom:0">这保留了本质结构：课程 C3 现在有两个可能的先修组合——
+    <code>P0</code>（由 C0 和 C1 组成）和 <code>P1</code>（由 C0 和 C2 组成）。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">这是一个必须掌握的建模技巧：具体化（reification）</span>
+  <p>「引入一组新原子来代表原本嵌套的结构」是 Alloy（以及关系数据库设计）里最常用的重构手法。
+  它把「集合的集合」变成「一个实体 + 一个关系」。
+  记住这个模式：<strong>任何时候你想写 <code>X -&gt; set Y</code> 且需要对 <em>那个 set</em> 本身施加约束时，
+  就引入一个新签名 <code>G</code>，写成 <code>X -&gt; some G</code> 加 <code>G -&gt; some Y</code>。</strong></p>
+</div>
+<div class="qa" style="margin-top:14px">
+  <div class="q">Q6-补：高阶关系还有另一个表达力优势</div>
+  <div class="a">
+    <p style="margin-bottom:0">一个把 A 中原子映射到 B 中<em>原子集合</em>的函数，可以包含<strong>「从某原子到空集」</strong>的映射，
+    从而<strong>区分「一个原子被映射到 nothing」与「一个原子根本没有被映射」</strong>。
+    而 A 到 B 的二元关系<strong>无法做这种区分</strong>。替代办法是<strong>额外声明一个集合</strong>：
+    例如「映射为空的地址簿」属于集合 <code>Book</code>，但<strong>不被 <code>addr</code> 映射</strong>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q7：为什么不把复合对象作为语言构造包含进来？</div>
+  <div class="a">
+    <p>传统规格说明语言如 <strong>VDM</strong> 和 <strong>Z</strong> 允许你直接用<strong>复合数学对象</strong>建模复合对象。
+    例如地址簿可能不表示为一个原子，而表示为一个「从名字到地址的关系」。
+    那么地址簿与另一个对象之间的关系就<strong>只能用高阶关系表达</strong>。
+    所以排除复合对象的理由，就是我们已给出的偏好平坦关系的理由。</p>
+    <p style="margin-bottom:0">此外还有一个理由：<strong>数学对象没有独立于其值的身份</strong>（no identity distinct from their value）。
+    如果你想谈论<strong>不同地址簿在不同时刻的值</strong>，你<strong>反正都得引入代表书的身份的原子</strong>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q8：真的能不用整数这类有解释的原子吗？</div>
+  <div class="a">
+    <p><strong>能，几乎一直能。</strong>而且事实证明，<strong>在大多数你以为需要整数的场合，
+    用一个无解释类型的原子加上一些关系来提供所需的解释，反而更干净、更抽象。</strong></p>
+    <p style="margin-bottom:0">Alloy 确实支持整数，尽管方式有限：你可以取关系的大小、做加减、比较整数，
+    <strong>但不能做乘除</strong>。整数的处理见 <strong>3.7</strong> 与 <strong>4.8</strong> 节。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q9：关系可以有无穷的大小和元数吗？</div>
+  <div class="a">
+    <p style="margin-bottom:0">我们的逻辑<strong>并不排除</strong>无穷大小的关系，但对我们要看的所有模型，
+    <strong>只考虑有限实例化就够了</strong>。不过，<strong>关系的元数必须是有限的</strong>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q10：multirelation（多元关系）在实践中有用吗？</div>
+  <div class="a">
+    <p><strong>有用。</strong>因为关系是<strong>平坦而非嵌套</strong>的，<strong>元数大于二的关系非常常见</strong>。</p>
+    <ul>
+      <li><strong>三元关系</strong>：要建模一个「状态涉及若干关系」的系统的执行轨迹，就需要三元关系——
+        <strong>两列</strong>表示给定时刻的关系，<strong>再加一列</strong>表示时间。</li>
+      <li><strong>四元关系</strong>：较少见。例如网络路由表的状态可能关联：
+        表所在的<strong>主机</strong>(1)、传入包的期望<strong>目的地主机</strong>(2)、转发消息所用的<strong>端口</strong>(3)、
+        以及该表项存在的<strong>时刻</strong>(4)。</li>
+      <li><strong>五元及以上</strong>：罕见。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q11：为什么关系的列没有名字？</div>
+  <div class="a">
+    <p>如果你更熟悉关系数据库而非关系逻辑，可能会觉得奇怪：关系的列由<strong>位置</strong>而非<strong>名字</strong>标识。理由有三：</p>
+    <ol>
+      <li>建模中关系的元数比数据库中的关系<strong>小得多</strong>；超过四列的关系很罕见。</li>
+      <li>在模型的约束中，join 倾向于<strong>以特定顺序作用于关系的特定列</strong>。</li>
+      <li>通过<strong>仔细安排列的顺序</strong>，几乎所有 join 都可以做成是在关系的<strong>第一列或最后一列</strong>上进行。</li>
+    </ol>
+    <p style="margin-bottom:0">因此，按位置而非按名字处理列<strong>更方便</strong>，并产生<strong>更简洁自然的表达式</strong>。</p>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这条决定了 Alloy 的建模品味</span>
+  <p>「几乎所有 join 都在第一列或最后一列上进行」——这句话是 Alloy 建模的一条实用美学准则。
+  回头看第 2 章的 <code>addr: names -&gt; some Target</code>：Book 在第一列，所以 <code>b.addr</code> 干净利落；
+  Target 在最后一列，所以 <code>addr.t</code>（反查「谁指向 t」）也干净利落。
+  <strong>如果你发现自己在写 <code>~r</code> 或复杂的 box join 才能表达一个自然的查询，往往是列的顺序设计错了。</strong></p>
+</div>
+
+<div class="qa">
+  <div class="q">Q12：如果列的顺序重要，那如何表示一个无序的关系？</div>
+  <div class="a">
+    <p>无序关系可以用不同方式表示。<strong>最简单的办法</strong>是用一个关系 <code>r</code>（照常是有序的），
+    再加一条约束 <code>r = ~r</code> 使它<strong>对称</strong>——正反两个方向相同。</p>
+<pre style="margin:8px 0"><code>spouse <span class="o">=</span> <span class="o">~</span>spouse      <span class="c">// 你是我的配偶 ⟺ 我是你的配偶</span></code></pre>
+    <p style="margin-bottom:0">作者坦率地评价：「This trick may be <strong>philosophically dubious</strong>,
+    but in practice it's fine, and much easier than introducing additional constructs.」
+    ——这个技巧在<em>哲学上可疑</em>，但实践中没问题，而且比引入额外构造容易得多。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q13：把标量和集合当作关系来处理，这是新想法吗？</div>
+  <div class="a">
+    <p><strong>不是。</strong>它可以追溯到 <strong>Tarski</strong> 关于关系演算的奠基性工作 [70]。
+    不过 Tarski 的所有关系都是<strong>二元的</strong>，所以他的编码没那么自然：
+    一个集合是「把集合中的每个原子映射到<em>每一个可能的原子</em>」的关系。
+    <strong>Rick Hehner 的「bunches」</strong>[27] 有类似的味道，但用一种新的代数结构统一了标量与集合。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q14：把标量当作集合，不会让人困惑吗？</div>
+  <div class="a">
+    <p>初次遇到这个想法时，有些人会感到不安。毕竟，<strong>集合与其元素之间的区分不就是集合论的根基吗？</strong></p>
+    <p>但在<strong>一阶逻辑</strong>中（其中<strong>从不使用集合的集合</strong>），不会产生混淆。
+    而实践中，<strong>打破集合与标量的区分带来了很好的统一性</strong>：写导航表达式时，
+    <strong>你不必担心一个表达式代表集合还是标量</strong>。</p>
+<pre style="margin:8px 0"><code><span class="c">// p 的（外）祖父们：点算子作用于标量 p，与作用于集合 p.parents 方式完全相同</span>
+p.parents.father
+
+<span class="c">// p 的岳母/婆婆：不必担心 p 没有妻子时 p.wife 会「未定义」</span>
+p.wife.mother <span class="o">+</span> p.husband.mother
+<span class="c">// 等价写法</span>
+p.(wife <span class="o">+</span> husband).mother</code></pre>
+    <p style="margin-bottom:0"><strong>与「偏性」（partiality）的处理结合起来</strong>，我们就能这样写岳母，
+    而<strong>不必担心如果 p 没有妻子，表达式 <code>p.wife</code> 可能是未定义的</strong>。
+    <span style="color:var(--accent-2)">→ 这就是开篇所说的「消除了偏函数应用问题，因此不需要特殊的 undefined 值」的具体收益。</span></p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q15：哪些术语是 Alloy 特有的，哪些是逻辑与集合论中的标准术语？</div>
+  <div class="a">
+    <p style="margin-bottom:0">到目前为止引入的所有术语都是<strong>标准的</strong>，
+    <strong>除了两个</strong>：<code>multirelation</code>（超过两列的关系）和 <code>option</code>（空或单例的集合）。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q16：Alloy 的 option 和 ML 语言的 option 一样吗？</div>
+  <div class="a">
+    <p><strong>不一样。</strong>大多数建模语言和编程语言不把 option 当作单例或空集合，而是用一种<strong>联合类型</strong>（union type）。
+    ML 的 option 就是这样一个联合：一个<strong>带标签的值</strong>，要么是一个标量，要么是某个特殊的 <code>null</code> 值。</p>
+    <p>对建模来说这<strong>更不方便</strong>，因为<strong>打标签会包裹住值并改变它的类型</strong>。举例：
+    一个邮件应用模型，标量 <code>userAddress</code> 表示用户地址，option <code>replyAddress</code> 表示用于 reply-to 的另一个地址。</p>
+    <ul>
+      <li><strong>在 Alloy 中</strong>，这两个变量<strong>类型相同</strong>，可以用集合算子组合和比较：
+<pre style="margin:6px 0"><code>userAddress <span class="o">=</span> replyAddress</code></pre>
+        当 <code>replyAddress</code> 有定义且等于 <code>userAddress</code> 时，此式为真。</li>
+      <li><strong>在传统做法中</strong>，两个变量<strong>类型不同</strong>，不先对 <code>replyAddress</code> 做投影就<strong>无法比较</strong>。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q17：所以 Alloy 里其实没有标量？</div>
+  <div class="a">
+    <p style="margin-bottom:0"><strong>按标准意义说，没有。</strong>传统语言会区分
+    <code>a</code>（标量）、<code>{a}</code>（含一个标量的单例集合）、<code>(a)</code>（元组）、<code>{(a)}</code>（关系），
+    而 <strong>Alloy 把它们全部当作同一个东西，都表示为 <code>{(a)}</code></strong>。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q18：「option」这个词有什么用？每个 option 不都要么是标量要么为空吗？</div>
+  <div class="a">
+    <p style="margin-bottom:0">这个术语用来描述一个<strong>值未知</strong>的变量，而不是某个特定的值——
+    就像你提到「一辆车（vehicle）」时并不知道它是轿车还是卡车。
+    按定义，<strong>每个标量也是一个 option</strong>；两者都是集合；<strong>每个集合都是一个关系</strong>。
+    但通常你想用那个<strong>能告诉你最多信息</strong>的术语：
+    所以如果你知道它是集合就不叫它「关系」，如果你知道它是标量就不叫它「集合」。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">一句话记住术语层级</span>
+  <p style="font-family:var(--mono);font-size:14px;margin-bottom:0;text-align:center">
+  scalar ⊂ option ⊂ set ⊂ relation<br>
+  <span style="font-family:var(--sans);font-size:13.5px;color:var(--ink-dim)">
+  （标量 ⊂ option ⊂ 集合 ⊂ 关系；每个都是关系，用最能传递更多信息的那个词称呼它）</span></p>
+</div>
+
+<h3 id="s324">3.2.4 Functional and Injective Relations · 函数式与单射关系</h3>
+<div class="grid c2">
+  <div class="card">
+    <h4>functional（函数式）</h4>
+    <p style="margin:0;font-size:14.5px;color:var(--ink-soft)">一个二元关系，把<strong>每个原子至多映射到一个</strong>其他原子。这样的关系被称为<strong>函数</strong>（function）。</p>
+  </div>
+  <div class="card">
+    <h4>injective（单射的）</h4>
+    <p style="margin:0;font-size:14.5px;color:var(--ink-soft)">一个二元关系，<strong>至多把一个原子映射到每个原子</strong>（即每个目标至多有一个来源）。</p>
+  </div>
+</div>
+<p>四个示例值（对应原书 fig. 3.3–3.6）：</p>
+<pre><code>address1 <span class="o">=</span> {(N0, D0), (N1, D1), (N2, D1)}
+address2 <span class="o">=</span> {(N0, D0), (N1, D1), (N1, D2)}
+address3 <span class="o">=</span> {(N0, D0), (N1, D1), (N2, D2)}
+address4 <span class="o">=</span> {(N0, D1), (N1, D1), (N1, D2)}</code></pre>
+<table>
+  <thead><tr><th>关系</th><th>functional?</th><th>injective?</th><th>违反之处</th><th>原书图</th></tr></thead>
+  <tbody>
+    <tr><td><code>address1</code></td><td style="color:var(--accent-2)">✓</td><td style="color:var(--danger)">✗</td><td>N1、N2 都映射到 D1（多对一）</td><td>fig. 3.3</td></tr>
+    <tr><td><code>address2</code></td><td style="color:var(--danger)">✗</td><td style="color:var(--accent-2)">✓</td><td>N1 映射到 D1 和 D2（一对多）</td><td>fig. 3.4</td></tr>
+    <tr><td><code>address3</code></td><td style="color:var(--accent-2)">✓</td><td style="color:var(--accent-2)">✓</td><td>—（一一对应）</td><td>fig. 3.5</td></tr>
+    <tr><td><code>address4</code></td><td style="color:var(--danger)">✗</td><td style="color:var(--danger)">✗</td><td>N1→D1、N1→D2（非函数）；N0、N1 都→D1（非单射）</td><td>fig. 3.6</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">边界情形</span>
+  <p style="margin-bottom:0"><strong>空的二元关系既是 functional 的，也是 injective 的。</strong>（An empty binary relation is functional and injective.）
+  这在推理「至多一个」类性质时经常被忽略。</p>
+</div>
+<div class="qa">
+  <div class="q">Discussion：把函数当作关系，这想法从哪来？标准吗？</div>
+  <div class="a">
+    <p>这个想法在建模领域由规格说明语言 <strong>Z</strong> [65] 开创。它的使用至少可追溯到
+    <strong>Zermelo 和 Fraenkel 的集合论</strong>（这就是 Z 这个名字里「Z」的由来）。
+    <strong>Alloy 实际上比 Z 更极简</strong>：虽然 Z 不区分函数和关系，
+    但它<strong>确实区分标量、集合和元组</strong>；而在 Alloy 中，<strong>一切都是关系</strong>。</p>
+    <p><strong>把函数当作关系是标准做法吗？不。</strong>大多数其他建模语言区分函数与其他关系。
+    例如在 UML 的约束语言 <strong>OCL</strong> [53] 中，沿一个关联导航可能产生<strong>空集合</strong>或<strong>未定义值</strong>，
+    取决于该关联的重数。<span style="color:var(--ink-dim);font-size:13.5px">→ 附录 E 有 OCL 的完整对比。</span></p>
+    <p style="margin-bottom:0"><strong>「injective relation」是 injection 吗？</strong>
+    术语 <em>injection</em>（单射）传统上只用于<strong>既 functional 又 injective</strong> 的关系，所以作者尽量避免使用它。
+    遗憾的是，<strong>对一个 injective 关系没有通用的名字</strong>。</p>
+  </div>
+</div>
+
+<h3 id="s325">3.2.5 Domain and Range · 定义域与值域</h3>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p style="margin-bottom:0">关系的 <strong>domain（定义域）</strong>是其<strong>第一列</strong>中原子的集合；
+  <strong>range（值域）</strong>是<strong>最后一列</strong>中的集合。<br>
+  <span style="font-size:14px;color:var(--ink-dim)">更高元数的关系同样有 domain 和 range。</span></p>
+</div>
+<pre><code>address <span class="o">=</span> {(N0, D0), (N1, D1), (N2, D1)}
+domain (address) <span class="o">=</span> {(N0), (N1), (N2)}
+range  (address) <span class="o">=</span> {(D0), (D1)}
+
+addr <span class="o">=</span> {(B0, N0, D0), (B0, N1, D1), (B1, N2, D2)}
+domain (addr) <span class="o">=</span> {(B0), (B1)}          <span class="c">// 第一列</span>
+range  (addr) <span class="o">=</span> {(D0), (D1), (D2)}    <span class="c">// 最后一列</span></code></pre>
+<div class="qa">
+  <div class="q">Discussion：domain / range 是特殊算子吗？常用吗？</div>
+  <div class="a">
+    <p><strong>不是特殊算子</strong>，但它们作为函数<strong>在 Alloy 库中为二元关系预定义了</strong>。
+    用其他算子（后面介绍）很容易表达：<strong>二元关系 r 的 domain 和 range 分别是 <code>r.univ</code> 和 <code>univ.r</code></strong>。</p>
+    <p style="margin-bottom:0">它们的使用<strong>不如 Z 等语言频繁</strong>，因为 Alloy 有丰富的<strong>声明语言</strong>（见 3.6），
+    它鼓励你<strong>引入显式代表关系定义域与值域的集合</strong>。
+    <span style="color:var(--ink-dim);font-size:13.5px">→ 第 2 章给 Book 加 <code>names: set Name</code> 字段正是这个思路。</span></p>
+  </div>
+</div>
+<div class="qa">
+  <div class="q">Discussion：全函数（total）与偏函数（partial）呢？</div>
+  <div class="a">
+    <p>「domain」一词常被用来指<strong>可能被一个关系或函数映射的原子集合</strong>。
+    在那种意义下，<strong>全函数</strong>是映射其定义域中<em>每个</em>成员的函数。
+    这个概念要求一个集合<strong>隐式地</strong>与一个关系相关联。
+    （另一种可能是：全函数关系映射<em>宇宙中</em>的每个原子，但这是很罕见的情况。）</p>
+    <p style="margin-bottom:0"><strong>我们的逻辑更简单：关系就是它的元组，关系的 domain 和 range 由这组元组决定。</strong>
+    作者说自己偶尔会非正式地使用「total」「partial」这两个词，
+    指的是一个关系<strong>在其声明中出现的那个集合上</strong>是全的还是偏的。</p>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="s33"><span class="num">3.3</span>Snapshots · 快照</h2>
+<div class="callout key">
+  <span class="tag">画法</span>
+  <p>集合与二元关系的特定值可以用<strong>快照</strong>（snapshot）图形化显示：</p>
+  <ul style="margin-bottom:0">
+    <li>为<strong>每个原子画一个节点</strong>；</li>
+    <li>为<strong>每个元组画一条弧</strong>，连接对应元组第一、第二原子的节点；</li>
+    <li>要显示多个关系时，<strong>给每条元组弧打上它所属关系的标签</strong>；</li>
+    <li>集合有两种显示方式：① 在节点上加一个<strong>额外标签</strong>，写出它所属的集合；
+      ② 在某些节点周围画一个<strong>带标签的轮廓</strong>（contour）。</li>
+  </ul>
+</div>
+<h3>示例：多级地址簿</h3>
+<pre><code>address <span class="o">=</span> {(G0, A0), (G0, A1), (A0, D0), (A1, D1)}
+Target  <span class="o">=</span> {(G0), (A0), (A1), (D0), (D1), (D2)}
+Name    <span class="o">=</span> {(G0), (A0), (A1)}
+Alias   <span class="o">=</span> {(A0), (A1)}
+Group   <span class="o">=</span> {(G0)}
+Addr    <span class="o">=</span> {(D0), (D1), (D2)}</code></pre>
+<div class="fig">
+  <div class="rel" style="gap:12px">
+    <span class="tuple"><span class="atom c">G0</span><span class="arw">─address→</span><span class="atom">A0</span><span class="arw">─address→</span><span class="atom b">D0</span></span>
+  </div>
+  <div class="rel" style="gap:12px;margin-top:10px">
+    <span class="tuple"><span class="atom c">G0</span><span class="arw">─address→</span><span class="atom">A1</span><span class="arw">─address→</span><span class="atom b">D1</span></span>
+  </div>
+  <div style="text-align:center;margin-top:14px;color:var(--ink-dim);font-size:12.5px">
+    轮廓：Target ⊇ {G0, A0, A1, D0, D1, D2} · Name ⊇ {G0, A0, A1} · Group ⊇ {G0} · Alias ⊇ {A0, A1} · Addr ⊇ {D0, D1, D2}<br>
+    注意 <strong>D2 孤立存在</strong>——它属于 Addr，但没有任何弧指向它
+  </div>
+  <div class="cap">图 3-3　一个样例快照（对应原书 fig. 3.7）</div>
+</div>
+
+<h3>投影（Projection）：如何把 multirelation 画成图</h3>
+<div class="callout key">
+  <span class="tag">两步法</span>
+  <p>Multirelation 可以通过<strong>投影掉一列或多列</strong>显示为图。假设只投影掉一列，投影分<strong>两步</strong>：</p>
+  <ol style="margin-bottom:0">
+    <li><strong>第一步</strong>：把该列<strong>移到最前面</strong>，使它成为关系的第一列；每个元组相应地重排。</li>
+    <li><strong>第二步</strong>：把关系<strong>拆分成一个带索引的关系族</strong>。对出现在第一列的每个原子，
+      我们关联这样一个关系：它由<strong>所有以该原子开头的元组</strong>组成，但<strong>把该原子去掉</strong>。
+      对原子 <code>a</code> 和关系 <code>r</code>，这个新关系由表达式 <code>a.r</code> 给出（使用 3.4.3 定义的 join 算子）。</li>
+  </ol>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这里揭示了 join 的第二个身份</span>
+  <p>注意 <code>a.r</code> 同时是两个东西：<strong>① 一个 join 表达式</strong>（语法层面），
+  <strong>② 一次投影操作的结果</strong>（语义/可视化层面）。这就是为什么第 2 章里
+  「让分析器 project 到 Book 上」会自动产生每本书一张图——<strong>可视化的投影机制与语言的 join 算子是同一件事</strong>。
+  这也解释了 3.3 末尾那句：「在投影下，一个二元关系会变成一个集合」——
+  所以第 2 章 fig. 2.13 中「从 book 到 name 的关系 <code>names</code>」显示为一个<em>标签</em>而不是一条弧。</p>
+</div>
+<h4>示例</h4>
+<pre><code>addr <span class="o">=</span> {(B0, G0, A0), (B0, G0, A1), (B0, A0, D0), (B0, A1, D1),
+        (B1, A0, D1)}
+Book <span class="o">=</span> {(B0), (B1)}
+
+<span class="c">// 投影到第一列后：</span>
+B0.addr <span class="o">=</span> {(G0, A0), (G0, A1), (A0, D0), (A1, D1)}   <span class="c">// 即 fig. 3.7 的图（address 换成 addr）</span>
+B1.addr <span class="o">=</span> {(A0, D1)}</code></pre>
+<p style="color:var(--ink-dim);font-size:14.5px">
+  <strong>第 2 章中 Alloy Analyzer 生成的所有图都是快照。</strong>
+  分析器允许你定制实例的显示方式：你可以选择一个集合，把实例中所有关系投影到与该集合关联的列上——
+  第 2 章选的就是 <code>Book</code>。分析器<strong>只能通过给节点打标签来显示集合，目前还不能画轮廓</strong>。
+</p>
+
+<hr>
+<h2 id="s34"><span class="num">3.4</span>Operators · 算子</h2>
+<p>算术语言由<strong>常量</strong>（0、1、2…）和<strong>算子</strong>（+、−、×）组成。同样，关系语言也有它自己的常量和算子。</p>
+<div class="callout key">
+  <span class="tag">算子的两大类别（务必分清）</span>
+  <p>· <strong>集合算子</strong>（set operators）：关系的<strong>元组结构无关紧要</strong>——元组不妨被当作原子看待。<br>
+  · <strong>关系算子</strong>（relational operators）：<strong>元组结构是本质的</strong>——正是这些算子让关系变得强大。</p>
+</div>
+
+<h3 id="s341">3.4.1 Constants · 三个常量</h3>
+<table>
+  <thead><tr><th>常量</th><th>含义</th><th>元数</th></tr></thead>
+  <tbody>
+    <tr><td><code>none</code></td><td><strong>空集</strong>（empty set）</td><td>一元</td></tr>
+    <tr><td><code>univ</code></td><td><strong>全集</strong>（universal set）</td><td>一元</td></tr>
+    <tr><td><code>iden</code></td><td><strong>恒等关系</strong>（identity）：含「把每个原子关联到它自己」的元组</td><td>二元</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">none 和 univ 是一元的！</span>
+  <p>要表示<strong>空的二元关系</strong>，写 <code>none -&gt; none</code>；
+  要表示<strong>把每个原子映射到每个原子的全关系</strong>，写 <code>univ -&gt; univ</code>（使用 3.4.3 定义的箭头算子）。</p>
+</div>
+<pre><code><span class="c">// 给定两个集合</span>
+Name <span class="o">=</span> {(N0), (N1), (N2)}
+Addr <span class="o">=</span> {(D0), (D1)}
+
+<span class="c">// 三个常量的值：</span>
+none <span class="o">=</span> {}
+univ <span class="o">=</span> {(N0), (N1), (N2), (D0), (D1)}
+iden <span class="o">=</span> {(N0, N0), (N1, N1), (N2, N2), (D0, D0), (D1, D1)}</code></pre>
+<div class="callout pit">
+  <span class="tag">一个必须记住的陷阱</span>
+  <p><strong>「Note that <code>iden</code> relates <em>all the atoms of the universe</em> to themselves, not just the atoms of some subset.」</strong><br>
+  <code>iden</code> 关联的是<strong>宇宙中的所有原子</strong>，而不只是某个子集的原子。</p>
+</div>
+<div class="qa">
+  <div class="q">Q：这些常量是隐式按类型参数化的吗？</div>
+  <div class="a">
+    <p><strong>不是。</strong>在某些建模语言里，这些常量实际上是<strong>常量的带索引族</strong>，必须通过某种方式（隐式或显式）选出合适的那个实例。
+    例如在 <strong>Z</strong> 中，恒等关系带一个<strong>显式的类型参数</strong>，而空关系是<strong>多态的</strong>。</p>
+    <p>在 Alloy 中，这些常量<strong>就是三个简单的常量</strong>，<code>iden</code> 和 <code>univ</code> 的值由<strong>所有已声明集合</strong>的值决定。
+    因此，<strong>很少会不加限定地使用 <code>iden</code> 和 <code>univ</code></strong>；你通常会写 <code>s &lt;: iden</code>
+    来得到集合 s 上的恒等关系（使用 3.4.3.6 定义的限制算子）。</p>
+    <p style="margin-bottom:0;color:var(--danger)"><strong>如果忘了这么做，你可能会得到一些惊喜。</strong>例如
+    <code>iden in r</code> 不仅说关系 r 是<strong>自反的</strong>，还说它<strong>映射宇宙中的每一个原子</strong>——
+    这<strong>很可能与 r 的声明不一致</strong>。</p>
+  </div>
+</div>
+<div class="qa">
+  <div class="q">Q：这些常量有用吗？</div>
+  <div class="a">
+    <p><strong>恒等关系对关系演算风格是本质的。</strong>例如约束 <code>no ^r &amp; iden</code> 表示关系 r 是<strong>无环的</strong>。
+    <strong>空关系</strong>的一个常见用途是给<strong>接受集合作为参数的谓词</strong>实例化（见 4.5.2），
+    如第 6.2 节的<strong>框架条件</strong>（frame conditions）。</p>
+    <p><strong>除这些情形外，常量很少被使用。</strong>更好的写法是：</p>
+    <ul style="margin-bottom:0">
+      <li>说一个关系<strong>空 / 非空</strong>，用<strong>表达式量词</strong>（3.5.2）而非常量 <code>none</code>：
+        写 <code>no r</code> 而不是 <code>r = none</code>——<strong>更可读</strong>。</li>
+      <li><strong>全关系通常限定在特定集合上</strong>：所以你会写 <code>Name -&gt; Addr</code> 来表示「把所有名字映射到所有地址」的关系。</li>
+    </ul>
+  </div>
+</div>
+<div class="qa">
+  <div class="q">Q：常量增加了任何表达力吗？（语言设计者的细节问题）</div>
+  <div class="a">
+    <p>你可能以为这些常量可以省略，改为在库模块中定义。但：</p>
+    <ul>
+      <li><strong>全关系无法这样定义</strong>，因为<strong>所有量词和集合构造都需要显式的界</strong>（explicit bounds）。
+        你可以把全关系显式定义为「所有自由集合变量（顶层签名，见 4.2.1）的并集」，
+        但那样<strong>每引入一个新集合就得改定义</strong>。</li>
+      <li><strong>另两个常量事实上可以定义</strong>。例如恒等关系可以表示为集合构造 <code>{x, y: univ | x = y}</code>。</li>
+    </ul>
+    <p style="margin-bottom:0">但它们被包含进来，是因为<strong>用常量比用库函数更方便</strong>，
+    而且<strong>分析器能更容易地利用它们的特殊性质</strong>。</p>
+  </div>
+</div>
+
+<h3 id="s342">3.4.2 Set Operators · 集合算子</h3>
+<table>
+  <thead><tr><th>算子</th><th>名称</th><th>定义</th></tr></thead>
+  <tbody>
+    <tr><td><code>+</code></td><td>union 并</td><td>元组在 <code>p + q</code> 中，当它在 p 中<strong>或</strong>在 q 中（或两者）</td></tr>
+    <tr><td><code>&amp;</code></td><td>intersection 交</td><td>元组在 <code>p &amp; q</code> 中，当它在 p 中<strong>且</strong>在 q 中</td></tr>
+    <tr><td><code>-</code></td><td>difference 差</td><td>元组在 <code>p - q</code> 中，当它在 p 中<strong>但不在</strong> q 中</td></tr>
+    <tr><td><code>in</code></td><td>subset 子集</td><td><code>p in q</code> 为真，当 p 的<strong>每个</strong>元组也是 q 的元组</td></tr>
+    <tr><td><code>=</code></td><td>equality 相等</td><td><code>p = q</code> 为真，当 p 和 q 有<strong>相同的元组</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">两条重要规则</span>
+  <p>① 这些算子可以作用于<strong>任意一对关系，只要它们元数相同</strong>。<br>
+  ② 因为<strong>标量就是单例集合</strong>，传统数学记号中用来从标量构造集合的<strong>花括号是不需要的</strong>。
+  对标量 a 和 b，表达式 <code>a + b</code> 就表示同时包含 a 和 b 的集合。</p>
+</div>
+
+<h4>示例组 A：集合</h4>
+<pre><code>Name         <span class="o">=</span> {(G0), (A0), (A1)}
+Alias        <span class="o">=</span> {(A0), (A1)}
+Group        <span class="o">=</span> {(G0)}
+RecentlyUsed <span class="o">=</span> {(G0), (A1)}</code></pre>
+<table>
+  <thead><tr><th>表达式</th><th>结果</th><th>解读</th></tr></thead>
+  <tbody>
+    <tr><td><code>Alias + Group</code></td><td><code>{(G0), (A0), (A1)}</code></td><td>是别名<strong>或</strong>组的原子集合</td></tr>
+    <tr><td><code>Alias &amp; RecentlyUsed</code></td><td><code>{(A1)}</code></td><td>是别名<strong>且</strong>最近被使用过的原子集合</td></tr>
+    <tr><td><code>Name - RecentlyUsed</code></td><td><code>{(A0)}</code></td><td>是名字<strong>但</strong>最近<strong>没有</strong>被使用过的原子集合</td></tr>
+    <tr><td><code>RecentlyUsed in Alias</code></td><td style="color:var(--danger)"><strong>false</strong></td><td>「每个最近被使用的东西都是别名」——因元组 <code>{(G0)}</code> 而假（G0 最近被用但不是别名）</td></tr>
+    <tr><td><code>RecentlyUsed in Name</code></td><td style="color:var(--accent-2)"><strong>true</strong></td><td>每个最近被使用的东西都是名字</td></tr>
+    <tr><td><code>Name = Group + Alias</code></td><td style="color:var(--accent-2)"><strong>true</strong></td><td>每个名字要么是组要么是别名</td></tr>
+  </tbody>
+</table>
+
+<h4>示例组 B：关系（缓存与磁盘上的地址簿）</h4>
+<pre><code>cacheAddr <span class="o">=</span> {(A0, D0), (A1, D1)}
+diskAddr  <span class="o">=</span> {(A0, D0), (A1, D2)}</code></pre>
+<table>
+  <thead><tr><th>表达式</th><th>结果</th><th>解读</th></tr></thead>
+  <tbody>
+    <tr><td><code>cacheAddr + diskAddr</code></td><td><code>{(A0,D0), (A1,D1), (A1,D2)}</code></td><td>在缓存中<strong>或</strong>磁盘上映射的 name→address</td></tr>
+    <tr><td><code>cacheAddr &amp; diskAddr</code></td><td><code>{(A0, D0)}</code></td><td>在缓存中<strong>且</strong>在磁盘上映射的</td></tr>
+    <tr><td><code>cacheAddr - diskAddr</code></td><td><code>{(A1, D1)}</code></td><td>在缓存中<strong>但不在</strong>磁盘上的</td></tr>
+    <tr><td><code>none in diskAddr</code></td><td style="color:var(--accent-2)"><strong>true</strong></td><td>空关系被包含在 diskAddr 中——<strong>无论 diskAddr 的值是什么都真</strong></td></tr>
+    <tr><td><code>cacheAddr = diskAddr</code></td><td style="color:var(--danger)"><strong>false</strong></td><td>因 <code>(A1,D1)</code> ∈ cacheAddr 而 <code>(A1,D2)</code> ∈ diskAddr</td></tr>
+  </tbody>
+</table>
+
+<h4>示例组 C：标量</h4>
+<pre><code>myName   <span class="o">=</span> {(N0)}
+yourName <span class="o">=</span> {(N1)}
+
+myName <span class="o">+</span> yourName  <span class="o">=</span> {(N0), (N1)}   <span class="c">// 是我的名字或你的名字的原子集合</span>
+myName <span class="o">=</span> yourName                    <span class="c">// false</span>
+yourName <span class="k">in</span> none                     <span class="c">// false —— 「没有名字是你的名字」</span></code></pre>
+
+<div class="qa">
+  <div class="q">Q：这里的集合等号和你之前用的等号是同一个吗？</div>
+  <div class="a">
+    <p><strong>不是。</strong>像 <code>cacheAddr = {(A0, D0), (A1, D1)}</code> 这样的语句<strong>只在本章中使用</strong>，
+    用于解释逻辑的含义，它<strong>左边永远是 Alloy 表达式，右边是（用传统数学记号写的）关系描述</strong>。
+    这里的等号是一个<strong>特殊的定义符号</strong>，而且<strong>不对称</strong>——
+    写 <code>{(A0, D0), (A1, D1)} = cacheAddr</code> 是没有意义的。</p>
+    <p style="margin-bottom:0">另一方面，像 <code>Name = Group + Alias</code> 这样的语句是 <strong>Alloy 逻辑中的一个约束</strong>，
+    等号是<strong>本节定义的集合算子</strong>。这个相等概念是<strong>对称的</strong>，该语句等价于 <code>Group + Alias = Name</code>。
+    作者说：「我本可以用一个不同的符号表示定义性等号，但那显得有点学究气。」</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：相等是结构相等还是引用相等？</div>
+  <div class="a">
+    <p><strong>这个区分在这里没有意义</strong>——它基于编程概念，而<strong>关系没有独立于其值的身份</strong>。
+    如果两个关系有相同的元组集合，它们<strong>不是两个关系：它们就是同一个关系</strong>。</p>
+    <p style="margin-bottom:0"><strong>原子除了它的身份之外什么都不是</strong>；两个原子相等当且仅当它们是同一个原子。
+    如果你有一组代表复合对象的原子（用一些关系把原子映射到其内容），
+    你可以通过<strong>引入一个新关系</strong>来<strong>显式定义任何你想要的结构相等概念</strong>。
+    <span style="color:var(--ink-dim);font-size:13.5px">（对那些 C++ 程序员：不行，你<strong>不能</strong>在 Alloy 中重定义等号。）</span></p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这些算子上没有类型约束吗？</div>
+  <div class="a">
+    <p><strong>没有传统那种。</strong>在某些简单类型化的语言里，比如 <strong>Z</strong>，集合算子的两个参数必须<strong>类型相同</strong>。
+    所以像 <code>Book + Addr</code>（地址簿集合与地址集合的并）这样的表达式是<strong>非法的</strong>。</p>
+    <p><strong>在 Alloy 中，这类表达式一般并不非法，而且能被好好利用。</strong>例如建模一个类型为 C 的 Java 变量 v 的值，
+    你可以引入一个包含 null 引用的单例集合 <code>Null</code>，然后声明：</p>
+<pre style="margin:8px 0"><code>v: C <span class="o">+</span> <span class="t">Null</span>      <span class="c">// v 要么是 null，要么是集合 C 中的一个引用</span></code></pre>
+    <p>在<strong>不允许这种形式的并集</strong>的类型系统里，很难用一个声明表达这个约束，
+    可能必须<strong>弱化</strong>它——允许引用任何类，或者<strong>区分不同类型的 null 值</strong>。
+    <span style="color:var(--accent-2);font-size:13.5px">→ 这正是第 1 章说的「有子类型和并集但不需要向下转型」的类型系统的具体体现，第 4.4 节详述。</span></p>
+    <p><strong>不过 Alloy 确实施加了一些约束：</strong></p>
+    <ul style="margin-bottom:0">
+      <li><strong>参数的元数必须匹配</strong>，所以 <code>addr + Name</code> 是<strong>非法</strong>的。</li>
+      <li><strong>「可被 none 替换而无害」即为病态</strong>：如果<strong>仅从变量的声明</strong>就能证明，
+        某个表达式可以被<strong>空关系替换</strong>而<strong>不影响它所在约束的值</strong>，
+        那么这个表达式就被判定为<strong>格式不良</strong>（ill-formed），<em>即使它的含义是清楚的</em>。
+        例如 <code>Name &amp; Book</code> 和 <code>Name &amp; (Alias + Book)</code> 都是<strong>类型不良</strong>的——
+        因为两者中 <code>Book</code> 的出现（以及第一个中的 <code>Name</code>）都可以被 <code>none</code> 替换而不影响含义。</li>
+    </ul>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这条类型规则其实是个「死代码检测器」</span>
+  <p>「能被 none 替换而无害 ⇒ ill-formed」听起来古怪，但它极其有用：
+  它意味着<strong>类型检查器会主动抓出那些恒为空的表达式</strong>。<code>Name &amp; Book</code> 恒空（两个签名不相交），
+  所以包含它的约束要么恒假要么对它无感——<strong>两种情况都表明你写错了</strong>。
+  这是一种在设计期就生效的「静默 bug」防线，比编译器的类型检查敏锐得多。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么用关键字 <code>in</code>？</div>
+  <div class="a">
+    <p style="margin-bottom:0">关键字 <code>in</code> 是<strong>为它的歧义性而精心挑选的</strong>（carefully chosen for its ambiguity）。
+    因为标量被表示为单例集合，<code>in</code> 有时表示<strong>成员关系</strong>（标量与集合之间，或元组与关系之间，传统写作 ∈），
+    有时表示<strong>子集</strong>（两个集合之间或两个关系之间，传统写作 ⊆）。</p>
+  </div>
+</div>
+
+<h3 id="s343">3.4.3 Relational Operators · 关系算子</h3>
+<div class="fig">
+  <div class="rel" style="flex-wrap:wrap;gap:8px">
+    <div class="atom"><code>-&gt;</code> arrow (product)</div>
+    <div class="atom"><code>.</code> dot (join)</div>
+    <div class="atom"><code>[]</code> box (join)</div>
+    <div class="atom b"><code>~</code> transpose</div>
+    <div class="atom b"><code>^</code> transitive closure</div>
+    <div class="atom b"><code>*</code> reflexive-transitive closure</div>
+    <div class="atom c"><code>&lt;:</code> domain restriction</div>
+    <div class="atom c"><code>:&gt;</code> range restriction</div>
+    <div class="atom d"><code>++</code> override</div>
+  </div>
+  <div class="cap">图 3-4　九个关系算子</div>
+</div>
+
+<h4 id="s3431">3.4.3.1 Arrow Product · 箭头积</h4>
+<p>两个关系 p 和 q 的<strong>箭头积</strong>（或简称积）<code>p -&gt; q</code>，是这样得到的关系：
+取 p 的一个元组与 q 的一个元组的<strong>每一种组合</strong>，把它们<strong>拼接</strong>起来。</p>
+<table>
+  <thead><tr><th>p、q 的形态</th><th><code>p -&gt; q</code> 的形态</th></tr></thead>
+  <tbody>
+    <tr><td>都是集合</td><td>二元关系</td></tr>
+    <tr><td>p 或 q 有一方 arity ≥ 2</td><td>multirelation</td></tr>
+    <tr><td>都是元组</td><td>也是元组；特别地，都是标量时是<strong>一个 pair</strong></td></tr>
+  </tbody>
+</table>
+<pre><code><span class="c">// 标量情形</span>
+n <span class="o">=</span> {(N0)}   n' <span class="o">=</span> {(N1)}   d <span class="o">=</span> {(D0)}   d' <span class="o">=</span> {(D1)}
+address <span class="o">=</span> {(N0, D0), (N1, D1)}
+
+n <span class="o">-&gt;</span> d <span class="o">=</span> {(N0, D0)}                       <span class="c">// 把名字 n 映射到地址 d 的元组</span>
+address <span class="o">=</span> n <span class="o">-&gt;</span> d <span class="o">+</span> n' <span class="o">-&gt;</span> d'              <span class="c">// true：address 映射 n→d、n'→d'，且不映射别的</span>
+
+<span class="c">// 集合情形：笛卡尔积</span>
+Name <span class="o">=</span> {(N0), (N1)}   Addr <span class="o">=</span> {(D0), (D1)}   Book <span class="o">=</span> {(B0)}
+
+Name <span class="o">-&gt;</span> Addr <span class="o">=</span> {(N0,D0), (N0,D1), (N1,D0), (N1,D1)}
+Book <span class="o">-&gt;</span> Name <span class="o">-&gt;</span> Addr <span class="o">=</span> {(B0,N0,D0), (B0,N0,D1), (B0,N1,D0), (B0,N1,D1)}
+
+<span class="c">// 把「书」与「它自己的映射表」关联起来（书 -> 一个二元关系 = 三元关系）</span>
+b <span class="o">-&gt;</span> address <span class="o">+</span> b' <span class="o">-&gt;</span> address' <span class="o">=</span> {(B0,N0,D0), (B0,N1,D1), (B1,N2,D2)}</code></pre>
+
+<h4 id="s3432">3.4.3.2 Dot Join · 点连接（最重要的算子）</h4>
+<div class="callout key">
+  <span class="tag">原文定位</span>
+  <p style="margin-bottom:0">「The <strong>quintessential</strong> relational operator is composition, or join.」
+  ——<strong>最典型的关系算子就是复合，即 join。</strong></p>
+</div>
+<p><strong>先看元组怎么 join。</strong>给定两个元组 <code>s1 -&gt; … -&gt; sm</code> 和 <code>t1 -&gt; … -&gt; tn</code>：</p>
+<ol>
+  <li>检查<strong>第一个元组的最后一个原子</strong>（即 <code>sm</code>）是否<strong>匹配第二个元组的第一个原子</strong>（即 <code>t1</code>）；</li>
+  <li>若<strong>不匹配</strong>，结果为空——没有 join；</li>
+  <li>若<strong>匹配</strong>，结果是这样一个元组：以第一个元组的原子开头，以第二个元组的原子结尾，
+    <strong>但恰好省略掉那个匹配的原子</strong>：
+    <pre style="margin:8px 0"><code>s1 <span class="o">-&gt;</span> … <span class="o">-&gt;</span> s<span class="n">m-1</span> <span class="o">-&gt;</span> t2 <span class="o">-&gt;</span> … <span class="o">-&gt;</span> tn</code></pre></li>
+</ol>
+<table>
+  <thead><tr><th>表达式</th><th>结果</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>{(N0, A0)} . {(A0, D0)}</code></td><td><code>{(N0, D0)}</code></td><td>A0 匹配，被<strong>省略</strong></td></tr>
+    <tr><td><code>{(N0, D0)} . {(N0, D0)}</code></td><td><code>{}</code></td><td>末列 D0 ≠ 首列 N0，不匹配</td></tr>
+    <tr><td><code>{(N0, D0)} . {(D1)}</code></td><td><code>{}</code></td><td>D0 ≠ D1</td></tr>
+    <tr><td><code>{(N0)} . {(N0, D0)}</code></td><td><code>{(D0)}</code></td><td>N0 匹配并被省略 → 结果是<strong>标量</strong></td></tr>
+    <tr><td><code>{(N0, D0)} . {(D0)}</code></td><td><code>{(N0)}</code></td><td><strong>join 可以向右「削掉」列</strong></td></tr>
+    <tr><td><code>{(B0)} . {(B0, N0, D0)}</code></td><td><code>{(N0, D0)}</code></td><td>标量 join 三元关系 → 二元关系</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">关系的 dot join 定义</span>
+  <p>关系 p 和 q 的 <strong>dot join</strong>（或简称 join）<code>p.q</code>，是这样得到的关系：
+  取 p 中一个元组与 q 中一个元组的<strong>每一种组合</strong>，如果它们的 join 存在，就把它包含进来。</p>
+  <p style="margin-bottom:0">p 和 q 可以有<strong>任意元数</strong>，<strong>只要它们不都是一元的</strong>
+  （因为那会产生一个<strong>零元</strong>的关系——而 arity 必须 ≥ 1）。
+  当 p 和 q 都是二元关系时，<code>p.q</code> 就是它们的<strong>标准关系复合</strong>。</p>
+</div>
+<div class="callout warn">
+  <span class="tag">关键推论：join 的元数规律</span>
+  <p style="margin-bottom:0;font-family:var(--mono);font-size:14.5px;text-align:center">
+  arity(p.q) = arity(p) + arity(q) − 1<br>
+  <span style="font-family:var(--sans);font-size:13.5px;color:var(--ink-dim)">因为那一列被「丢掉了」（the dropped column）</span></p>
+</div>
+
+<h4>示例：消息路由</h4>
+<pre><code>to      <span class="o">=</span> {(M0, N0), (M0, N2), (M1, N2), (M2, N3)}   <span class="c">// 消息 → 意图发送给的名字</span>
+address <span class="o">=</span> {(N0, D0), (N0, D1), (N1, D1), (N1, D2), (N2, D3), (N4, D3)}
+
+to.address <span class="o">=</span> {(M0, D0), (M0, D1), (M0, D3), (M1, D3)}   <span class="c">// 消息 → 应发送到的地址</span></code></pre>
+<div class="fig">
+  <div class="rel" style="gap:10px;flex-wrap:wrap">
+    <span class="tuple"><span class="atom d">M0</span><span class="arw">→</span><span class="atom">N0</span><span class="arw">→</span><span class="atom b">D0</span></span>
+    <span class="tuple"><span class="atom d">M0</span><span class="arw">→</span><span class="atom">N0</span><span class="arw">→</span><span class="atom b">D1</span></span>
+    <span class="tuple"><span class="atom d">M0</span><span class="arw">→</span><span class="atom">N2</span><span class="arw">→</span><span class="atom b">D3</span></span>
+    <span class="tuple"><span class="atom d">M1</span><span class="arw">→</span><span class="atom">N2</span><span class="arw">→</span><span class="atom b">D3</span></span>
+  </div>
+  <div style="text-align:center;color:var(--ink-dim);font-size:12.5px;margin-top:12px">
+    注意：N1、N4 没有消息指向它们；M2→N3 断了（N3 不在 address 的定义域中），所以 <code>to.address</code> 里没有 M2
+  </div>
+  <div class="cap">图 3-5　dot join 图示（对应原书 fig. 3.8：细弧=to，虚弧=address，实弧=to.address）</div>
+</div>
+
+<h4>函数复合</h4>
+<p>如果 p 和 q 是<strong>函数</strong>，<code>p.q</code> 也将是函数，此时 <strong>dot 等价于函数复合</strong>。</p>
+<pre><code>address <span class="o">=</span> {(N0, D0), (N1, D0), (N2, D2)}   <span class="c">// 名字 → 地址</span>
+user    <span class="o">=</span> {(D0, U0), (D1, U1), (D2, U2)}   <span class="c">// 地址 → 用户名部分</span>
+host    <span class="o">=</span> {(D0, H0), (D1, H1), (D2, H2)}   <span class="c">// 地址 → 主机名部分</span>
+
+address.user <span class="o">=</span> {(N0, U0), (N1, U0), (N2, U2)}
+address.host <span class="o">=</span> {(N0, H0), (N1, H0), (N2, H2)}</code></pre>
+
+<h4>导航（navigation）——最常见的用法</h4>
+<div class="grid c2">
+  <div class="card">
+    <h4>s 是集合，r 是二元关系</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft);margin:0"><code>s.r</code> 是集合 s 在关系 r 下的<strong>像</strong>（image）：
+    对 s 的每个成员跟随关系 r，然后把所有得到的集合<strong>收集到一个集合里</strong>。
+    <span style="color:var(--accent-2)">这也许是 dot 最常见的用法，在对象建模术语中称为<strong>导航</strong>。</span></p>
+  </div>
+  <div class="card">
+    <h4>x 是标量，r 是二元关系</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft);margin:0"><code>x.r</code> 是 x 所映射到的原子集合。
+    对函数 f 和定义域内的标量 x，<code>x.f</code> 就是 f 把 x 映射到的那个标量——
+    <strong>此时 join 就像函数应用</strong>。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">Alloy 没有未定义表达式</span>
+  <p>注意：当 x <strong>不在</strong> f 的定义域中时，<code>x.f</code> 将是<strong>空集</strong>。
+  传统上，函数在定义域外应用<strong>根本没有结果</strong>，因此涉及这种应用的表达式<strong>可能是未定义的</strong>。
+  <strong>在我们的逻辑中，没有未定义的表达式。</strong>（In our logic, there are no undefined expressions.）</p>
+</div>
+
+<h4>双向导航</h4>
+<div class="callout key">
+  <span class="tag">一个常被忽略的能力</span>
+  <p style="margin-bottom:0">你可以<strong>向两个方向导航</strong>：<code>s.r</code> 是集合 s <strong>向前</strong>穿过 r 的像，
+  而 <code>r.s</code> 是<strong>向后</strong>的像。</p>
+</div>
+<pre><code>address <span class="o">=</span> {(G0, A0), (G0, A1), (A0, D0), (A1, D1)}
+Alias <span class="o">=</span> {(A0), (A1)}   Group <span class="o">=</span> {(G0)}   Addr <span class="o">=</span> {(D0), (D1), (D2)}</code></pre>
+<table>
+  <thead><tr><th>表达式</th><th>结果</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>Alias.address</code></td><td><code>{(D0), (D1)}</code></td><td>在地址簿中查找<strong>任意别名</strong>所得结果的集合（向前）</td></tr>
+    <tr><td><code>Group.address</code></td><td><code>{(A0), (A1)}</code></td><td>查找任意组所得结果的集合（向前）</td></tr>
+    <tr><td><code>address.Group</code></td><td><code>{}</code></td><td><strong>反向</strong>：查找后得到<em>组</em>的那些名字 → 空（没有谁指向 G0）</td></tr>
+    <tr><td><code>address.Alias</code></td><td><code>{(G0)}</code></td><td><strong>反向</strong>：查找后得到<em>别名</em>的那些名字 → G0</td></tr>
+  </tbody>
+</table>
+
+<h4>高元数关系的 join</h4>
+<p>高元数关系的 join 也很常见，尤其是 <code>x.q</code> 和 <code>q.x</code> 这两种形式，其中 x 是标量，q 是 multirelation。</p>
+<pre><code><span class="c">// ① 三元关系：书、名字、地址</span>
+b    <span class="o">=</span> {(B0)}
+addr <span class="o">=</span> {(B0, N0, D0), (B0, N1, D1), (B1, N2, D2)}
+b.addr <span class="o">=</span> {(N0, D0), (N1, D1)}        <span class="c">// 书 b 的 name→address 映射</span>
+
+<span class="c">// ② 三元关系：名字、地址、时间（时间在最后一列）</span>
+t    <span class="o">=</span> {(T1)}
+addr <span class="o">=</span> {(N0, D0, T0), (N0, D1, T1), (N1, D2, T0), (N1, D2, T1)}
+addr.t <span class="o">=</span> {(N0, D1), (N1, D2)}        <span class="c">// 时刻 t 的 name→address 映射（向后 join！）</span>
+
+<span class="c">// ③ 四元关系：书、名字、地址、时间</span>
+addr <span class="o">=</span> {(B0,N0,D0,T0), (B0,N0,D1,T1), (B0,N1,D2,T0),
+        (B0,N1,D2,T1), (B1,N2,D3,T0), (B1,N2,D4,T1)}
+t <span class="o">=</span> {(T1)}   b <span class="o">=</span> {(B0)}
+b.addr.t <span class="o">=</span> {(N0, D1), (N1, D2)}      <span class="c">// 书 b 在时刻 t 的映射</span></code></pre>
+<div class="callout key">
+  <span class="tag">括号在这里不必要</span>
+  <p>注意 <code>b.addr.t</code> <strong>不需要括号</strong>来指明 join 的应用顺序。
+  表达式 <code>b.(addr.t)</code> 和 <code>(b.addr).t</code> 是<strong>等价的</strong>：
+  你可以先投影到特定的书、再投影到特定的时刻，也可以先选时刻、再选书。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：dot join 是结合的吗？</div>
+  <div class="a">
+    <p><strong>不是。</strong>表达式 <code>(a.b).c</code> 和 <code>a.(b.c)</code> <strong>并不总是等价</strong>，
+    因为<strong>一个可能格式不良而另一个格式良好</strong>。</p>
+    <p>由于<strong>被丢掉的那一列</strong>，join 的元数总比其参数元数之和<strong>少一</strong>。
+    例如若 s、t 是一元的，r 是三元的：那么 <code>t.r</code> 是二元的，<code>s.(t.r)</code> 是一元的；
+    而 <code>s.t</code> 会是<strong>零元</strong>的，因此<strong>非法</strong>——所以 <code>(s.t).r</code> 同样非法，与 <code>s.(t.r)</code> 不等价。</p>
+    <p style="margin-bottom:0"><strong>但如果给一个 join 表达式加括号的两种方式都格式良好</strong>——如上面的例子——
+    <strong>它们就是等价的</strong>。所以<strong>括号位置放错不会导致模型产生非预期的含义</strong>，
+    除非类型检查器抱怨，你可以忽略这个问题。
+    <span style="color:var(--ink-dim);font-size:13.5px">（作者感谢 Somesh Jha 指出这一点。）</span></p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：dot join 和数据库的 join 一样吗？</div>
+  <div class="a">
+    <p><strong>不完全一样。</strong>在关系数据库查询语言中，join 算子<strong>按名字而非位置匹配列</strong>，
+    而且<strong>匹配的那一列不会被丢掉</strong>。你可以如下定义一个更像数据库的 join：</p>
+<pre style="margin:8px 0"><code><span class="c">// 令 id3 为三元恒等关系</span>
+id3 <span class="o">=</span> {a, b, c: univ | a <span class="o">=</span> b <span class="k">and</span> b <span class="o">=</span> c}
+
+<span class="c">// 定义</span>
+p <span class="o">⊙</span> q <span class="o">=</span> p.id3.q</code></pre>
+    <p style="margin-bottom:0">那么 <code>p ⊙ q</code> 像 dot join 一样<strong>拼接匹配的元组</strong>，
+    但像数据库 join 一样<strong>保留匹配的元素</strong>。
+    它还提供了一个很好的<strong>限制</strong>（restriction，见 3.4.3.6）简写：
+    <code>s &lt;: r</code> 和 <code>r :&gt; s</code> 可以写成 <code>s ⊙ r</code> 和 <code>r ⊙ s</code>。
+    <span style="color:var(--ink-dim);font-size:13.5px">（作者感谢 Butler Lampson 的这一洞见。）</span></p>
+  </div>
+</div>
+
+<h4 id="s3433">3.4.3.3 Box Join · 方框连接</h4>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p>方框算子 <code>[]</code> <strong>语义上与 join 完全相同</strong>，但<strong>以不同的顺序接受参数</strong>，并且有<strong>不同的优先级</strong>：</p>
+<pre style="margin:10px 0;text-align:center;font-size:15px"><code>e1 [e2]　　≡　　e2.e1</code></pre>
+  <p style="margin-bottom:0">例：给定从名字到地址的关系 <code>address</code> 和代表一个名字的标量 <code>n</code>，
+  表达式 <code>address[n]</code> 等价于 <code>n.address</code>，表示 n 被映射到的地址集合。</p>
+</div>
+<div class="callout warn">
+  <span class="tag">优先级：dot 比 box 结合得更紧</span>
+  <p style="margin-bottom:0;font-family:var(--mono);font-size:14.5px;text-align:center">
+  a.b.c [d]　　≡　　d.(a.b.c)</p>
+</div>
+<p><strong>这个算子存在的理由</strong>：它允许做一个<strong>语法上的区分</strong>——
+区分「解引用一个复合对象的字段」（用 dot join）与「执行一次索引查找」（用 box join），
+<strong>尽管二者在语义上没有区别</strong>。</p>
+<pre><code><span class="c">// 三元关系 addr 关联书、名字、地址</span>
+b.addr[n]     <span class="c">// 书 b 中与名字 n 关联的地址集合</span>
+<span class="o">≡</span> n.(b.addr)
+
+<span class="c">// 选择方框是为了类比数组记法：</span>
+<span class="c">// 类 C 有一个数组值字段 f，用 x 解引用字段 f、再取索引 i 处的对象</span>
+x.f[i]        <span class="c">// 就像在 Java 中一样</span>
+<span class="o">≡</span> i.(x.f)</code></pre>
+
+<h4 id="s3434">3.4.3.4 Transpose · 转置</h4>
+<p>二元关系 r 的<strong>转置</strong> <code>~r</code> 取它的<strong>镜像</strong>——通过<strong>反转每个元组中原子的顺序</strong>构成一个新关系。</p>
+<pre><code>address  <span class="o">=</span> {(N0, D0), (N1, D0), (N2, D2)}    <span class="c">// 名字 → 它代表的地址</span>
+<span class="o">~</span>address <span class="o">=</span> {(D0, N0), (D0, N1), (D2, N2)}    <span class="c">// 每个地址 → 代表它的名字</span></code></pre>
+<div class="grid c2">
+  <div class="card">
+    <h4>symmetric（对称）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">二元关系 r 是对称的，当它包含元组 <code>a -&gt; b</code> 时也包含 <code>b -&gt; a</code>。
+    更简洁地写成关系约束：</p>
+<pre style="margin:8px 0 0"><code><span class="o">~</span>r <span class="k">in</span> r</code></pre>
+    <p style="font-size:13.5px;color:var(--ink-dim);margin:6px 0 0">对对称关系取转置没有效果。</p>
+  </div>
+  <div class="card">
+    <h4>symmetric closure（对称闭包）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">r 的对称闭包是<strong>包含 r 且对称的最小关系</strong>，它等于：</p>
+<pre style="margin:8px 0 0"><code>r <span class="o">+</span> <span class="o">~</span>r</code></pre>
+  </div>
+</div>
+<p><strong>例子：</strong>把主机映射到其网络邻居的关系 <code>connects</code>，如果连接是<strong>双向的</strong>，它就是对称的。
+把男人映射到其妻子的关系 <code>wife</code> 的转置，是把女人映射到其丈夫的关系 <code>husband</code>；
+其<strong>对称闭包</strong>是把每个人映射到其配偶的关系 <code>spouse</code>。</p>
+
+<div class="callout key">
+  <span class="tag">关于 transpose 的三个有用事实（原文列出，很实用）</span>
+  <table style="margin:8px 0 0;font-size:14.2px">
+    <thead><tr><th>事实</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>s.~r</code> 等于 <code>r.s</code></td><td>是集合 s <strong>向后</strong>穿过关系 r 的像</td></tr>
+      <tr><td><code>r.~r</code></td><td>把 r 的定义域中<strong>映射到一个共同元素</strong>的两个原子关联起来的关系；
+        <strong>当 r 是函数时，<code>r.~r</code> 是「把有相同像的原子等同起来」的等价关系</strong></td></tr>
+      <tr><td><code>r.~r in iden</code><br><code>~r.r in iden</code></td><td>前者说 <strong>r 是 injective（单射的）</strong>；后者说 <strong>r 是 functional（函数式的）</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+<pre><code><span class="c">// 例：mother 把孩子映射到其母亲</span>
+mother.<span class="o">~</span>mother    <span class="c">// 兄弟姐妹关系：把孩子映射到其同胞（也映射到它自己）</span></code></pre>
+<div class="qa">
+  <div class="q">Discussion：为什么写 <code>~r in r</code> 而不是 <code>~r = r</code> 来表示对称？</div>
+  <div class="a">
+    <p>你可能预期是 <code>~r = r</code>。<strong>两个条件是等价的</strong>，但作者偏好第一个，因为：</p>
+    <ol style="margin-bottom:0">
+      <li>它<strong>更贴近非正式的表述</strong>；</li>
+      <li>它<strong>遵循自反性与传递性条件的模式</strong>（分别是 <code>iden in r</code>、<code>r.r in r</code>）；</li>
+      <li>从<strong>分析的角度</strong>看，<strong>把约束写成最弱的形式是个好习惯</strong>。</li>
+    </ol>
+    <p style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px">作者自嘲：「 admittedly, this is a bit pedantic,
+    and it's not unreasonable to expect a definition of symmetry to be symmetric.」
+    ——诚然这有点学究气，而且期待「对称的定义本身是对称的」也不算不合理。</p>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：「写成最弱形式」为什么对分析有好处</span>
+  <p>这条建议在 Alloy 里有实在的技术理由。<code>~r in r</code> 是 <code>~r = r</code> 的<strong>弱化</strong>，
+  而弱化后的公式对 SAT 求解器<strong>更容易</strong>：等式约束会立即把大量布尔变量钉死，
+  而蕴含式允许求解器更早剪枝。更重要的是<strong>建模层面</strong>：写最弱形式意味着你<strong>只声明你真正需要的东西</strong>，
+  不给模型附加意外的限制——这正是第 2 章「加一条过强的约束导致 <code>show</code> 变成 inconsistent」的教训。
+  记住三个配套写法：<code>iden in r</code>（自反）、<code>r.r in r</code>（传递）、<code>~r in r</code>（对称）。</p>
+</div>
+
+<h4 id="s3435">3.4.3.5 Transitive Closure · 传递闭包</h4>
+<div class="grid c2">
+  <div class="card">
+    <h4>transitive（传递）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">二元关系是传递的，当它包含 <code>a -&gt; b</code> 和 <code>b -&gt; c</code> 时也包含 <code>a -&gt; c</code>。
+    更简洁地写成关系约束：</p>
+<pre style="margin:8px 0 0"><code>r.r <span class="k">in</span> r</code></pre>
+  </div>
+  <div class="card">
+    <h4>reflexive（自反）</h4>
+    <p style="font-size:14.5px;color:var(--ink-soft)">二元关系 r 是自反的，如果它对<strong>每个</strong>原子 a 都包含元组 <code>a -&gt; a</code>：</p>
+<pre style="margin:8px 0 0"><code>iden <span class="k">in</span> r</code></pre>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">两个闭包的定义</span>
+  <p><strong>传递闭包 <code>^r</code></strong>（transitive closure，简称 closure）是<strong>包含 r 且传递的最小关系</strong>。
+  可以这样计算它：取这个关系，加上它与自身的 join，再加上它与那个结果的 join，如此继续：</p>
+<pre style="margin:8px 0;text-align:center;font-size:14.5px"><code><span class="o">^</span>r <span class="o">=</span> r <span class="o">+</span> r.r <span class="o">+</span> r.r.r <span class="o">+</span> …</code></pre>
+  <p style="margin-bottom:0"><strong>自反传递闭包 <code>*r</code></strong> 是包含 r 且<strong>既传递又自反</strong>的最小关系，
+  通过给传递闭包加上恒等关系得到：</p>
+<pre style="margin:8px 0;text-align:center;font-size:14.5px"><code><span class="o">*</span>r <span class="o">=</span> <span class="o">^</span>r <span class="o">+</span> iden</code></pre>
+</div>
+<div class="callout key">
+  <span class="tag">图形视角（最重要的直觉）</span>
+  <p>把关系看作一张图，<strong>传递闭包代表可达性</strong>（reachability）。
+  由于关系本身代表<strong>长度为 1 的路径</strong>，它的平方代表<strong>长度为 2 的路径</strong>，以此类推，
+  所以闭包<strong>在两个原子之间存在一条任意长度（除零以外）的路径时，把它们关联起来</strong>。</p>
+  <p style="margin-bottom:0">而<strong>自反传递闭包</strong>在两个原子之间存在一条<strong>任意长度（包括零）</strong>的路径时把它们关联起来。</p>
+</div>
+<h4>示例：多级地址簿的闭包</h4>
+<pre><code>address <span class="o">=</span>
+  {(G0, A0), (G0, G1), (A0, D0), (G1, D0), (G1, A1), (A1, D1), (A2, D2)}
+
+<span class="o">^</span>address <span class="o">=</span>
+ {(G0, A0), (G0, G1), (A0, D0), (G1, D0), (G1, A1), (A1, D1), (A2, D2),  <span class="c">// ← 来自关系本身</span>
+  (G0, D0), (G0, A1), (G1, D1),                                          <span class="c">// ← 来自平方 address.address</span>
+  (G0, D1)}                                                              <span class="c">// ← 来自立方 address.address.address</span></code></pre>
+<div class="fig">
+  <div class="rel" style="gap:10px;flex-wrap:wrap">
+    <span class="tuple"><span class="atom c">G0</span><span class="arw">→</span><span class="atom">A0</span><span class="arw">→</span><span class="atom b">D0</span></span>
+    <span class="tuple"><span class="atom c">G0</span><span class="arw">→</span><span class="atom c">G1</span><span class="arw">→</span><span class="atom b">D0</span></span>
+    <span class="tuple"><span class="atom c">G1</span><span class="arw">→</span><span class="atom">A1</span><span class="arw">→</span><span class="atom b">D1</span></span>
+    <span class="tuple"><span class="atom">A2</span><span class="arw">→</span><span class="atom b">D2</span><span style="color:var(--ink-dim);font-size:11.5px">（孤立分支）</span></span>
+  </div>
+  <div style="text-align:center;color:var(--ink-dim);font-size:12.5px;margin-top:12px">
+    闭包新增的边：<code>G0→D0</code>、<code>G0→A1</code>、<code>G1→D1</code>、<code>G0→D1</code>（图中实弧；原弧为细弧）
+  </div>
+  <div class="cap">图 3-6　传递闭包图示（对应原书 fig. 3.9）</div>
+</div>
+<div class="callout warn">
+  <span class="tag">因为 iden 覆盖整个宇宙……</span>
+  <p style="margin-bottom:0">由于 <code>iden</code> 把<strong>宇宙中的每个原子</strong>都关联到它自己（见 3.4.1 及其后的讨论），
+  <strong>自反传递闭包也会这么做</strong>。这带来了一个看起来奇怪的后果，见下面的问答。</p>
+</div>
+<div class="qa">
+  <div class="q">Q：为什么自反传递闭包会关联「不相关的」原子？</div>
+  <div class="a">
+    <p>假设一个模型有书集合 <code>Book</code>、名字集合 <code>Name</code>、地址集合 <code>Addr</code>、一本书 <code>b</code>，
+    以及一个把书映射到其内容的关系 <code>addr</code>，取值如下：</p>
+<pre style="margin:8px 0"><code>Book <span class="o">=</span> {(B0), (B1)}
+Name <span class="o">=</span> {(N0), (N1)}
+Addr <span class="o">=</span> {(D0), (D1)}
+b    <span class="o">=</span> {(B0)}
+addr <span class="o">=</span> {(B0, N0, N1), (B0, N1, D0), (B1, N1, D1)}
+
+univ <span class="o">=</span> {(B0), (B1), (N0), (N1), (D0), (D1)}
+iden <span class="o">=</span> {(B0,B0), (B1,B1), (N0,N0), (N1,N1), (D0,D0), (D1,D1)}
+
+<span class="o">^</span>(b.addr) <span class="o">=</span> {(N0, N1), (N1, D0), (N0, D0)}   <span class="c">// 书 b 中名字的直接与间接映射</span></code></pre>
+    <p>表达式 <code>*(b.addr)</code> 会包含这两个关系的元组。<strong>除了有预期的 <code>(N0, N0)</code> 这类元组外，
+    它还会包含 <code>(B0, B0)</code> 这类元组</strong>（书！）。</p>
+    <p>虽然这看起来奇怪，但它<strong>自然地由自反传递闭包和恒等关系的定义得出</strong>。
+    替代方案是让<strong>每个关系都隐式关联一些集合</strong>，代表其定义域和值域的可能成员——那会<strong>让逻辑复杂化</strong>。</p>
+    <p><strong>实践中这不是问题。</strong>闭包常出现在<strong>导航表达式</strong>中，而那些不相关的自反元组会<strong>在 join 中消失</strong>。
+    例如从名字集合 <code>friends</code> 出发零步或多步可达的名字与地址写作 <code>friends.*(b.addr)</code>，
+    它<strong>不会包含任何书</strong>，因为 <code>friends</code> 和 <code>Book</code> 是<strong>不相交的</strong>。</p>
+    <p style="margin-bottom:0">如果你需要<strong>显式地</strong>去掉多余的元组，你总是可以写
+    <code>s &lt;: *r</code> 来把闭包限制为只映射集合 s 中的原子。</p>
+  </div>
+</div>
+<div class="qa">
+  <div class="q">Q：形成一个关系的闭包需要多少次迭代？</div>
+  <div class="a">
+    <p>对<strong>有限宇宙</strong>，传递闭包只需要<strong>有限的展开</strong>，其上限由<strong>图中最长路径的长度</strong>决定。</p>
+    <p style="margin-bottom:0">对某些关系，<strong>即使宇宙很大，传递闭包也只需要极少的展开</strong>。
+    <strong>Stanley Milgram 的著名实验</strong>（让堪萨斯州的居民通过熟人把信送到波士顿的居民手中）
+    表明信件平均只需<strong>六步</strong>就能到达 [52]。如果六步真的足以连接任意两个人，
+    那就意味着 <code>knows</code> 关系的闭包就是<strong>全关系</strong>，而且<strong>六次展开</strong>就能得到它。</p>
+  </div>
+</div>
+
+<h4 id="s3436">3.4.3.6 Domain and Range Restrictions · 定义域与值域限制</h4>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p>限制算子用于把一个关系<strong>过滤</strong>到给定的定义域或值域：</p>
+  <ul style="margin-bottom:0">
+    <li><code>s &lt;: r</code>（由集合 s 和关系 r 构成）包含 r 中<strong>以 s 中某个元素开头</strong>的那些元组；</li>
+    <li><code>r :&gt; s</code> 包含 r 中<strong>以 s 中某个元素结尾</strong>的那些元组。</li>
+  </ul>
+</div>
+<p style="color:var(--ink-dim);font-size:14.5px">限制可以应用于<strong>元数为二或以上的任意关系</strong>，但最常用于二元关系。</p>
+<pre><code>address <span class="o">=</span> {(G0, A0), (G0, G1), (A0, D0), (G1, D0), (G1, A1), (A1, D1), (A2, D2)}
+Alias <span class="o">=</span> {(A0), (A1), (A2)}   Group <span class="o">=</span> {(G0), (G1)}   Addr <span class="o">=</span> {(D0), (D1), (D2)}</code></pre>
+<table>
+  <thead><tr><th>表达式</th><th>结果</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>address :&gt; Addr</code></td><td><code>{(A0,D0), (G1,D0), (A1,D1), (A2,D2)}</code></td><td>把名字映射到<strong>地址</strong>（而非其他名字）的条目</td></tr>
+    <tr><td><code>address :&gt; Alias</code></td><td><code>{(G0,A0), (G1,A1)}</code></td><td>把名字映射到<strong>别名</strong>的条目</td></tr>
+    <tr><td><code>Group &lt;: address</code></td><td><code>{(G0,A0), (G0,G1), (G1,D0), (G1,A1)}</code></td><td><strong>由组出发</strong>的条目</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">限制 vs 像：差别就在「是否丢掉匹配的元素」</span>
+  <p>对二元关系应用限制<strong>就像取一个集合的像，但不丢掉匹配的元素</strong>。更形式化地，
+  若 r 是二元关系、s 是集合，则：</p>
+<pre style="margin:8px 0;text-align:center;font-size:14.5px"><code>range (s <span class="o">&lt;:</span> r) <span class="o">=</span> s.r
+domain (r <span class="o">:&gt;</span> s) <span class="o">=</span> r.s</code></pre>
+  <p style="margin-bottom:0">另外：恒等关系映射宇宙中每个原子到自身，但我们常常想要的是
+  <strong>把某个集合 s 中每个原子映射到自身</strong>的关系，它可以写作 <code>s &lt;: iden</code>。</p>
+</div>
+
+<h4 id="s3437">3.4.3.7 Override · 覆盖</h4>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p>关系 p 被关系 q <strong>覆盖</strong>（override）的结果 <code>p ++ q</code> <strong>像并集，
+  只是 q 的元组可以<em>替换</em>p 的元组，而不只是增补它们</strong>。
+  <strong>p 中任何「以与 q 中某元组相同的元素开头」的元组都会被丢弃。</strong>
+  p 和 q 可以有任意<strong>匹配的、二或以上</strong>的元数。</p>
+</div>
+<pre><code><span class="c">// 别名在家和在工作时的邮件地址</span>
+homeAddress <span class="o">=</span> {(A0, D1), (A1, D2), (A2, D3)}
+workAddress <span class="o">=</span> {(A0, D0), (A1, D2)}
+
+<span class="c">// 首选地址：有工作地址就用工作地址，否则用家庭地址</span>
+homeAddress <span class="o">++</span> workAddress <span class="o">=</span> {(A0, D0), (A1, D2), (A2, D3)}</code></pre>
+<p style="color:var(--ink-dim);font-size:14px">
+  注意 <code>A0</code>：home 给的是 D1，但被 work 的 D0 <strong>覆盖</strong>了；
+  <code>A2</code>：work 里没有，所以保留 home 的 D3。
+</p>
+<div class="callout key">
+  <span class="tag">override 可以用更简单的算子定义</span>
+  <p>把 p 被 q 覆盖，等价于「取 q，并上 p 中<strong>去掉那些以 q 的定义域中元素开头的元组</strong>之后剩下的部分」：</p>
+<pre style="margin:8px 0;text-align:center;font-size:14.5px"><code>p <span class="o">++</span> q <span class="o">=</span> p <span class="o">-</span> (domain (q) <span class="o">&lt;:</span> p) <span class="o">+</span> q</code></pre>
+  <p style="margin-bottom:0;font-size:14px;color:var(--ink-dim)">→ 这也顺便说明了 <code>++</code> 为什么排在优先级表的低位（它是「和算子」）。</p>
+</div>
+<h4>override 的两大用途</h4>
+<p><strong>「Override is useful for modeling insertions into map datatypes, and assignment-like statements in programs.」</strong>
+——override 适用于建模<strong>向 map 数据类型的插入</strong>，以及<strong>程序中类似赋值的语句</strong>。</p>
+<pre><code><span class="c">// ① 向 hashmap 插入键 k 与值 v：m、m' 是插入前后的两个「键→值」关系</span>
+m' <span class="o">=</span> m <span class="o">++</span> k <span class="o">-&gt;</span> v
+
+<span class="c">// ② Java 程序的环境 e：变量 → 对象引用的关系。赋值 x = y 的效果：</span>
+e' <span class="o">=</span> e <span class="o">++</span> x <span class="o">-&gt;</span> y.e
+
+<span class="c">// ③ 堆状态：每个类的每个字段（实例变量）用一个关系表示。</span>
+<span class="c">//    setter 语句 x.f = y（x、y 是变量，f 是字段）描述为：</span>
+f' <span class="o">=</span> f <span class="o">++</span> x.e <span class="o">-&gt;</span> y.e</code></pre>
+<div class="callout idea">
+  <span class="tag">解读：这就是第 6.4 节「内存抽象」的技术基础</span>
+  <p>注意 ②③ 这两条：<strong>用 <code>override</code> 就能把命令式语言的赋值语义完整地关系化</strong>。
+  环境 e 处理「变量→引用」，字段关系 f 处理「对象→对象」，两者的更新都是 <code>++</code>。
+  这意味着 Alloy 可以<strong>直接建模一个 Java 堆</strong>——第 6.4 节 Memory Abstractions 正是这么做的。
+  也解释了为什么作者说 <code>none</code> 的常见用途之一是「第 6.2 节的框架条件」：
+  <code>f' = f ++ ...</code> 只描述了<em>被修改</em>的字段，其他字段的「不变」需要用别的方式说清楚。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Discussion：算子的优先级是什么？</div>
+  <div class="a">
+    <p>算子有一个<strong>标准的优先级排序</strong>，使约束<strong>不会被大量括号破坏</strong>。这个排序遵循通常的约定：</p>
+    <ul style="margin-bottom:0">
+      <li><strong>一元算子</strong>（闭包 <code>^</code> <code>*</code>、转置 <code>~</code>）<strong>先于二元算子</strong>；</li>
+      <li><strong>积算子</strong>（如 dot <code>.</code> 和 arrow <code>-&gt;</code>）<strong>先于和算子</strong>（<code>+</code>、<code>-</code>、<code>&amp;</code>）；</li>
+      <li><strong>所有算子都左结合</strong>（All operators associate to the left）。</li>
+    </ul>
+    <p style="margin:8px 0 0;color:var(--ink-dim);font-size:13.5px">细节见<a href="appB.html">附录 B</a>。</p>
+  </div>
+</div>
+<div class="callout key">
+  <span class="tag">优先级速记（依原文归纳，完整表见附录 B）</span>
+  <p style="font-family:var(--mono);font-size:14.5px;margin-bottom:0;text-align:center">
+  <code>^ * ~</code>（一元）　&gt;　<code>. []</code>　&gt;　<code>-&gt;</code>　&gt;　<code>&lt;: :&gt;</code>　&gt;　<code>++</code>　&gt;　<code>+ - &amp;</code>　&gt;　<code>= != in</code>　&gt;　<code>not</code>　&gt;　<code>and</code>　&gt;　<code>or</code>　&gt;　<code>implies/else</code>　&gt;　<code>iff</code></p>
+</div>
+
+<hr>
+
+<h2 id="s35"><span class="num">3.5</span>Constraints · 约束</h2>
+<p>我们已经看过如何用比较算子 <code>in</code> 和 <code>=</code> 从两个表达式做出一个约束。
+更大的约束通过两种方式构成：用<strong>标准逻辑算子</strong>组合较小的约束，以及把含自由变量的约束<strong>对绑定进行量化</strong>。</p>
+
+<h3 id="s351">3.5.1 Logical Operators · 逻辑算子</h3>
+<p>每个逻辑算子有<strong>两种形式</strong>：简写形式和冗长形式（类似于编程语言中布尔表达式所用的算子）。
+<strong>两者完全可互换</strong>。</p>
+<table>
+  <thead><tr><th>名称</th><th>简写</th><th>冗长形式</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>negation 否定</td><td><code>!</code></td><td><code>not</code></td><td>可与比较算子组合：<code>a != b</code> ≡ <code>not a = b</code>；也可写 <code>a not = b</code></td></tr>
+    <tr><td>conjunction 合取</td><td><code>&amp;&amp;</code></td><td><code>and</code></td><td>—</td></tr>
+    <tr><td>disjunction 析取</td><td><code>||</code></td><td><code>or</code></td><td>—</td></tr>
+    <tr><td>implication 蕴含</td><td><code>=&gt;</code></td><td><code>implies</code></td><td>—</td></tr>
+    <tr><td><strong>alternative 选择</strong></td><td><code>,</code></td><td><code>else</code></td><td><strong>与 implies 配套使用</strong>，见下</td></tr>
+    <tr><td>bi-implication 双蕴含</td><td><code>&lt;=&gt;</code></td><td><code>iff</code></td><td>—</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">else / 逗号：一个容易被忽略的算子</span>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code>F <span class="k">implies</span> G <span class="k">else</span> H　　≡　　(F <span class="k">and</span> G) <span class="k">or</span> ((<span class="k">not</span> F) <span class="k">and</span> H)</code></pre>
+  <p style="margin-bottom:0;font-size:14.5px">即：F 成立则要求 G，F 不成立则要求 H。<strong>这是「if-then-else」的<em>公式</em>版本。</strong></p>
+</div>
+<h4>嵌套蕴含的常见惯用法</h4>
+<pre><code><span class="c">// 逗号形式</span>
+C1 <span class="o">=&gt;</span> F1 ,
+C2 <span class="o">=&gt;</span> F2 ,
+C3 <span class="o">=&gt;</span> F3
+
+<span class="c">// 等价的关键字形式</span>
+C1 <span class="k">implies</span> F1
+<span class="k">else</span> C2 <span class="k">implies</span> F2
+<span class="k">else</span> C3 <span class="k">implies</span> F3</code></pre>
+<p style="color:var(--ink-soft);font-size:14.5px">含义：在条件 C1 下 F1 成立；如果不成立，那么在条件 C2 下 F2 成立；再不成立，那么在 C3 下 F3 成立。
+<strong>这就是 Alloy 里写 case 分析（分情况讨论）的标准姿势。</strong></p>
+
+<div class="callout key">
+  <span class="tag">隐式合取：花括号内换行即 and</span>
+  <p>约束的合取太常见了，所以我们<strong>经常省略 and 算子</strong>，把整组约束<strong>包在花括号里</strong>：
+  <code>{F G H}</code> 等价于 <code>F and G and H</code>。</p>
+  <p style="margin-bottom:0;font-size:14px;color:var(--ink-dim)">→ 这就是第 2 章 <code>sig Book {…} { no n… ⟲ all a… }</code> 那种写法的依据。</p>
+</div>
+
+<h4>条件表达式（不同于条件公式）</h4>
+<p>有时用<strong>条件表达式</strong>比用条件公式更自然。形式为：</p>
+<pre><code><span class="k">if</span> C <span class="k">then</span> E1 <span class="k">else</span> E2</code></pre>
+<p>其中 C 是一个<strong>约束</strong>，E1 和 E2 是<strong>表达式</strong>；当 C 为真时它的值是 E1，否则是 E2。</p>
+<div class="card">
+  <h4>示例：首选地址（两种等价写法）</h4>
+  <p style="font-size:14.3px;color:var(--ink-soft)">设地址簿用三个关系建模：<code>homeAddress</code> 和 <code>workAddress</code>
+  把别名映射到家/工作邮件地址，<code>address</code> 把别名映射到<strong>首选地址</strong>。
+  要说「别名 a 的首选地址是工作地址（若存在），否则是家庭地址」：</p>
+<pre style="margin:8px 0 0"><code><span class="c">// 写法一：条件公式（用 else / 逗号）</span>
+<span class="k">some</span> a.workAddress <span class="o">=&gt;</span>
+  a.address <span class="o">=</span> a.workAddress ,
+  a.address <span class="o">=</span> a.homeAddress
+
+<span class="c">// 写法二：条件表达式</span>
+a.address <span class="o">=</span>
+  <span class="k">if</span> <span class="k">some</span> a.workAddress <span class="k">then</span> a.workAddress <span class="k">else</span> a.homeAddress</code></pre>
+</div>
+
+<h3 id="s352">3.5.2 Quantification · 量化</h3>
+<p>量化约束的形式是：</p>
+<pre><code>Q x: e | F</code></pre>
+<p>其中 F 是一个<strong>包含变量 x 的约束</strong>，e 是<strong>限定 x 的表达式</strong>（bounding expression），Q 是量词。</p>
+<table>
+  <thead><tr><th>形式</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>all x: e | F</code></td><td>F 对 e 中的<strong>每个</strong> x 成立</td></tr>
+    <tr><td><code>some x: e | F</code></td><td>F 对 e 中的<strong>某个</strong> x 成立</td></tr>
+    <tr><td><code>no x: e | F</code></td><td>F 对 e 中<strong>没有</strong> x 成立</td></tr>
+    <tr><td><code>lone x: e | F</code></td><td>F 对 e 中<strong>至多一个</strong> x 成立</td></tr>
+    <tr><td><code>one x: e | F</code></td><td>F 对 e 中<strong>恰好一个</strong> x 成立</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">记忆技巧（原文提供）</span>
+  <p style="margin-bottom:0">要记住 <code>lone</code> 的含义，可以把它想成
+  <strong>「less than or equal to one」（小于等于一）</strong>的缩写。</p>
+</div>
+<h4>多变量与 disj</h4>
+<pre><code><span class="c">// 同一个量词中绑定多个变量：存在恰好一组 (x, y) 的取值使 F 为真</span>
+<span class="k">one</span> x: e, y: e | F
+
+<span class="c">// 界相同的变量可以共享声明，等价写法：</span>
+<span class="k">one</span> x, y: e | F
+
+<span class="c">// disj：把绑定限制为「被绑变量彼此不相交」的那些组合</span>
+<span class="k">all</span> <span class="k">disj</span> x, y: e | F     <span class="c">// F 对 x 和 y 的任意<em>不同</em>取值组合都为真</span></code></pre>
+
+<h4>示例：多级地址簿</h4>
+<pre><code><span class="c">// 给定：Address（邮件地址集合）、Name（名字集合）、address（把名字映射到名字和地址的关系）</span>
+
+<span class="k">some</span> n: <span class="t">Name</span>, a: <span class="t">Address</span> | a <span class="k">in</span> n.address
+  <span class="c">// 某个名字映射到某个地址（即地址簿非空）</span>
+
+<span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>address
+  <span class="c">// 没有名字能通过查找从自身到达（即地址簿中无环）</span>
+
+<span class="k">all</span> n: <span class="t">Name</span> | <span class="k">lone</span> d: <span class="t">Address</span> | d <span class="k">in</span> n.address
+  <span class="c">// 每个名字至多映射到一个地址</span>
+
+<span class="k">all</span> n: <span class="t">Name</span> | <span class="k">no</span> <span class="k">disj</span> d, d': <span class="t">Address</span> | d <span class="o">+</span> d' <span class="k">in</span> n.address
+  <span class="c">// 同一件事的另一种说法：对每个名字，不存在一对不同的地址同时属于查找该名字的结果</span></code></pre>
+
+<h4>量词也可以直接作用于表达式（不带 <code>| F</code>）</h4>
+<table>
+  <thead><tr><th>形式</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>some e</code></td><td>e <strong>有一些</strong>元组（非空）</td></tr>
+    <tr><td><code>no e</code></td><td>e <strong>没有</strong>元组（为空）</td></tr>
+    <tr><td><code>lone e</code></td><td>e <strong>至多一个</strong>元组</td></tr>
+    <tr><td><code>one e</code></td><td>e <strong>恰好一个</strong>元组</td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">可读性优先于「等价」</span>
+  <p style="margin-bottom:0">注意 <code>some e</code> 和 <code>no e</code> 本可以写成 <code>e != none</code> 和 <code>e = none</code>，
+  但<strong>使用量词能让约束更可读</strong>。（这也呼应了 3.4.1 中「说关系空/非空用 <code>no r</code> 而非 <code>r = none</code>」的建议。）</p>
+</div>
+<pre><code><span class="k">some</span> <span class="t">Name</span>                        <span class="c">// 名字集合非空</span>
+<span class="k">some</span> address                     <span class="c">// 地址簿非空：存在某个把名字映射到地址的 pair</span>
+<span class="k">no</span> (address.<span class="t">Addr</span> <span class="o">-</span> <span class="t">Name</span>)         <span class="c">// 除名字外没有东西被映射到地址</span>
+<span class="k">all</span> n: <span class="t">Name</span> | <span class="k">lone</span> n.address     <span class="c">// 每个名字至多映射到一个地址（比上面的写法简洁）</span>
+<span class="k">all</span> n: <span class="t">Name</span> | <span class="k">one</span> n.address <span class="k">or</span> <span class="k">no</span> n.address   <span class="c">// 同一件事</span></code></pre>
+
+<h3 id="s353">3.5.3 Higher-order Quantification · 高阶量化</h3>
+<div class="callout warn">
+  <span class="tag">重要警告</span>
+  <p>量化变量<strong>不必是标量</strong>；它们可以是<strong>集合</strong>，甚至是 <strong>multirelation</strong>。
+  允许这样的逻辑<strong>不再是「一阶」的，而成为「高阶」的</strong>。
+  <strong>Alloy 包含这类量化，但它们并不总能被分析</strong>（见 5.2.2）。</p>
+</div>
+<pre><code><span class="c">// 高阶量化常用于陈述关于「算子本身」的性质：</span>
+
+<span class="k">all</span> s, t: <span class="k">set</span> univ | s <span class="o">+</span> t <span class="o">=</span> t <span class="o">+</span> s
+  <span class="c">// 集合上的并算子是交换的</span>
+
+<span class="k">all</span> p, q: univ <span class="k">lone</span> <span class="o">-&gt;</span> <span class="k">lone</span> univ | p.q: univ <span class="k">lone</span> <span class="o">-&gt;</span> <span class="k">lone</span> univ
+  <span class="c">// 两个函数的 join 也是函数</span></code></pre>
+<div class="qa">
+  <div class="q">Q：Alloy 允许独立的（freestanding）声明吗？</div>
+  <div class="a">
+    <p style="margin-bottom:0"><strong>不允许。</strong>本节描述的声明形式可以用于<strong>量化变量</strong>和<strong>字段</strong>，
+    也可以用作<strong>公式</strong>。但<strong>不支持顶层的关系声明</strong>——尽管它们是不必要的
+    （在 4.2.2 之后的讨论中解释）。</p>
+  </div>
+</div>
+<div class="qa">
+  <div class="q">Q：高阶量化什么时候可以被分析？</div>
+  <div class="a">
+    <p style="margin-bottom:0">一般来说，<strong>Alloy Analyzer 无法处理涉及高阶量化的公式</strong>，所以<strong>不鼓励使用它们</strong>。
+    但在某些有用的情形下，高阶量词可以通过一种称为 <strong>「skolemization」（斯科伦化）</strong>的方案消除——
+    它把一个<strong>量化变量变成一个自由变量</strong>，其值随后可由<strong>约束求解</strong>找到。
+    更多细节见 <a href="ch5.html">5.2.2</a>。<br>
+    <span style="color:var(--ink-dim);font-size:13.5px">→ 这正是前言致谢里提到的 Viktor Kuncak 的工作领域。</span></p>
+  </div>
+</div>
+<div class="qa">
+  <div class="q">Q：<code>lone p: some X | F</code> 和 <code>some p: lone X | F</code> 有什么区别？</div>
+  <div class="a">
+    <p>新手有时会被这两种量化的区别搞混。<strong>令人困惑的是，同样的关键字既用作量词、又用作限定表达式的重数。</strong></p>
+    <table style="margin:8px 0;font-size:14px">
+      <thead><tr><th></th><th>量词</th><th>重数</th><th>含义</th></tr></thead>
+      <tbody>
+        <tr><td><code>lone p: some X | F</code></td><td>lone（至多一个）</td><td>some（一个或更多）</td>
+          <td>p 被约束为<strong>取自 X 的非空子集</strong>，且约束说 F 对<strong>至多一个</strong>这样的子集 p 成立。<br>
+            <span style="color:var(--danger);font-size:13px">→ 真·高阶量化。作者说「我从没遇到过需要它的场合」。</span></td></tr>
+        <tr><td><code>some p: lone X | F</code></td><td>some</td><td>lone</td>
+          <td>约束说 F 对<strong>某个 option p</strong> 成立，等价于：
+<pre style="margin:6px 0;font-size:12.5px"><code>(<span class="k">some</span> p: X | F) <span class="k">or</span> (<span class="k">let</span> p <span class="o">=</span> none | F)</code></pre>
+            <span style="color:var(--accent-2);font-size:13px">→ 因此它<strong>根本不算高阶量化</strong>，而且「偶尔有用」。</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<h3 id="s354">3.5.4 Let Expressions and Constraints · let 表达式与约束</h3>
+<p>当一个表达式<strong>反复出现</strong>，或者是一个更大、更复杂表达式的<strong>子表达式</strong>时，你可以把它提取出来。形式：</p>
+<pre><code><span class="k">let</span> x <span class="o">=</span> e | A</code></pre>
+<div class="callout key">
+  <span class="tag">语义（纯语法替换）</span>
+  <p style="margin-bottom:0">它是 <strong>A 的简写，其中变量 x 的每次出现都被表达式 e 替换</strong>。
+  let 的主体 A（从而整个形式）<strong>可以是约束，也可以是表达式</strong>。</p>
+</div>
+<pre><code><span class="c">// let 的主体是约束</span>
+<span class="k">all</span> a: <span class="t">Alias</span> |
+  <span class="k">let</span> w <span class="o">=</span> a.workAddress |
+    a.address <span class="o">=</span> <span class="k">if</span> <span class="k">some</span> w <span class="k">then</span> w <span class="k">else</span> a.homeAddress
+
+<span class="c">// let 的主体是表达式（等价写法）</span>
+<span class="k">all</span> a: <span class="t">Alias</span> |
+  a.address <span class="o">=</span>
+    <span class="k">let</span> w <span class="o">=</span> a.workAddress |
+      <span class="k">if</span> <span class="k">some</span> w <span class="k">then</span> w <span class="k">else</span> a.homeAddress</code></pre>
+<div class="qa">
+  <div class="q">Discussion：let 绑定可以是递归的吗？</div>
+  <div class="a">
+    <p style="margin-bottom:0"><strong>不可以。</strong>它们只提供一个<strong>方便的简写</strong>，不允许递归定义。
+    <strong>一个 let 在绑定左侧引入的变量，不能出现在同一绑定的右侧，也不能出现在同一 let 构造中先于它的那个绑定里。</strong></p>
+  </div>
+</div>
+
+<h3 id="s355">3.5.5 Comprehensions · 集合构造</h3>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p><strong>Comprehension 从性质构造出关系。</strong>集合构造表达式</p>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code>{x1: e1, x2: e2, …, xn: en | F}</code></pre>
+  <p style="margin-bottom:0">构造出一个关系，它包含所有形如 <code>x1 -&gt; x2 -&gt; … -&gt; xn</code> 的元组，
+  对这些元组<strong>约束 F 成立</strong>，且 <code>xi</code> 的值<strong>取自限定集合表达式 <code>ei</code> 的值</strong>。</p>
+</div>
+<div class="callout warn">
+  <span class="tag">限制</span>
+  <p style="margin-bottom:0">每个表达式 <code>ei</code> <strong>必须表示一个集合，而不能是更高元数的关系</strong>。</p>
+</div>
+<pre><code><span class="c">// 多级地址簿：address 把 Name 中的名字映射到名字、也映射到 Addr 中的地址</span>
+
+{n: <span class="t">Name</span> | <span class="k">no</span> n.<span class="o">^</span>address <span class="o">&amp;</span> <span class="t">Addr</span>}
+  <span class="c">// 解析不出任何实际地址的那些名字的集合</span>
+
+{n: <span class="t">Name</span>, a: <span class="t">Addr</span> | n <span class="o">-&gt;</span> a <span class="k">in</span> <span class="o">^</span>address}
+  <span class="c">// 一个把名字映射到地址的关系，对应「多级查找」的结果</span></code></pre>
+<div class="callout idea">
+  <span class="tag">解读：集合构造是「把断言变成数据」的工具</span>
+  <p>注意第二个例子：<code>^address</code> 是一个可达性关系，而 <code>{n: Name, a: Addr | n -&gt; a in ^address}</code>
+  把它<strong>收窄</strong>成「只保留名字→地址那部分」。这与第 2 章 <code>n.^(b.addr) &amp; Addr</code> 目的相同，但机制不同：
+  <strong>交集 <code>&amp;</code> 是算子级的过滤，集合构造是公式级的过滤</strong>——后者能表达任意复杂的条件（例如
+  <code>{n: Name | no n.^address &amp; Addr}</code> 这种「解析不出地址的名字」用交集写不出来）。
+  配合 3.1 节的问答（谓词演算风格常用于集合构造），这条就串起来了。</p>
+</div>
+
+<hr>
+
+<h2 id="s36"><span class="num">3.6</span>Declarations and Multiplicity Constraints · 声明与重数约束</h2>
+<p><strong>声明引入一个关系名。</strong>我们刚看过声明如何用于量化约束和集合构造。
+<strong>独立的关系名声明也讲得通</strong>，尽管第 4 章会看到，在完整的 Alloy 语言中，
+它们会被改为<strong>在「签名」内部声明</strong>。</p>
+<div class="callout">
+  <span class="tag">为什么重数出现在「逻辑」章</span>
+  <p style="margin-bottom:0">作者说明：<strong>重数的概念与声明的概念紧密相连</strong>。
+  它<strong>对逻辑而言并非本质</strong>（not essential in a logic），但之所以放进本章，
+  是因为它<strong>太有用了</strong>，而且<strong>可以独立于 Alloy 的结构化机制来解释</strong>。</p>
+</div>
+
+<h3 id="s361">3.6.1 Declarations · 声明</h3>
+<p>形如下式的约束称为<strong>声明</strong>（declaration）：</p>
+<pre><code>relation-name : expression</code></pre>
+<p>它的含义<strong>几乎</strong>（马上有个但书）等于把冒号换成关键字 <code>in</code>，
+于是它变成一个简单的约束，说<strong>左边命名的关系的值，是右边限定表达式值的一个子集</strong>。
+限定表达式通常由<strong>一元关系和箭头算子</strong>构成，但<strong>任何表达式都可以用</strong>。</p>
+<pre><code><span class="c">// 单个地址簿：名字 → 地址</span>
+address: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="t">Addr</span>
+
+<span class="c">// 一组地址簿：书 → 名字 → 地址</span>
+addr: <span class="t">Book</span> <span class="o">-&gt;</span> <span class="t">Name</span> <span class="o">-&gt;</span> <span class="t">Addr</span>
+
+<span class="c">// 多级地址簿：名字 → 名字和地址</span>
+address: <span class="t">Name</span> <span class="o">-&gt;</span> (<span class="t">Name</span> <span class="o">+</span> <span class="t">Addr</span>)</code></pre>
+<div class="callout key">
+  <span class="tag">同一个关系可以有不同强度的声明</span>
+  <p>「The same relation can be declared in different ways, depending on <strong>how much information you want to put in the declaration</strong>.」</p>
+<pre style="margin:8px 0 0"><code><span class="c">// 弱声明：别名和组都映射到地址、别名、组</span>
+address: (<span class="t">Alias</span> <span class="o">+</span> <span class="t">Group</span>) <span class="o">-&gt;</span> (<span class="t">Addr</span> <span class="o">+</span> <span class="t">Alias</span> <span class="o">+</span> <span class="t">Group</span>)
+
+<span class="c">// 强声明：额外说明「别名（不同于组）总是直接映射到地址」</span>
+address: (<span class="t">Alias</span> <span class="o">-&gt;</span> <span class="t">Addr</span>) <span class="o">+</span> (<span class="t">Group</span> <span class="o">-&gt;</span> (<span class="t">Addr</span> <span class="o">+</span> <span class="t">Alias</span> <span class="o">+</span> <span class="t">Group</span>))</code></pre>
+  <p style="margin:8px 0 0;font-size:14px;color:var(--ink-dim)">→ 这正是「增量细化」的具体操作：把弱声明<strong>替换</strong>为强声明，模型的其他部分无需改动。</p>
+</div>
+<p><strong>关系（不只是集合）也可以出现在声明的右侧：</strong></p>
+<pre><code><span class="c">// 地址簿用三个关系表示：家庭、工作、首选地址</span>
+workAddress, homeAddress: <span class="t">Alias</span> <span class="o">-&gt;</span> <span class="t">Addr</span>
+prefAddress: workAddress <span class="o">+</span> homeAddress   <span class="c">// ← 右侧是两个关系之和</span></code></pre>
+
+<h3 id="s362">3.6.2 Set Multiplicities · 集合重数</h3>
+<p>上一小节说声明 <code>x: e</code> 的含义<strong>几乎</strong>等同于子集约束 <code>x in e</code>。现在是那个<strong>但书</strong>：</p>
+<div class="callout warn">
+  <span class="tag">但书</span>
+  <p style="margin-bottom:0">声明<strong>可以包含重数约束</strong>（multiplicity constraints），而且它们<strong>有时是隐式的</strong>。</p>
+</div>
+<table>
+  <thead><tr><th>重数关键字</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>set</code></td><td>any number · 任意数量</td></tr>
+    <tr><td><code>one</code></td><td>exactly one · 恰好一个</td></tr>
+    <tr><td><code>lone</code></td><td>zero or one · 零或一个</td></tr>
+    <tr><td><code>some</code></td><td>one or more · 一个或更多</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">注意关键字复用</span>
+  <p style="margin-bottom:0"><code>one</code>、<code>lone</code>、<code>some</code> <strong>与用于量化的关键字是同一批</strong>
+  （这正是 3.5.3 那个问答里「新手困惑」的根源）。区分方法：<strong>看它在冒号前（量词）还是在冒号后（重数）</strong>。</p>
+</div>
+<div class="callout key">
+  <span class="tag">含义取决于限定表达式的元数</span>
+  <p>如果限定表达式表示一个<strong>集合</strong>（即是一元的），它可以在前面加一个重数关键字：</p>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code>x: m e</code></pre>
+  <p>它按 m <strong>约束集合 x 的大小</strong>。</p>
+  <p style="margin-bottom:0;color:var(--danger)"><strong>对于集合值的限定表达式，省略关键字等同于写 <code>one</code>。
+  所以如果没有关键字出现，声明使该变量成为一个<em>标量</em>。</strong></p>
+</div>
+<table>
+  <thead><tr><th>声明</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>RecentlyUsed: set Name</code></td><td>RecentlyUsed 是集合 Name 的一个<strong>子集</strong></td></tr>
+    <tr><td><code>senderAddress: Addr</code></td><td>senderAddress 是 Addr 中的一个<strong>标量</strong>（默认 one）</td></tr>
+    <tr><td><code>senderName: lone Name</code></td><td>senderName 是一个 <strong>option</strong>：要么是 Name 中的一个标量，要么为空</td></tr>
+    <tr><td><code>receiverAddresses: some Addr</code></td><td>receiverAddresses 是 Addr 的一个<strong>非空子集</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">量化变量声明与自由变量声明形式完全相同</span>
+  <p>量化约束中变量的声明，是<strong>完全相同形式</strong>的声明，遵循<strong>相同的规则</strong>。
+  唯一的区别是：<strong>量词引入的变量在量化约束的主体内被绑定</strong>；
+  而我们看过的其他声明引入的是<strong>自由变量</strong>（free variables）。</p>
+<pre style="margin:8px 0 0"><code><span class="k">some</span> n: <span class="t">Name</span>, a: <span class="t">Address</span> | a <span class="k">in</span> n.address   <span class="c">// 两个声明，绑定标量 n 和 a</span></code></pre>
+</div>
+
+<h3 id="s363">3.6.3 Relation Multiplicities · 关系重数</h3>
+<div class="callout warn">
+  <span class="tag">一条硬规则</span>
+  <p style="margin-bottom:0">当限定表达式是一个<strong>关系</strong>（即元数大于一的关系）时，
+  它<strong>不可以</strong>在前面加重数关键字。<strong>但如果限定表达式是用箭头算子构造的，重数可以出现在它<em>内部</em>。</strong></p>
+</div>
+<p>假设声明形如：</p>
+<pre><code>r: A m <span class="o">-&gt;</span> n B</code></pre>
+<p>其中 m 和 n 是重数关键字（A 和 B 暂时当作集合）。那么关系 r 被约束为：</p>
+<div class="grid c2">
+  <div class="card" style="border-left:3px solid var(--accent)">
+    <h4>n 在右边 → 管「A 的每个成员」</h4>
+    <p style="margin:0;font-size:14.5px;color:var(--ink-soft)">把 A 的<strong>每个成员</strong>映射到 B 的 <strong>n 个</strong>成员</p>
+  </div>
+  <div class="card" style="border-left:3px solid var(--accent-2)">
+    <h4>m 在左边 → 管「B 的每个成员」</h4>
+    <p style="margin:0;font-size:14.5px;color:var(--ink-soft)">把 A 的 <strong>m 个</strong>成员映射到 B 的<strong>每个成员</strong></p>
+  </div>
+</div>
+<p>这样的声明可以指出关系的<strong>定义域与值域</strong>（见 3.2.5），以及它<strong>是否 functional 或 injective</strong>（见 3.2.4）：</p>
+<table>
+  <thead><tr><th>声明</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>r: A -&gt; one B</code></td><td>一个<strong>函数</strong>，其定义域是 A</td></tr>
+    <tr><td><code>r: A one -&gt; B</code></td><td>一个 <strong>injective 关系</strong>，其值域是 B</td></tr>
+    <tr><td><code>r: A -&gt; lone B</code></td><td>一个在定义域 A 上<strong>偏的</strong>函数</td></tr>
+    <tr><td><code>r: A one -&gt; one B</code></td><td>一个 injective 函数，定义域 A、值域 B——也称 A 到 B 的<strong>双射</strong>（bijection）</td></tr>
+    <tr><td><code>r: A some -&gt; some B</code></td><td>一个定义域为 A、值域为 B 的<strong>关系</strong></td></tr>
+  </tbody>
+</table>
+<h4>示例</h4>
+<pre><code>workAddress: <span class="t">Alias</span> <span class="o">-&gt;</span> <span class="k">lone</span> <span class="t">Addr</span>
+  <span class="c">// 函数：把 Alias 的每个成员映射至 Addr 的至多一个成员；每个别名代表至多一个工作地址</span>
+
+homeAddress: <span class="t">Alias</span> <span class="o">-&gt;</span> <span class="k">one</span> <span class="t">Addr</span>
+  <span class="c">// 每个别名代表恰好一个家庭地址</span>
+
+members: <span class="t">Group</span> <span class="k">lone</span> <span class="o">-&gt;</span> <span class="k">some</span> <span class="t">Addr</span>
+  <span class="c">// 一个地址至多属于一个组，且一个组至少包含一个地址</span></code></pre>
+
+<div class="callout key">
+  <span class="tag">重数只是糖：完整的展开式</span>
+  <p>重数<strong>只是简写</strong>，可以被标准约束替换。<code>r: A m -&gt; n B</code> 中的重数约束可以写成：</p>
+<pre style="margin:8px 0"><code><span class="k">all</span> a: A | n a.r
+<span class="k">all</span> b: B | m r.b</code></pre>
+  <p style="margin-bottom:0">但<strong>重数更可取，因为它们更简短、更易读</strong>。</p>
+</div>
+<pre><code><span class="c">// 上面最后一个声明</span>
+members: <span class="t">Group</span> <span class="k">lone</span> <span class="o">-&gt;</span> <span class="k">some</span> <span class="t">Addr</span>
+
+<span class="c">// 可以替换为：</span>
+members: <span class="t">Group</span> <span class="o">-&gt;</span> <span class="t">Addr</span>
+<span class="k">all</span> g: <span class="t">Group</span> | <span class="k">some</span> g.members
+<span class="k">all</span> a: <span class="t">Addr</span>  | <span class="k">lone</span> members.a</code></pre>
+
+<div class="callout key">
+  <span class="tag">推广：A 和 B 不必是集合，规则里的「成员」换成「元组」</span>
+  <p>表达式 A 和 B 可以是<strong>任意表达式</strong>，不必是关系名；它们也<strong>不必表示一元关系</strong>。
+  规则的推广方式很简单：把「member（成员）」换成「<strong>tuple（元组）</strong>」。于是</p>
+<pre style="margin:8px 0;text-align:center;font-size:14.5px"><code>r: A m <span class="o">-&gt;</span> n B</code></pre>
+  <p style="margin-bottom:0">表示 r 把 A 中的 <strong>m 个元组</strong>映射到 B 中的<strong>每个元组</strong>，
+  并把 A 中的<strong>每个元组</strong>映射到 B 中的 <strong>n 个元组</strong>。</p>
+</div>
+<pre><code>addr: (<span class="t">Book</span> <span class="o">-&gt;</span> <span class="t">Name</span>) <span class="o">-&gt;</span> <span class="k">lone</span> <span class="t">Addr</span>
+  <span class="c">// addr 为每个「地址簿 + 名字」的<em>组合</em>关联至多一个地址</span></code></pre>
+
+<h3 id="s364">3.6.4 Declaration Constraints · 声明式约束</h3>
+<div class="callout key">
+  <span class="tag">声明不只用来引入新名字</span>
+  <p>声明通常引入新名字，但它们也可以用来<strong>对已经声明过的关系、或任意表达式施加约束</strong>。
+  在这种情况下，声明（用冒号算子）与普通约束（用子集算子 <code>in</code>）的<strong>唯一区别</strong>是：
+  <strong>声明会施加重数约束</strong>——对集合而言，<strong>即使没有重数关键字也会施加</strong>（因为有默认重数）。</p>
+</div>
+<pre><code><span class="c">// 地址簿由关系 address 表示，把组和别名映射到地址</span>
+address: (<span class="t">Group</span> <span class="o">+</span> <span class="t">Alias</span>) <span class="o">-&gt;</span> <span class="t">Addr</span>
+
+<span class="c">// 一个额外的声明可以约束「每个别名至多映射到一个地址」</span>
+<span class="t">Alias</span> <span class="o">&lt;:</span> address : <span class="t">Alias</span> <span class="o">-&gt;</span> <span class="k">lone</span> <span class="t">Addr</span></code></pre>
+<div class="callout key">
+  <span class="tag">声明约束是普通公式，可以任意组合</span>
+  <p style="margin-bottom:0">声明约束<strong>像任何其他公式一样</strong>，可以用逻辑算子组合、放进量化的主体里，等等。</p>
+</div>
+<pre><code><span class="c">// addr 关联地址簿、名字、地址。约束「每本地址簿都是 injective 的」</span>
+<span class="c">//（即至多把一个名字映射到一个地址）可以写作：</span>
+<span class="k">all</span> b: <span class="t">Book</span> | b.addr: <span class="t">Name</span> <span class="k">lone</span> <span class="o">-&gt;</span> <span class="t">Addr</span></code></pre>
+
+<h3 id="s365">3.6.5 Nested Multiplicities · 嵌套重数</h3>
+<div class="callout key">
+  <span class="tag">这是 Alloy 的一项「新意」（本章开篇提到过）</span>
+  <p><strong>重数可以嵌套。</strong>假设有一个形如下式的声明：</p>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code>r: A <span class="o">-&gt;</span> (B m <span class="o">-&gt;</span> n C)</code></pre>
+  <p>这意味着：<strong>对 A 中的每个元组，<code>B -&gt; C</code> 中对应的那些元组构成一个具有给定重数的关系。</strong>
+  当 A 是一个集合时，这个重数约束等价于：</p>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code><span class="k">all</span> a: A | a.r : B m <span class="o">-&gt;</span> n C</code></pre>
+  <p style="margin-bottom:0">类似地：</p>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code>r: (A m <span class="o">-&gt;</span> n B) <span class="o">-&gt;</span> C　　≡　　<span class="k">all</span> c: C | r.c : A m <span class="o">-&gt;</span> n B</code></pre>
+</div>
+<h4>示例：一个括号位置的差异导致完全不同的语义</h4>
+<pre><code><span class="c">// ① 对任何书，每个地址至多与一个名字关联</span>
+addr: <span class="t">Book</span> <span class="o">-&gt;</span> (<span class="t">Name</span> <span class="k">lone</span> <span class="o">-&gt;</span> <span class="t">Addr</span>)
+<span class="c">// 等价于</span>
+<span class="k">all</span> b: <span class="t">Book</span> | b.addr: <span class="t">Name</span> <span class="k">lone</span> <span class="o">-&gt;</span> <span class="t">Addr</span>
+
+<span class="c">// ② 每个地址至多与一个「书/名字」组合关联</span>
+addr: (<span class="t">Book</span> <span class="o">-&gt;</span> <span class="t">Name</span>) <span class="k">lone</span> <span class="o">-&gt;</span> <span class="t">Addr</span></code></pre>
+<div class="callout pit">
+  <span class="tag">关键区别（原文点明）</span>
+  <p style="margin-bottom:0"><strong>「The first allows an address to have different names in different books; the second does not.」</strong><br>
+  <strong>① 允许一个地址在不同的书中有不同的名字；② 不允许。</strong><br>
+  <span style="font-size:14px;color:var(--ink-dim)">这是「嵌套重数」最实用的场景：区分「每个容器内唯一」与「全局唯一」。</span></p>
+</div>
+
+<hr>
+
+<h2 id="s37"><span class="num">3.7</span>Cardinality Constraints · 基数约束</h2>
+<p>算子 <code>#</code> 作用于一个关系，给出它<strong>包含的元组数量</strong>，作为一个<strong>整数值</strong>。
+下列算子可用于组合和比较整数：</p>
+<div class="fig">
+  <div class="rel" style="gap:8px">
+    <div class="atom b"><code>+</code> plus</div>
+    <div class="atom b"><code>-</code> minus</div>
+    <div class="atom c"><code>=</code> equals</div>
+    <div class="atom c"><code>&lt;</code> less than</div>
+    <div class="atom c"><code>&gt;</code> greater than</div>
+    <div class="atom c"><code>=&lt;</code> less than or equal</div>
+    <div class="atom c"><code>&gt;=</code> greater than or equal</div>
+  </div>
+  <div class="cap">整数算子 · 正整数字面量可以作为常量出现</div>
+</div>
+<div class="callout warn">
+  <span class="tag">注意符号方向</span>
+  <p style="margin-bottom:0">「小于等于」写作 <code>=&lt;</code>（<strong>等号在左</strong>），「大于等于」写作 <code>&gt;=</code>（等号在右）。
+  这个不对称是 Alloy 的一个易错点。<strong>没有乘法和除法</strong>（见 3.2.3 的 Q8 与 4.8 节）。</p>
+</div>
+<pre><code><span class="c">// address 把组和别名映射到地址</span>
+address: (<span class="t">Group</span> <span class="o">+</span> <span class="t">Alias</span>) <span class="o">-&gt;</span> <span class="t">Addr</span>
+
+<span class="c">// 约束「每个组关联的地址多于一个」</span>
+<span class="k">all</span> g: <span class="t">Group</span> | <span class="o">#</span>g.address <span class="o">&gt;</span> <span class="n">1</span></code></pre>
+
+<h3>完整示例：把大组拆分成子组</h3>
+<p>假设一个邮件程序需要把地址组<strong>拆分成更小的子组</strong>。给定把组映射到其包含地址的关系，
+以及把组映射到其子组的关系：</p>
+<pre><code>address: <span class="t">Group</span> <span class="o">-&gt;</span> <span class="t">Addr</span>
+split:   <span class="t">Group</span> <span class="o">-&gt;</span> <span class="t">Group</span></code></pre>
+
+<h4>三条结构性约束</h4>
+<pre><code><span class="c">// ① 没有组是它自己的子组</span>
+<span class="k">no</span> g: <span class="t">Group</span> | g <span class="k">in</span> g.split
+
+<span class="c">// ② 一个组的子组包含它的全部地址</span>
+<span class="k">all</span> g: split.<span class="t">Group</span> | g.address <span class="o">=</span> g.split.address
+
+<span class="c">// ③ 子组之间互不相交</span>
+<span class="k">all</span> g: <span class="t">Group</span>, <span class="k">disj</span> g1, g2: g.split | <span class="k">no</span> g1.address <span class="o">&amp;</span> g2.address</code></pre>
+<div class="callout idea">
+  <span class="tag">解读：注意 ② 里的 <code>split.Group</code></span>
+  <p style="margin-bottom:0"><code>split.Group</code> 是<strong>反向导航</strong>（3.4.3.2）：「那些<em>有</em>子组的组」，
+  即 split 的值域。约束 ② 只对<strong>被拆分的组</strong>要求「子组地址之和 = 原组地址」——
+  没被拆分的组自然不受约束。这是用反向导航精准限定量化范围的典型手法。</p>
+</div>
+
+<h4>三条基数约束</h4>
+<pre><code><span class="c">// ① 任何成员数超过 5 的组都要被拆分</span>
+<span class="k">all</span> g: <span class="t">Group</span> | <span class="o">#</span>g.address <span class="o">&gt;</span> <span class="n">5</span> <span class="k">implies</span> <span class="k">some</span> g.split
+
+<span class="c">// ② 没有子组包含超过 5 个成员</span>
+<span class="k">all</span> g: <span class="t">Group</span>.split | <span class="o">#</span>g.address <span class="o">=&lt;</span> <span class="n">5</span>
+
+<span class="c">// ③ 子组大小大致相等（彼此相差不超过 1）</span>
+<span class="k">all</span> g: <span class="t">Group</span>, <span class="k">disj</span> g1, g2: g.split |
+  <span class="o">#</span>g1.address <span class="o">&lt;</span> <span class="o">#</span>g2.address <span class="k">implies</span> <span class="o">#</span>g2.address <span class="o">=</span> <span class="o">#</span>g1.address <span class="o">+</span> <span class="n">1</span></code></pre>
+
+<h3>sum：整数求和</h3>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p style="margin-bottom:0">表达式</p>
+<pre style="margin:8px 0;text-align:center;font-size:15px"><code><span class="k">sum</span> x: e | ie</code></pre>
+  <p>表示这样一个整数：对<strong>取自集合 e 的标量 x 的所有值</strong>，把<strong>整数表达式 ie</strong> 的值<strong>求和</strong>。</p>
+</div>
+<pre><code><span class="c">// 一个组的大小等于其各子组大小之和</span>
+<span class="k">all</span> g: split.<span class="t">Group</span> | <span class="o">#</span>g.address <span class="o">=</span> (<span class="k">sum</span> g': g.split | <span class="o">#</span>g'.address)</code></pre>
+
+<hr>
+
+<h2 id="cheat">全章算子总表（速查）</h2>
+<table>
+  <thead><tr><th>类别</th><th>算子</th><th>读法</th><th>要点</th></tr></thead>
+  <tbody>
+    <tr><td rowspan="3"><strong>常量</strong></td><td><code>none</code></td><td>空集</td><td><strong>一元</strong>；空二元关系写 <code>none -&gt; none</code>。判断空用 <code>no r</code> 更好</td></tr>
+    <tr><td><code>univ</code></td><td>全集</td><td><strong>一元</strong>；全关系写 <code>univ -&gt; univ</code>。<code>r.univ</code>=domain，<code>univ.r</code>=range</td></tr>
+    <tr><td><code>iden</code></td><td>恒等关系</td><td>二元；覆盖<strong>整个宇宙</strong>，几乎总要限定：<code>s &lt;: iden</code></td></tr>
+    <tr><td rowspan="5"><strong>集合算子</strong><br><span style="font-size:12px;color:var(--ink-dim)">元组结构无关</span></td>
+      <td><code>p + q</code></td><td>并</td><td rowspan="3">要求<strong>元数相同</strong>；但<strong>不要求类型相同</strong>（<code>C + Null</code> 合法）</td></tr>
+    <tr><td><code>p &amp; q</code></td><td>交</td></tr>
+    <tr><td><code>p - q</code></td><td>差</td></tr>
+    <tr><td><code>p in q</code></td><td>子集 / 成员</td><td><strong>故意歧义</strong>：既可读作 ⊆ 也可读作 ∈</td></tr>
+    <tr><td><code>p = q</code></td><td>相等</td><td>元组集合相同；<strong>对称</strong>；无「引用相等」概念</td></tr>
+    <tr><td rowspan="9"><strong>关系算子</strong><br><span style="font-size:12px;color:var(--ink-dim)">元组结构是本质的</span></td>
+      <td><code>p -&gt; q</code></td><td>箭头积</td><td>所有组合的拼接；集合×集合=二元关系</td></tr>
+    <tr><td><code>p.q</code></td><td>dot join</td><td><strong>最核心</strong>。匹配「p 末列 = q 首列」并<strong>丢掉该列</strong>；arity 相加减一；<strong>不结合</strong>（但两种合法括号等价）</td></tr>
+    <tr><td><code>e1 [e2]</code></td><td>box join</td><td>≡ <code>e2.e1</code>；语义同 join，仅参数序与优先级不同；dot 比 box 结合更紧</td></tr>
+    <tr><td><code>~r</code></td><td>转置</td><td>反转元组内原子顺序。对称 = <code>~r in r</code>；对称闭包 = <code>r + ~r</code>；injective = <code>r.~r in iden</code>；functional = <code>~r.r in iden</code></td></tr>
+    <tr><td><code>^r</code></td><td>传递闭包</td><td><strong>可达性</strong>（路径长度 ≥ 1）；<code>^r = r + r.r + …</code>；传递 = <code>r.r in r</code></td></tr>
+    <tr><td><code>*r</code></td><td>自反传递闭包</td><td>可达性（长度 ≥ 0）；<code>*r = ^r + iden</code>；会带上全宇宙的自反对，导航时自动消失，或用 <code>s &lt;: *r</code> 显式去掉</td></tr>
+    <tr><td><code>s &lt;: r</code></td><td>定义域限制</td><td>保留<strong>以 s 中元素开头</strong>的元组；<code>range(s &lt;: r) = s.r</code></td></tr>
+    <tr><td><code>r :&gt; s</code></td><td>值域限制</td><td>保留<strong>以 s 中元素结尾</strong>的元组；<code>domain(r :&gt; s) = r.s</code></td></tr>
+    <tr><td><code>p ++ q</code></td><td>覆盖 override</td><td>q 替换 p 中同首元素的元组；<code>= p - (domain(q) &lt;: p) + q</code>；用于 map 插入与赋值语义</td></tr>
+    <tr><td rowspan="6"><strong>逻辑算子</strong></td><td><code>! / not</code></td><td>否定</td><td><code>a != b</code> ≡ <code>not a = b</code> ≡ <code>a not = b</code></td></tr>
+    <tr><td><code>&amp;&amp; / and</code></td><td>合取</td><td>花括号内<strong>并列（换行/空格）即隐式 and</strong></td></tr>
+    <tr><td><code>|| / or</code></td><td>析取</td><td>—</td></tr>
+    <tr><td><code>=&gt; / implies</code></td><td>蕴含</td><td>—</td></tr>
+    <tr><td><code>, / else</code></td><td>选择</td><td><code>F implies G else H</code> ≡ <code>(F and G) or (not F and H)</code>；用于嵌套 case 分析</td></tr>
+    <tr><td><code>&lt;=&gt; / iff</code></td><td>双蕴含</td><td>—</td></tr>
+    <tr><td rowspan="7"><strong>量词</strong></td><td><code>all x: e | F</code></td><td>全称</td><td rowspan="5"><code>disj</code> 可加在声明前，要求被绑变量两两不同。<code>lone</code> = "less than or equal to one"</td></tr>
+    <tr><td><code>some x: e | F</code></td><td>存在</td></tr>
+    <tr><td><code>no x: e | F</code></td><td>不存在</td></tr>
+    <tr><td><code>lone x: e | F</code></td><td>至多一个</td></tr>
+    <tr><td><code>one x: e | F</code></td><td>恰好一个</td></tr>
+    <tr><td><code>some/no/lone/one e</code></td><td>表达式量词</td><td>不带 <code>| F</code>；比 <code>e != none</code> 更可读</td></tr>
+    <tr><td><code>sum x: e | ie</code></td><td>整数求和</td><td>e 必须是<strong>集合</strong>，ie 是整数表达式</td></tr>
+    <tr><td rowspan="3"><strong>其他构造</strong></td><td><code>let x = e | A</code></td><td>let 绑定</td><td><strong>纯语法替换</strong>；A 可以是约束或表达式；<strong>不可递归</strong></td></tr>
+    <tr><td><code>{x1: e1, … | F}</code></td><td>集合构造</td><td>从性质造关系；每个 <code>ei</code> 必须是<strong>集合</strong>（不能是高元数关系）</td></tr>
+    <tr><td><code>if C then E1 else E2</code></td><td>条件表达式</td><td>C 是约束，E1/E2 是<strong>表达式</strong>；区别于条件<em>公式</em>（<code>implies … else …</code>）</td></tr>
+    <tr><td rowspan="2"><strong>整数</strong></td><td><code>#r</code></td><td>基数</td><td rowspan="2">支持 <code>+ - = &lt; &gt; =&lt; &gt;=</code> 和正整数字面量；<strong>不支持乘除</strong>。详见 4.8</td></tr>
+    <tr><td><code>=&lt;</code> <code>&gt;=</code></td><td>比较</td></tr>
+  </tbody>
+</table>
+
+<h2>第 3 章小结</h2>
+<div class="card">
+  <ol style="margin:0;font-size:15px">
+    <li><strong>三种风格</strong>：谓词演算（太啰嗦，但适合微妙约束和集合构造）、导航表达式（<strong>最常用、表达力最强</strong>）、
+      关系演算（太隐晦，但适合无环性这类经典约束）。三者<strong>表达力不等价</strong>——传递闭包只在导航/关系演算侧有。</li>
+    <li><strong>原子三性质</strong>：不可分、不可变、无解释。想建模复合对象 / 变化 / 有性质的东西？<strong>统统用关系解决</strong>：
+      ① 组合 → 用关系绑定组件；② 变化 → 身份与值分离，加时间列；③ 性质 → 引入关系（如 <code>precedes</code>、<code>next</code>）。</li>
+    <li><strong>关系是平坦的</strong>：条目永远是原子。需要「集合的集合」时，<strong>引入新原子做具体化</strong>（先修课例子）。</li>
+    <li><strong>一切都是关系</strong>：scalar = 单例集合 = 单例关系 = 元组。所以<strong>没有 undefined</strong>，
+      <code>p.wife.mother</code> 在 p 无妻时只是空集。这消灭了偏函数应用问题。</li>
+    <li><strong>functional</strong>（每个来源至多一个目标）与 <strong>injective</strong>（每个目标至多一个来源）是两个独立性质；空关系两者都满足。</li>
+    <li><strong>domain = 第一列，range = 最后一列</strong>；二元关系下即 <code>r.univ</code> 和 <code>univ.r</code>。</li>
+    <li><strong>三个常量</strong>：<code>none</code> / <code>univ</code> / <code>iden</code>。
+      <code>iden</code> 覆盖<strong>整个宇宙</strong>，所以几乎总要限定，如 <code>s &lt;: iden</code>。</li>
+    <li><strong>九个关系算子</strong>中最重要的是 <code>.</code>（join，去掉匹配原子）、<code>^</code> / <code>*</code>（闭包 = 可达性）、
+      <code>++</code>（override，建模 map 插入与赋值）。<code>[]</code> 与 <code>.</code> 语义相同，只是参数顺序与优先级不同，用于区分「解引用」与「索引查找」。</li>
+    <li><strong>重数是声明的一部分</strong>，可以嵌套（<code>Book -&gt; (Name lone -&gt; Addr)</code> 与 <code>(Book -&gt; Name) lone -&gt; Addr</code> 含义不同！）。
+      重数只是糖，可展开为 <code>all</code> 约束，但更简洁易读。</li>
+    <li><strong>整数能力有限</strong>：可取基数、加减、比较，<strong>不可乘除</strong>。大多数场合用无解释原子 + 关系更干净。</li>
+  </ol>
+</div>
+
+<div class="pager">
+  <a href="ch2.html"><div class="d">← 上一章</div><div class="n">2 · A Whirlwind Tour 速览</div></a>
+  <a href="ch4.html" class="next"><div class="d">下一章</div><div class="n">4 · Language 语言 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 第 3 章</div>
+</div>
+</body>
+</html>
