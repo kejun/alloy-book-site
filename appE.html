@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>附录 E · Alternative Approaches 其他方法 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">附录 E · 其他方法</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html" class="on">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">E</span>Alternative Approaches · 其他方法</h1>
+<p class="sub">原书 p. 297–331 · 全书最长的附录：同一个酒店门锁问题，由四位领域专家分别用 <strong>B</strong>、<strong>OCL</strong>、<strong>VDM</strong>、<strong>Z</strong> 各建一遍模，并与 Alloy 逐条对照 —— 一份「形式化方法选型的横向评测」。含图 E.1–E.14 全部代码。</p>
+
+<div class="callout key">
+  <span class="tag">本页怎么读</span>
+  <p>本附录的价值不在于「又多学了四门语言」，而在于<strong>同一道题的五种写法并排摆放</strong>：差异被隔离在「表达同一件事要花多少字符、需不需要额外机制」这一维度上，因此对比极干净。</p>
+  <p>阅读顺序建议：先读「导言」（ Alloy 与这四者在设计目标上的取舍）→ 再读 E.1（Alloy 版基准模型，含两个反例的发现与修复）→ 然后按需跳进某一家（B/OCL/VDM/Z），每家都是 <strong>概念 → 样例代码 → 工具</strong> 三段。</p>
+</div>
+
+<div class="toc">
+  <div class="t">本附录地图（原书图号 E.1–E.14）</div>
+  <ol>
+    <li><a href="#se0">导言 · 为什么选这四个，共性在哪，差异在哪</a></li>
+    <li><a href="#se1">E.1 一个例子（Alloy 基准模型）</a> — 图 E.1/E.2 全文 + 反例追踪 + 两次修复 + 作用域爬升</li>
+    <li><a href="#se2">E.2 B</a> — E.2.1 建模概念 / E.2.2 样例（图 E.4–E.6）/ E.2.3 工具（ProB）</li>
+    <li><a href="#se3">E.3 OCL</a> — E.3.1 建模概念 / E.3.2 样例（图 E.7–E.8）/ E.3.3 工具（USE）</li>
+    <li><a href="#se4">E.4 VDM</a> — E.4.1 建模概念 / E.4.2 样例（图 E.9–E.11）/ E.4.3 工具（VDMTools/Overture）</li>
+    <li><a href="#se5">E.5 Z</a> — E.5.1 建模概念 / E.5.2 样例（图 E.12–E.14）/ E.5.3 工具（Z/Eves、Jaza）</li>
+    <li><a href="#scompare">五家横向对照总表</a></li>
+    <li><a href="#sum">附录 E 小结</a></li>
+  </ol>
+</div>
+
+<h2 id="se0"><span class="num">导言</span>为什么是这四个</h2>
+
+<div class="card">
+  <p><strong>致谢与授权</strong>：本附录的模型由 <strong>Michael Butler、John Fitzgerald、Martin Gogolla、Peter Gorm Larsen、Jim Woodcock</strong> 贡献，经其许可收录。<strong>每一家的版本都由该领域的权威专家亲手写就</strong> —— 这不是作者随手写的玩具对照，而是同行评审级的样本。</p>
+  <p>选取标准：「<strong>它们都能简洁而抽象地刻画复杂结构</strong>」，且都知名、都有活跃的用户与研究社区。</p>
+  <p><strong>为什么不谈模型检查器</strong>：许多 model checker 能有效检查协议与并发算法，但<strong>除 FDR 之外，它们对<em>数据结构化</em>的支持都很初级</strong> —— 而本书的主题恰恰是「结构化建模」。同理也不谈其他更窄领域的工具。</p>
+</div>
+
+<h3>四条各自的独门优势（原文明列）</h3>
+<div class="grid c2">
+  <div class="card"><h4>B</h4><p>通向实现的<em>路径更直接</em>（stepwise refinement 一路细化到代码）。</p></div>
+  <div class="card"><h4>OCL</h4><p>与 <em>UML 集成</em> —— 而 UML 是许多公司的默认建模语言。</p></div>
+  <div class="card"><h4>VDM</h4><p>同时支持<em>显式与隐式</em>两种建模形态。</p></div>
+  <div class="card"><h4>Z</h4><p>高阶特性对<em>大型规格的结构化</em>极有用。</p></div>
+</div>
+
+<h3>五家共同点</h3>
+<div class="callout idea">
+  <span class="tag">共性 · 这几条把「形式化建模」整体与编程语言区分开</span>
+  <ul>
+    <li>都提供<strong>比编程语言更简洁、更直接的记法</strong>来捕捉软件抽象。</li>
+    <li>尽管语法语义各异，<strong>都把状态看作经典数学结构（集合、关系等）</strong>。</li>
+    <li>都<strong>用约束以声明式方式描述行为</strong>。</li>
+    <li>都存在<strong>轻量级工具</strong>：用具体案例求值约束；且每家都有新项目在大幅扩展其能力与适用范围。</li>
+  </ul>
+</div>
+
+<h3>差异与代价</h3>
+<table>
+  <thead><tr><th>维度</th><th>原文结论</th></tr></thead>
+  <tbody>
+    <tr><td>风格</td><td><strong>B 更偏操作式（operational）</strong>：其记法更像「抽象编程语言」而非规格语言。</td></tr>
+    <tr><td>语法</td><td><strong>OCL 的语法与其他几家截然不同，令人想起 Smalltalk</strong>。</td></tr>
+    <tr><td>状态机绑定</td><td><strong>B 与 VDM 把某种特定状态机观念写死在语言里</strong>，Z 与 OCL 也<em>某种程度上</em>如此；<strong>Alloy 则被设计成支持多种习语（idiom）</strong>，每种习语表达起来的难易程度互不相同。</td></tr>
+    <tr><td>证明 vs 分析</td><td><strong>B、VDM、Z 更以「证明」为设计目标</strong>，因而由<em>专用定理证明器</em>支撑；<strong>Alloy 与 OCL 不是</strong>。</td></tr>
+    <tr><td>年代</td><td>这些语言<strong>都早于 Alloy</strong>；Alloy 从中受益甚多，面向类似应用，但<strong>把重心放在自动分析上</strong>。</td></tr>
+  </tbody>
+</table>
+
+<div class="callout key">
+  <span class="tag">Alloy 的核心取舍：为分析而减法的语言</span>
+  <p>「<strong>Alloy 被削到只剩结构化建模的基本要素，并与它的分析工具手牵手发展。任何会妨碍分析的特性都被排除在外。</strong>」</p>
+  <p>后果是 <strong>Alloy 的分析比其余方法的轻量分析更强</strong>。原书列出三条机制级差异 —— <strong>除 ProB 之外，其余工具基本上是「动画器（animator）」，只能在给定的测试案例上执行模型</strong>；而 Alloy Analyzer：</p>
+  <ol>
+    <li><strong>不要求用户提供初始条件与输入</strong>；</li>
+    <li><strong>不把语言限制在可执行子集内</strong>；</li>
+    <li><strong>覆盖作用域内的整个空间</strong>，因而<strong>更擅长揪出隐蔽的 bug</strong>。</li>
+  </ol>
+  <p>而且<strong>「分析」这个想法被内建进语言本身</strong>：断言可作为规格的一部分记录，界定分析的<strong>作用域只出现在命令里</strong>；其余方法靠的是<em>工具专属的语言扩展</em>。</p>
+</div>
+
+<div class="callout idea">
+  <span class="tag">「小而简」换来了什么</span>
+  <p>原文的第二个设计目标是<strong>异常地小和简单</strong>：概念数少于其他语言，且某些方面更灵活。四个例子：（1）<strong>一切数据结构统一在「关系」这一个概念之下</strong>；（2）<strong>同一个关系连接同时用于索引、解引用结构和应用函数</strong>；（3）<strong>signature 能模拟 Z 的 schema 和 OCL 的 class</strong>；（4）<strong>assertion 能表达不变式保持、精化和基于轨迹的时序性质</strong>。</p>
+</div>
+
+<div class="callout warn">
+  <span class="tag">Alloy 明确承认的短板（务必读，选型时最要紧）</span>
+  <p>「<strong>这些好处当然有代价。Alloy 的表达力不如其他语言。</strong>」</p>
+  <ul>
+    <li><strong>Alloy 的结构严格是一阶的；而 B、VDM、Z 都支持高阶结构与高阶量化。</strong></li>
+    <li>原文举 <strong>Carroll Morgan 著名的电话交换局规格 [54]</strong> 为例：它把「通话连接」表示成<em>端点集合的集合</em>（set of sets of endpoints）。这种结构<strong>在 Alloy 中无法直接表示</strong>，只能把连接建模为「端点之间的关系」或「连接原子集合，每个映到它的端点」。</li>
+    <li>更狠的是：<strong>Morgan 用一个高阶公式约束「连接结构必须极大（maximal）」来刻画交换机行为的那个巧妙做法，在 Alloy 中<em>根本</em>无法表达</strong>。</li>
+    <li>还有一个「更显著但不那么根本」的缺陷：<strong>Alloy 对序列和整数的支持相对薄弱</strong>（呼应第 5.3 节与附录 B.7.7 的 Int 简陋）。</li>
+  </ul>
+</div>
+
+<h2 id="se1"><span class="num">E.1</span>An Example · 基准例题：可重编码的酒店门锁</h2>
+<div class="callout key">
+  <span class="tag">为什么用这一道题</span>
+  <p>用一个<strong>酒店门锁（recodable hotel-door lock）方案</strong>贯穿全部五种方法 —— 「<strong>类似于但比第 6 章那个方案更简单</strong>」。建模与分析的目的是判断<strong>该方案能否有效阻止未授权进入</strong>。</p>
+  <p>对每家方法：由该领域的专家亲手建模，配一张「状态声明」+ 一张「操作」+ 一段工具说明。<strong>因为篇幅限制，收录不全</strong>：原文特别交代，Gogolla 还写了第二个 OCL 模型，证明 OCL 也能容纳 Alloy 规格里的「时间instant」习语（而不只是标准 pre/post 习语），并构造了一个 ASSL 过程来自动生成测试案例；Woodcock 则用 Z/Eves <strong>证明了所有操作的前条件定理，并证明了 NoIntruder 断言</strong> —— 这两项工作没能进书。</p>
+</div>
+
+<h3>图 E.1 · Alloy 版：状态空间声明与初始化</h3>
+<pre><code><span class="k">module</span> hotel
+<span class="k">open</span> util/ordering [<span class="t">Time</span>]
+
+<span class="k">sig</span> <span class="t">Key</span>, <span class="t">Time</span> {}
+
+<span class="k">sig</span> <span class="t">Card</span> {
+  fst, snd: <span class="t">Key</span>
+}
+
+<span class="k">sig</span> <span class="t">Room</span> {
+  key: <span class="t">Key</span> <span class="n">one</span>-&gt;<span class="t">Time</span>
+}
+
+<span class="k">one sig</span> <span class="t">Desk</span> {
+  issued: <span class="t">Key</span>-&gt;<span class="t">Time</span>,
+  prev: (<span class="t">Room</span>-&gt;<span class="n">lone</span> <span class="t">Key</span>)-&gt;<span class="t">Time</span>
+}
+
+<span class="k">sig</span> <span class="t">Guest</span> {
+  cards: <span class="t">Card</span>-&gt;<span class="t">Time</span>
+}
+
+<span class="k">pred</span> <span class="t">init</span> (t: <span class="t">Time</span>) {
+  Desk.prev.t = key.t
+  <span class="k">no</span> issued.t <span class="k">and</span> <span class="k">no</span> cards.t
+}</code></pre>
+<dl class="term">
+  <dt>行 5：每张门卡上刻有两个密钥（fst、snd）</dt>
+  <dd><strong>这些刻印是固定的，不随时间改变</strong> —— 所以 Card 的两个字段没有 Time 列。这正是「卡是物理物件」的建模表达。</dd>
+  <dt>行 8 / 11 / 12 / 15：其余部件都是随时变化的</dt>
+  <dd>判据就是<strong>声明里有没有 Time 列</strong>：房间当前的钥匙（8）、前台「迄今已发出哪些钥匙」的记录（11）、前台「上一次 checkin 中哪个房间发的是哪把钥匙」的记录（12）、每位客人手上持有的卡集合（15）。</dd>
+  <dt>行 12 的三层结构</dt>
+  <dd><code>(Room -&gt; lone Key) -&gt; Time</code>：外层再套一个 Time 列，使「房间→至多一把钥匙」这个<em>关系本身</em>随时间变化 —— 这就是全书反复使用的「把关系变成关系的时间序列」手法（附录 B.7.3 的嵌套标注在此派上用场）。</dd>
+  <dt>初始化（18、19）</dt>
+  <dd>前台「房间→钥匙」的记录<em>与锁里当前的钥匙一致</em>（18）；没有发出过任何钥匙，也没有客人持有卡（19）。</dd>
+</dl>
+
+<h3>图 E.2 · Alloy 版：操作、轨迹与断言</h3>
+<pre><code><span class="k">pred</span> <span class="t">checkin</span> (t, t': <span class="t">Time</span>, r: <span class="t">Room</span>, g: <span class="t">Guest</span>) {
+  <span class="k">some</span> c: <span class="t">Card</span> {
+    c.fst = r.(Desk.prev.t)
+    c.snd <span class="k">not in</span> Desk.issued.t
+    cards.t' = cards.t + g-&gt;c
+    Desk.issued.t' = Desk.issued.t + c.snd
+    Desk.prev.t' = Desk.prev.t <span class="o">++</span> r-&gt;c.snd
+  }
+  key.t = key.t'
+}
+
+<span class="k">pred</span> <span class="t">enter</span> (t, t': <span class="t">Time</span>, r: <span class="t">Room</span>, g: <span class="t">Guest</span>) {
+  <span class="k">some</span> c: g.cards.t <span class="k">|</span>
+    <span class="k">let</span> k = r.key.t {
+      c.snd = k <span class="k">and</span> key.t' = key.t
+      <span class="k">or</span> c.fst = k <span class="k">and</span> key.t' = key.t <span class="o">++</span> r-&gt;c.snd
+    }
+  issued.t = issued.t' <span class="k">and</span> prev.t = prev.t'
+  cards.t = cards.t'
+}
+
+<span class="k">fact</span> <span class="t">Traces</span> {
+  <span class="t">init</span> (<span class="t">first</span>())
+  <span class="k">all</span> t: <span class="t">Time</span> - <span class="t">last</span>() <span class="k">|</span>
+    <span class="k">some</span> g: <span class="t">Guest</span>, r: <span class="t">Room</span> <span class="k">|</span>
+      <span class="t">checkin</span> (t, <span class="t">next</span>(t), r, g) <span class="k">or</span> <span class="t">enter</span> (t, <span class="t">next</span>(t), r, g)
+}
+
+<span class="k">assert</span> <span class="t">NoIntruder</span> {
+  <span class="k">no</span> t1: <span class="t">Time</span>, <span class="k">disj</span> g, g': <span class="t">Guest</span>, r: <span class="t">Room</span> <span class="k">|</span>
+    <span class="k">let</span> t2 = <span class="t">next</span>(t1), t3 = <span class="t">next</span>(t2), t4 = <span class="t">next</span>(t3) {
+      <span class="t">enter</span> (t1, t2, r, g)
+      <span class="t">enter</span> (t2, t3, r, g')
+      <span class="t">enter</span> (t3, t4, r, g)
+    }
+}
+
+<span class="k">check</span> <span class="t">NoIntruder</span> <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">6</span> <span class="t">Time</span>, <span class="n">1</span> <span class="t">Room</span>, <span class="n">2</span> <span class="t">Guest</span></code></pre>
+
+<dl class="term">
+  <dt>checkin 的语义（行 1–10）</dt>
+  <dd>客人在前台办理某房间的入住 ⇒ 给他一张卡：该卡的<strong>第一把钥匙 = 该房间上一次发出的那把钥匙</strong>（3）；<strong>第二把钥匙是全新的</strong>（4，未出现在已发出集合中）。前台记录相应更新（6、7）。<strong>锁里的钥匙不发生任何变化</strong>（9）。</dd>
+  <dt>enter 的语义（行 11–19）</dt>
+  <dd>只要客人手上<em>有一张卡</em>（12），其<strong>第一或第二把钥匙与房间锁当前钥匙相符</strong>，即可进入。<strong>若是第二把钥匙相符，锁的钥匙保持不变</strong>（14）；<strong>若是第一把相符，锁就用第二把钥匙重编码</strong>（15）。前台记录（17）与客人所持卡集合（18）都不变。</dd>
+  <dt>为什么没有 checkout</dt>
+  <dd>「为缩短示例，没有给出退房操作。<strong>新客人使用钥匙应当使先前发出的钥匙失效，因此每当一位客人办理入住，上一位住客就被<em>隐式</em>退房了。</strong>」</dd>
+  <dt>Traces（行 20–25）</dt>
+  <dd>引入内建 <code>util/ordering [Time]</code>（图 E.1 行 2）就得到 Time 上的<strong>全序</strong>；Traces 用这个序把「初始化成立于首状态」与「除末状态外，每个状态与其后继之间必是 checkin 或 enter」钉住 —— 这就是第 5 章的「轨迹习语」。</dd>
+  <dt>NoIntruder（行 26–33）</dt>
+  <dd>断言：<strong>同一房间上不可能连续发生三次进入，其中间那次由一位客人执行、第一次和第三次由另一位客人执行</strong>。换句话说，<strong>两位客人不能同时使用同一个房间</strong>。注意 <code>disj g, g'</code> 与 <code>let</code> 三个后继时刻的写法。</dd>
+</dl>
+
+<div class="callout idea">
+  <span class="tag">原文特意为「还没读完全书的人」写了四条注解</span>
+  <ul>
+    <li><strong>signature 引入一个集合，以及若干以该集合为第一列的关系。</strong>例：<code>sig Card</code> 引入门卡集合 Card 与两个从 Card 到 Key 的关系 fst、snd。</li>
+    <li><strong>关系上的重数有时是隐含的，有时用关键字显式写出。</strong>fst、snd 就是隐含地把一张 Card 映到一把 Key；<code>key: Key one-&gt;Time</code> 则显式声明「对给定房间，每个 Time 时刻对应一个 Key」。<code>lone</code> 意为「至多一」（可读作「小于等于一」），所以 prev 的声明说的是：给定 Desk、给定 Time，每个 Room 至多关联一把 Key。</li>
+    <li><strong>点算子就是关系连接。</strong>标量在语义上被当作单元集，集合被当作一元关系。故 <code>cards.t</code> 是在时刻 t 把 Guest 关联到 Card 的关系，<code>c.fst</code> 是卡 c 的第一把钥匙，<code>r.key.t</code> 是房间 r 在时刻 t 的当前钥匙。</li>
+    <li><strong><code>-&gt;</code> 是笛卡积</strong>（在操作里用来<em>构成元组</em>），<code>+</code> 是并，<code>-</code> 是差，<code>++</code> 是关系覆盖（override）。</li>
+  </ul>
+</div>
+
+<h3>第一次分析：2 秒出反例，六个状态的轨迹</h3>
+<div class="callout warn">
+  <span class="tag">check 命令的真实语义</span>
+  <p>「命令指示分析器考虑所有涉及 <strong>3 张卡、3 把钥匙、6 个时刻、1 个房间、2 位客人</strong>的轨迹。」注意 <code>for 3 but 6 Time, 1 Room, 2 Guest</code> 的读法：<strong>3 是每个顶层 sig 的默认上界</strong>，but 之后覆盖其中三个（附录 B.7.5）。</p>
+  <p>执行在 <strong>2 秒</strong>内（在一台 PowerMac G5 上）产生一个反例轨迹，其步骤如下（图 E.3 是可视化器输出：<strong>每个面板对应一个状态；执行从左上角开始，先读完左页到底部，再接右页顶部</strong>）。</p>
+</div>
+<ol>
+  <li><strong>初始：</strong>Room0 的锁里是 Key0，前台也把该房间关联到这把钥匙，但<strong>没有任何「已发出钥匙」的记录</strong>。房间里带标签 <code>NoIntruder_r</code> —— 它就是断言中被量化变量 <code>r</code> 充当时，将见证这次违反。</li>
+  <li><strong>第二状态（一次 checkin 之后）：</strong>Guest0 拿到一张卡，其第一、第二把钥匙分别是 Key0 与 Key1；前台把 <strong>Key0</strong> 记为已发出。该客人被标为 <code>NoIntruder_g</code>（扮演断言里的 g）。</li>
+  <li><strong>第三状态（又一次 checkin）：</strong>第二位客人 Guest1 拿到一张卡，第一、第二把钥匙分别是 <strong>Key1 与 Key0 —— 与 Guest0 的卡是同样两把钥匙，只是次序相反</strong>；前台把 Key1 记为已发出。这位客人被标为 <code>NoIntruder_g'</code>，即扮演 g' 的<em>入侵者</em>。</li>
+  <li><strong>第四状态：</strong>第一次进入发生（Guest0），房间钥匙被改成 Key1。</li>
+  <li><strong>第五状态：</strong>第二次、也就是<em>非法</em>的进入发生（Guest1），房间钥匙被改回 Key0。</li>
+  <li><strong>第六（末）状态：</strong>第三次进入发生（又是 Guest0），房间钥匙被改回 Key1。</li>
+</ol>
+
+<div class="callout pit">
+  <span class="tag">第 1 号缺陷在初始化里，而不在操作里</span>
+  <pre><code><span class="k">pred</span> <span class="t">init</span> (t: <span class="t">Time</span>) {
+  Desk.prev.t = key.t
+  Desk.issued.t = <span class="t">Room</span>.key.t <span class="k">and</span> <span class="k">no</span> cards.t
+}</code></pre>
+  <p>「<strong>错在初始条件。</strong>因为 Room0 的初始钥匙 Key0 <em>没有</em>被记为已发出，它就有可能被发出两次，从而搭起这个循环。<strong>锁里已有的那些钥匙本应在初始时就被记为已发出。</strong>」</p>
+  <p>这条修复极有代表性：<strong>反例的成因往往不在「哪一步做错了」，而在「初始世界少了一条约束」</strong>。改完后再跑，<strong>分析器穷尽整个空间都找不到反例</strong>。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">作用域爬升 · 全书方法论的一次完整演练</span>
+  <p><strong>第二轮：</strong>为获得更高置信度而放大作用域 —— 4 把钥匙和卡、7 个时刻、2 位客人、1 个房间：</p>
+  <pre><code><span class="k">check</span> <span class="t">NoIntruder</span> <span class="k">for</span> <span class="n">4</span> <span class="k">but</span> <span class="n">7</span> <span class="t">Time</span>, <span class="n">2</span> <span class="t">Guest</span>, <span class="n">1</span> <span class="t">Room</span></code></pre>
+  <p><strong>又暴露一个反例</strong>：一位客人<em>连续办理两次入住</em>，中间夹着另一位客人的入住。于是这两位客人就能完成违反断言的那三次进入。</p>
+  <p><strong>第 2 号修复：</strong>只允许「已归还先前用过的卡」的客人办理入住。用一个字符表达 —— 把 checkin 里的一行</p>
+  <pre><code>cards.t' = cards.t + g-&gt;c        <span class="c">// 追加</span></code></pre>
+  <p>改成</p>
+  <pre><code>cards.t' = cards.t <span class="o">++</span> g-&gt;c        <span class="c">// 覆盖：该客人的卡集合被<em>替换</em>而非扩充</span></code></pre>
+  <p><strong>第三轮：</strong>此后找不到反例；再放大到至多 6 张卡和钥匙、12 个时刻、3 位客人和 3 个房间：</p>
+  <pre><code><span class="k">check</span> <span class="t">NoIntruder</span> <span class="k">for</span> <span class="n">6</span> <span class="k">but</span> <span class="n">12</span> <span class="t">Time</span>, <span class="n">3</span> <span class="t">Guest</span>, <span class="n">3</span> <span class="t">Room</span></code></pre>
+  <p>整个空间在<strong>不到一分钟</strong>内穷尽。</p>
+</div>
+
+<div class="callout idea">
+  <span class="tag">原书在此处给的分寸感（引用式结论）</span>
+  <p>「<strong>当然，我们并没有证明该断言成立；在更大的作用域里存在反例是可能的（尽管不太可能）。在关键场景下，此时尝试<em>证明</em>这条断言是合理的。</strong>」</p>
+  <p>紧接着的这句话是整个附录的枢纽：<strong>「定理证明器可以应用到本文讨论的<em>所有</em>方法上，尽管我们的焦点是更轻量的工具；其中 B 和 Z 尤其拥有现成的、贴合其特定形式的证明工具。」</strong></p>
+  <p>也就是说：轻量分析与形式证明<strong>不是 rival 而是接力棒</strong> —— 作用域爬升到「足够可信但仍非证明」的那一点，正是把断言交给定理证明器的交接点。这与第 5.3 节「Alloy 无界全域问题难以证明」相呼应。</p>
+</div>
+
+<h2 id="se2"><span class="num">E.2</span>B</h2>
+<div class="card">
+  <p><strong>来历</strong>：B 由 <strong>Jean-Raymond Abrial</strong> 设计 —— 他正是 Z 的最早贡献者之一。B <strong>包含一门语言（AMN）和一套方法</strong>：通过<strong>逐步精化（stepwise refinement）</strong>从抽象模型得到实现。从一台极抽象的机器出发，<strong>一层层加细节</strong>，直到得到一台可直接翻译成代码的机器。<strong>若每一步精化都有效，则最终代码被保证满足顶层规格。</strong></p>
+  <p><strong>定位</strong>：主要面向<strong>关键系统（critical systems）</strong>的开发，已有若干工业项目。迄今最著名的应用是<strong>巴黎地铁的制动系统</strong>。</p>
+  <p><strong>文献</strong>：标准参考是 Abrial 的书 [1]；另有入门教材 [61, 76, 46] 与案例集 [62]。</p>
+</div>
+
+<h3 id="se21">E.2.1 B 的建模概念</h3>
+<div class="callout key">
+  <span class="tag">一句话抓住 B 的取向</span>
+  <p>B 的规格语言叫 <strong>AMN（Abstract Machine Notation）</strong>，<strong>它的名字就暴露了它的焦点</strong>：系统被（与 VDM、Z 一样）看作一台<strong>带有作用于全局状态之上的操作的机器</strong>。</p>
+</div>
+<dl class="term">
+  <dt>一个 B 模型由五部分组成</dt>
+  <dd>一串<strong>集合声明</strong>（相当于 Alloy 的 signature、Z 的 given set）；<strong>状态成分</strong>（称为「变量 variables」）的声明；一个<strong>状态上的不变式</strong>；一个<strong>初始化条件</strong>；一组<strong>操作</strong>。</dd>
+  <dt>状态结构与类型检查</dt>
+  <dd>状态成分用集合与关系构造（同 Z）；<strong>与 Alloy 不同，允许高阶结构</strong>。<strong>AMN 不把类型约束与更具表达力的其他不变式分开</strong>，因此<strong>类型检查带有一种启发式（heuristic）味道</strong>。</dd>
+  <dt>后条件是替换，不是公式（B 最独特之处）</dt>
+  <dd>像 VDM 一样，操作的<strong>前条件是显式的</strong>。但<strong>与其余所有方法都不同：后条件不是一段逻辑公式，而是一组「替换（substitution）」</strong>。替换<em>类似赋值语句</em>，可以改变某个状态变量的整体值，也可以在某一点上更新一个关系的值。要<em>部分地</em>约束某状态变量，可以给它赋一个<strong>从「由公式刻画的那个集合」中取出的任意值</strong>。</dd>
+  <dt>为什么这样设计（四条理由 + 两条代价）</dt>
+  <dd>理由：① <strong>使定理证明更容易</strong> —— 在语法上操纵操作时，后条件可被<em>按字面</em>当作替换来处理；② 更操作式的风格<strong>对程序员更熟悉</strong>；③ 它<strong>把非确定性的存在表达得更明白</strong>；④ 因其编程式风格，<strong>更容易直接转换成命令式程序</strong>。<br>代价：<strong>与其他语言相比灵活性更差，对增量式建模的支持更弱</strong> —— 你必须<strong>为每一个状态变量都给出一个替换</strong>；而在 Alloy 里，即便只为<em>部分</em>状态成分写了约束，也能模拟出一个操作。</dd>
+</dl>
+
+<h3 id="se22">E.2.2 B 版样例模型（图 E.4–E.6）</h3>
+<div class="callout idea">
+  <span class="tag">B 版走了「先抽象、后精化」这条 Alloy 版没有的路线</span>
+  <p>B 的酒店门锁模型跨<strong>三张图</strong>：<strong>图 E.4 是顶层抽象机器，图 E.5/E.6 是一个精化</strong>。抽象模型<strong>只有一个状态成分 —— 房间占用名册（alloc）</strong>，由 Checkin 更新、并守卫（guard）Enter。<strong>名册决定谁能进</strong>，钥匙与锁根本还没出现。这与后文 Z 的第一版模型（E.12–E.14）策略完全一致，也正是 Alloy 版没走的路。</p>
+</div>
+
+<div class="grid c2">
+  <div class="card">
+    <h4>图 E.4 · 最抽象的 B 机器</h4>
+<pre><code><span class="k">MACHINE</span> hotel1
+<span class="k">SETS</span>
+ GUEST = {g1,g2} ;
+ ROOM  = {r1,r2}
+<span class="k">VARIABLES</span> alloc
+<span class="k">INVARIANT</span>
+ alloc : ROOM <span class="o">+-&gt;</span> GUEST
+<span class="k">INITIALISATION</span> alloc := {}
+<span class="k">OPERATIONS</span>
+CheckIn(g,r) =
+ <span class="k">PRE</span> g:GUEST &amp; r:ROOM
+ <span class="k">THEN SELECT</span>
+   r /: dom(alloc)
+ <span class="k">THEN</span> alloc(r) := g
+ <span class="k">END END</span>;
+Enter(g,r) =
+ <span class="k">PRE</span> g:GUEST &amp; r:ROOM
+ <span class="k">THEN SELECT</span>
+   r |-&gt;g : alloc
+ <span class="k">THEN</span> skip
+ <span class="k">END END</span>;</code></pre>
+  </div>
+  <div class="card">
+    <h4>读这张图的四个要点</h4>
+    <ul>
+      <li><strong><code>+-&gt;</code> 表示偏函数。</strong>原文提醒：<strong>B 与 Z 用「一组特殊箭头」来代替 Alloy 与 OCL 的重数标注</strong> —— 这是两套记法传统的第一处正面冲突。</li>
+      <li><strong>precondition ≠ guard。</strong>B 区分二者：<strong>在 guard 为 false 的状态里调用操作会「阻塞（blocks）」</strong>；而前条件说的是「<em>不该</em>在前条件不成立时调用；若真调用了，任何结果都可能」。<strong>Enter 的前条件只要求参数是一位客人和一个房间；guard 才要求「该客人在这间房的名册里」</strong>。</li>
+      <li><strong>基本集合被赋予具体值（g1,g2 / r1,r2）是为了给 ProB 的分析定界。</strong>原文：「<strong>这和 Alloy 的作用域声明一模一样，只不过它是<em>全局</em>设定的，而不是<em>逐命令</em>设定的。」</strong></li>
+      <li><strong><code>skip</code> 表示「什么都不改」</strong> —— 与 Alloy 中「未提及即不受约束、要表达不变必须显式写等式」形成对照。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="grid c2">
+  <div class="card">
+    <h4>图 E.5 · 精化机器 hotel2 的状态与初始化</h4>
+<pre><code><span class="k">REFINEMENT</span> hotel2
+<span class="k">REFINES</span> hotel1
+<span class="k">SETS</span>
+ KEY  = {k1,k2,k3,k4} ;
+ CARD = {c1,c2,c3}
+<span class="k">VARIABLES</span>
+ alloc, key, cArd, ckey1,
+ ckey2, lock, prev, guest
+<span class="k">INVARIANT</span>
+ key   : POW(KEY) &amp;
+ cArd  : POW(CARD) &amp;
+ ckey1 : cArd <span class="o">&gt;-&gt;</span> key &amp;
+ ckey2 : cArd <span class="o">&gt;-&gt;</span> key &amp;
+ !c.(c: cArd =&gt; ckey1(c) /= ckey2(c)) &amp;
+ guest : cArd <span class="o">-&gt;</span> GUEST &amp;
+ lock  : ROOM <span class="o">&gt;-&gt;</span> key &amp;
+ prev  : ROOM <span class="o">&gt;-&gt;</span> key
+<span class="k">INITIALISATION</span>
+<span class="k">ANY</span> ks, f <span class="k">WHERE</span>
+ ks : POW(KEY) &amp;
+ f  : ROOM <span class="o">&gt;-&gt;</span> ks
+<span class="k">THEN</span>
+ key  := ks ||
+ lock := f ||
+ prev := f ||
+ cArd, ckey1, ckey2, guest,
+   alloc := {},{},{},{},{}
+<span class="k">END</span></code></pre>
+  </div>
+  <div class="card">
+    <h4>图 E.6 · 精化机器的操作</h4>
+<pre><code><span class="k">OPERATIONS</span>
+CheckIn(g,r) =
+ <span class="k">PRE</span> g:GUEST &amp; r:ROOM <span class="k">THEN</span>
+ <span class="k">ANY</span> c, k <span class="k">WHERE</span>
+  r : ROOM &amp; r /: dom(alloc) &amp;
+  c : CARD  &amp; c /: cArd &amp;
+  k : KEY   &amp; k /: key
+ <span class="k">THEN</span>
+  ckey1(c) := prev(r) ||
+  ckey2(c) := k  ||
+  guest(c) := g  ||
+  prev(r)  := k  ||
+  key  := key  \/ {k} ||
+  cArd := cArd \/ {c} ||
+  alloc(r) := g
+ <span class="k">END END</span>;
+
+Enter1(g,r) = <span class="c">-- 锁被重编码</span>
+ <span class="k">PRE</span> g:GUEST &amp; r:ROOM <span class="k">THEN</span>
+ <span class="k">ANY</span> c, k <span class="k">WHERE</span>
+  c:CARD &amp; k:KEY &amp;
+  c |-&gt; g : guest &amp;
+  ckey1(c) = lock(r)
+ <span class="k">THEN</span> lock(r) := ckey2(c) <span class="k">END END</span>;
+
+Enter2(g,r) = <span class="c">-- 正常进入</span>
+ <span class="k">PRE</span> g:GUEST &amp; r:ROOM <span class="k">THEN</span>
+ <span class="k">ANY</span> c, k <span class="k">WHERE</span>
+  c:CARD &amp; k:KEY &amp;
+  c |-&gt; g : guest &amp;
+  ckey2(c) = lock(r)
+ <span class="k">THEN</span> skip <span class="k">END END</span>;</code></pre>
+  </div>
+</div>
+
+<dl class="term">
+  <dt>「精化」本身就是一条待工具检验的断言</dt>
+  <dd>原文：<strong>「图 E.5 与 E.6 中的精化模型具有完全相同的结构。『这个模型 hotel2 精化了更抽象的那个 hotel1』这一论断，是一条要由工具来检验的断言。」</strong> —— Alloy 语言里没有对应的内建概念（Alloy 表达「精化」要靠 assertion 手工编码）。</dd>
+  <dt><code>POW(e)</code> 与冒号的读法（B 的高阶性在此现形）</dt>
+  <dd><code>POW(e)</code> 是 e 的幂集（从 e 取元素构成的「集合的集合」）；<strong>每个声明里的冒号表示<em>集合成员关系</em></strong>。所以 <code>key: POW(KEY)</code> 等价于 Alloy 的 <code>key: set Key</code> —— 原文紧接着补那记关键限定：<strong>「即便 B 里的这个右端表达式是高阶的，而 Alloy 里的不是。」</strong></dd>
+  <dt><code>&gt;-&gt;</code> 与 <code>-&gt;</code></dt>
+  <dd>分别表示<strong>单射函数</strong>与<strong>全函数</strong>。</dd>
+  <dt>行 13 是不变式而非声明，但顺序仍然要紧</dt>
+  <dd><code>!c.(c: cArd =&gt; ckey1(c) /= ckey2(c))</code>：一张卡的两把钥匙必须不同。<strong>把它放进不变式意味着「期望各操作保持它」</strong>。原文点出一个极实用的怪癖：<strong>语义上这条不变式与它前面的 ckey1/ckey2 声明毫无区别，但类型检查会区分二者 —— 若把顺序颠倒（不变式放在声明之前），类型检查会失败。</strong></dd>
+  <dt>为什么把 ckey1/ckey2 声明成<em>变量</em>而非常量</dt>
+  <dd>声明为状态变量 ⇒ <strong>就可以定义一个「改变卡上钥匙」的操作</strong>；若像 <strong>Alloy、OCL、VDM 三个版本那样</strong>声明为常量，就<em>排除了</em>这种可能。<strong>这是刻意的建模分歧，不是笔误</strong> —— 它正是「卡会不会被黑客改写」这一攻击面在不同语言里的不同暴露方式。</dd>
+  <dt>初始化示范了非确定性</dt>
+  <dd><code>ANY</code> 子句把「任意一把钥匙集合」绑给 ks、「任意一个从房间到钥匙的函数」绑给 f；<strong>f 声明里的那个箭头使它是单射的，保证没有一把钥匙被指派给两个房间</strong>。子句体把 ks 赋给 key、把 f 赋给 lock 和 prev。</dd>
+  <dt>与 Alloy 的精确等价</dt>
+  <dd>原文特意对齐：<strong>「注意：把非确定选出的 f 同时赋给这两个变量，其效果等同于 Alloy 模型里的那条等式 <code>Desk.prev.t = key.t</code>」</strong> —— 都表示「无论它是什么，前台的房间—钥匙记录必须与实际锁里的钥匙相符」。</dd>
+  <dt>Enter 被拆成两个操作</dt>
+  <dd>精化模型里 Entry 被拆成两个操作。<strong>注意此处原书正文与代码的标注相互对调，须留意：</strong>正文写「<strong>Enter1 对应正常情形，Enter2 对应锁被重编码的情形</strong>」，而图 E.6 的代码恰恰相反 —— <code>Enter1</code> 的条件是 <code>ckey1(c) = lock(r)</code> 且执行 <code>lock(r) := ckey2(c)</code>（<em>这才是重编码</em>），<code>Enter2</code> 的条件是 <code>ckey2(c) = lock(r)</code> 且执行 <code>skip</code>（<em>这才是正常进入</em>）。本页按代码语义注释。与 Alloy 版 enter 里那个 <code>or</code> 的两个分支一一对应。原文另说：<strong>「在其他方法里这用<em>析取</em>表达；在 B 里也可以用非确定性选择算子达到同样效果。」</strong></dd>
+</dl>
+
+<h3 id="se23">E.2.3 B 的工具</h3>
+<div class="callout key">
+  <span class="tag">两个商业工具 + 一个「异类」ProB</span>
+  <p><strong>Atelier B</strong>（来自 Steria）与 <strong>B-Toolkit</strong>（来自 B-Core）：都聚焦<strong>定理证明与代码生成</strong>，同时也提供一个用于轻量分析的动画器。</p>
+  <p><strong>ProB [49] 是一个非常不同的工具</strong>：它提供的功能与 Alloy Analyzer 极为相似；<strong>在与这些「其他方法」相关联的全部工具当中，它是唯一能<em>完全自动</em>生成断言反例的工具。</strong></p>
+</div>
+<table>
+  <thead><tr><th>ProB 的细节</th><th>原文与解读</th></tr></thead>
+  <tbody>
+    <tr><td>B 没有「定义任意断言」的设施</td><td>因此 <strong>ProB 聚焦于检验由不变式与精化声明所生成出的<em>证明义务</em></strong>。即：ProB 能反例化，但可检查的命题集合是语言替你先定好的（不变式保持、精化成立），不像 Alloy 能对任意谓词写 <code>check</code>。</td></tr>
+    <tr><td>精化沿轨迹检验，而非归纳检验</td><td>「<strong>精化是<em>在轨迹上</em>（over traces）被检验的，而不是在操作上作归纳式检验的，因此用户无需去找一个归纳不变式。</strong>」这是 ProB 相对证明器路线最实在的减负。</td></tr>
+    <tr><td>跨方言精化</td><td>ProB 还能检验「一个 B 模型」与「一段用 <strong>CSP 进程代数</strong>写成的更抽象描述」之间的精化关系。</td></tr>
+  </tbody>
+</table>
+
+<div class="callout idea">
+  <span class="tag">B 与 Alloy 的五处正面碰撞（本页归纳）</span>
+  <ol>
+    <li><strong>后条件：替换 vs 公式。</strong>B 的后条件是「一组赋值」，Alloy 的 <code>pred</code> 体是逻辑公式 ⇒ Alloy 可以只约束一部分状态成分，B 必须逐变量给替换。</li>
+    <li><strong>重数记法：特殊箭头 vs 关键字。</strong>B 用 <code>+-&gt;</code>（偏函数）、<code>&gt;-&gt;</code>（单射）、<code>-&gt;</code>（全函数）；Alloy 用 <code>lone</code>/<code>one</code>/<code>some</code> + 箭头组合。<strong>箭头族更易读但组合能力弱</strong>：Alloy 的 <code>X one-&gt;one Y</code>（双射）在 B 里要用两个记号叠加。</li>
+    <li><strong>作用域：全局 vs 逐命令。</strong>B 靠给基本集合<em>列举具体元素</em>来定界，一次设定全局生效；Alloy 的 <code>for 3 but 6 Time</code> 每条命令独立。后者可直接对同一模型问不同规模的问题。</li>
+    <li><strong>非确定性：<code>ANY…WHERE</code> vs <code>some c: Card {…}</code>。</strong>结构完全同构：都是「存在一个满足条件的值，用它来构造结果」。</li>
+    <li><strong>精化：内建 vs 自理。</strong>B 有 <code>REFINES</code> + 证明义务；Alloy 只能靠 assertion 自行编码不变式保持。</li>
+  </ol>
+</div>
+
+<h2 id="se3"><span class="num">E.3</span>OCL</h2>
+<div class="card">
+  <p><strong>来历</strong>：OCL（Object Constraint Language）是 <strong>UML 的约束语言</strong>，由 <strong>Jos Warmer 与 Anneke Klepper</strong> 在 Steve Cook 与 John Daniels 的 <strong>Syntropy 语言 [10]</strong> 以及 IBM 的建模工作之上开发。他们的书 [73] 提供了易读的概览。作为 UML 的一部分，OCL 是 <strong>OMG 标准</strong>；最新规格可在线获取 [53]。</p>
+  <p><strong>一段耐人寻味的历史</strong>：OCL 早期设计<strong>对精确语义的重视不如其他方法</strong>。许多研究者（尤其是 <strong>Precise UML Group</strong>）致力于为它建立形式语义，但<strong>因为语言已经标准化，为时已晚，无法再消除它的复杂性</strong>。所以 —— 原文的讽刺句 —— <strong>「尽管 OCL 是怀着『要比 VDM 和 Z 更简单』的期望设计的，它最终反而更复杂了。」</strong></p>
+  <p><strong>本书用的是哪个变体</strong>：由 <strong>Mark Richters 与 Martin Gogolla</strong> 设计的一个 OCL 变体 [59, 58] —— 它有<strong>形式语义</strong>、有<strong>支持子类型的类型系统</strong>，并配有一个强大的动画与测试工具 <strong>USE</strong>。</p>
+  <p><strong>一个标准带来的尴尬</strong>：OCL 被纳入 UML 标准时，被视作「UML 类图上的<em>注释语言</em>」，因此<strong>没有为自己的声明部分配备文本记法</strong>。按标准，一个 OCL 模型<strong>必须附上一张 UML 图</strong>来声明类与关系 —— 「<strong>一个不便，对小模型尤其如此</strong>」。<strong>USE 变体补上了文本声明记法，从而解决了这个问题</strong>（下文图 E.7 用的就是它）。</p>
+</div>
+
+<h3 id="se31">E.3.1 OCL 的基本概念</h3>
+<dl class="term">
+  <dt>模型构成</dt>
+  <dd>一个<strong>状态空间描述</strong>（由类、属性、关联给出）+ 若干<strong>不变式</strong> + 一组<strong>操作</strong>。和 VDM 一样，操作<strong>分离前条件与后条件，并隐式包含不变式</strong>。</dd>
+  <dt>但 OCL 也能「打包任意谓词」</dt>
+  <dd>这一点上它<strong>与 Alloy 更为相近</strong>；原文断言：<strong>「Alloy 模型所用的那套显式时刻（time instant）习语，可以相当容易地搬进 OCL。」</strong>（这也解释了开头提到的 Gogolla 第二模型。）</dd>
+  <dt>最关键的一处语义分歧：to-many 是「到集合的函数」，不是平坦关系</dt>
+  <dd>与 Alloy 一样，OCL 也用集合与关系来建模状态。<strong>然而出人意料的是：一个「某物对多个」的关系 —— 即把一个原子映射到不止一个原子 —— 在语义上<em>不</em>被当作平坦关系，而被当作「到集合的函数」</strong>，其结果是一种<strong>更接近 VDM 而非 Alloy 或 Z 的模型风格</strong>。</dd>
+  <dt>由此引出的方向性：关联不能被反向遍历</dt>
+  <dd>「这给了 OCL 的关系一种强烈的<em>方向性</em>；它们<strong>无法被反向遍历</strong>。」因此一个<strong>关联不是作为单一关系被访问，而是作为从它派生出来的一对「角色（roles）」</strong>，每个方向一个，供导航之用。</dd>
+  <dt>重数进入类型（这是 OCL 与 Alloy 的第二大分歧）</dt>
+  <dd><strong>角色的重数是其类型的一部分。导航就是函数应用，依重数不同而返回集合或标量</strong> —— 与之相对，<strong>Alloy 中导航是关系映像（relational image），永远返回集合</strong>。原文给出三面评价：<ul>
+    <li><strong>优点</strong>：类型检查器能揪出「某次导航假定的重数与声明不符」这类错误。</li>
+    <li><strong>缺点 1</strong>：重数与「说出同一件事的显式约束」行为不同。</li>
+    <li><strong>缺点 2</strong>：改变一个角色的重数就改变了它的类型，可能要求在它被使用处做补偿性修改。</li>
+    <li><strong>缺点 3</strong>：需要在集合与标量之间做转换。</li>
+  </ul></dd>
+  <dt>没有传递闭包，于是引入递归 ⇒ 后果严重</dt>
+  <dd><strong>OCL 没有传递闭包算子</strong>。为允许多步穿越一个关系，它<strong>允许把谓词和函数定义为递归的</strong>。这带来有用的表达力，但有代价：<strong>谓词不再有简单的逻辑解释，而需要「最小不动点语义」</strong>。结果：<strong>OCL 工具无法采用 Alloy Analyzer 或 ProB 那种约束求解器，因为那会产生对应于「非极小解」的伪案例（spurious cases）。</strong></dd>
+</dl>
+
+<div class="callout warn">
+  <span class="tag">OCL 与其他方法的两处根本不同</span>
+  <ol>
+    <li><strong>语法风格</strong>：OCL <strong>以 Smalltalk 的方式层层堆叠变量绑定，并把运算符的第一个参数当作特殊地位处理</strong>。相应地，它有一个「<strong>上下文（context）</strong>」概念 —— 在这个上下文里，对「某个类的<em>原型成员</em>（archetypal member）」的引用是隐含的。（下文 <code>self</code> 即由此而来。）</li>
+    <li><strong>类 ≠ 该类的对象集合</strong>：像面向对象编程语言一样，OCL 区分二者。这使得<strong>反射（reflection）</strong>成为可能，对<em>元建模</em>很有用，但<strong>也让语言变复杂了</strong>。</li>
+  </ol>
+</div>
+
+<div class="callout pit">
+  <span class="tag">一个被低估的架构差异：基本数据类型放在哪里</span>
+  <p>OCL 的底层数据类型定义在<strong>库模块</strong>里，扮演 Z 的「数学工具包（mathematical toolkit）」类似的角色；<strong>而在 Alloy、B、VDM 中，基本类型是内建在语言里的。</strong></p>
+  <p>「这个决定对类型系统有一些微妙影响。例如，<strong>与 Alloy 的类型检查器不同，OCL 的类型检查器<em>无法利用</em>集合与关系算子的<em>含义</em>，只能依赖它们<em>声明的类型</em>。</strong>」</p>
+  <p>这条正好和附录 B.6 的表述对上：Alloy 的类型检查是<strong>关系性地</strong>推理的（知道 <code>~r</code> 的域是 r 的值域），而 OCL 只能<strong>语法性地</strong>查表。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">OCL 的表达力天花板：表达式不能表示关系</span>
+  <p>「<strong>一个表达式的值必须属于某种库类型。由于关系不在其中，这意味着：与其他语言不同，<em>表达式不能表示一个关系</em>。</strong>」</p>
+  <p>原文随即给出公允评价：<strong>「这并不降低语言的表达力，因为允许任意量化；但它确实使某些约束更啰嗦。」</strong></p>
+  <p>对照 Alloy：「一切皆关系」让「表达式与约束共用一套代数」；OCL 把关系排除在值域之外，代价是<strong>无法把关系当作一等公民传递、命名或组合</strong> —— 这正是 Alloy 在导言里自夸的第一条统一性。</p>
+</div>
+
+<h3 id="se32">E.3.2 OCL 版样例模型（图 E.7–E.8）</h3>
+<div class="grid c2">
+  <div class="card">
+    <h4>图 E.7 · OCL 状态声明</h4>
+<pre><code><span class="k">model</span> hotel
+<span class="k">class</span> Key <span class="k">end</span>
+<span class="k">class</span> Card <span class="k">end</span>
+<span class="k">class</span> Guest <span class="k">end</span>
+<span class="k">class</span> Desk <span class="k">end</span>
+<span class="k">constraints</span>
+<span class="k">context</span> Desk <span class="k">inv</span> oneDesk:
+  Desk.allInstances-&gt;size=<span class="n">1</span>
+<span class="k">association</span> fst <span class="k">between</span>
+  Card [*] <span class="k">role</span> card4fst
+  Key  [1]  <span class="k">role</span> key4fst
+<span class="k">end</span>
+<span class="k">association</span> snd <span class="k">between</span>
+  Card [*] <span class="k">role</span> card4snd
+  Key  [1]  <span class="k">role</span> key4snd
+<span class="k">end</span>
+<span class="k">association</span> key <span class="k">between</span>
+  Room [*] <span class="k">role</span> room4key
+  Key  [1]  <span class="k">role</span> key4key
+<span class="k">end</span>
+<span class="k">association</span> prev <span class="k">between</span>
+  Desk [*]    <span class="k">role</span> desk4prev
+  Room [*]    <span class="k">role</span> room4prev
+  Key  [0..1] <span class="k">role</span> key4prev
+<span class="k">end</span>
+<span class="k">association</span> issued <span class="k">between</span>
+  Desk [*] <span class="k">role</span> desk4issued
+  Key  [*] <span class="k">role</span> key4issued
+<span class="k">end</span>
+<span class="k">association</span> cards <span class="k">between</span>
+  Guest [*] <span class="k">role</span> guest4cards
+  Card  [*] <span class="k">role</span> card4cards
+<span class="k">end</span></code></pre>
+  </div>
+  <div class="card">
+    <h4>图 E.8 · OCL 操作</h4>
+<pre><code><span class="k">class</span> Room
+<span class="k">operations</span>
+ init()
+  <span class="k">post</span> prev_eq_key:
+   self.key4prev = Set{self.key4key}
+  <span class="k">post</span> issued_eq_room_key:
+   Desk.allInstances.key4issued
+     = Room.allInstances.key4key
+  <span class="k">post</span> no_cards:
+   Card.allInstances.guest4cards-&gt;isEmpty
+ checkin(g:Guest)
+  <span class="k">pre</span> key_exists:
+   Key.allInstances-&gt;exists(k|
+     Desk.allInstances.key4issued-&gt;excludes(k))
+  <span class="k">post</span> fst_snd_ok_cards_issued_prev_updated:
+   Card.allInstances-&gt;exists(c|
+     self.key4prev-&gt;includes(c.key4fst) <span class="k">and</span>
+     Desk.allInstances.key4issued-&gt;excludes(c.key4snd) <span class="k">and</span>
+     g.card4cards = g.card4cards@pre-&gt;including(c) <span class="k">and</span>
+     Desk.allInstances-&gt;forAll(d|
+       d.key4issued = d.key4issued@pre-&gt;including(c.key4snd)) <span class="k">and</span>
+     self.key4prev = Set{c.key4snd})
+  <span class="k">post</span> key_unchanged:
+   self.key4key@pre = self.key4key
+ enter(g:Guest)
+  <span class="k">pre</span> key_matches:
+   g.card4cards-&gt;exists(c|
+     <span class="k">let</span> k = key4key <span class="k">in</span>
+       c.key4snd = k <span class="k">or</span> c.key4fst = k)
+  <span class="k">post</span> key_updated:
+   g.card4cards-&gt;exists(c|
+     <span class="k">let</span> k = key4key <span class="k">in</span>
+      (c.key4snd = k <span class="k">and</span> self.key4key = self.key4key@pre)
+      <span class="k">or</span>
+      (c.key4fst = k <span class="k">and</span> self.key4key = c.key4snd))
+  <span class="k">post</span> issued_unchanged:
+   Desk.allInstances-&gt;forAll(d|d.key4issued@pre = d.key4issued)
+  <span class="k">post</span> prev_unchanged:
+   Room.allInstances-&gt;forAll(r|
+     self.desk4prev@pre = self.desk4prev
+     <span class="k">and</span> self.key4prev@pre = self.key4prev)
+  <span class="k">post</span> cards_unchanged:
+   Card.allInstances-&gt;forAll(c|c.guest4cards@pre = c.guest4cards)
+<span class="k">end</span></code></pre>
+  </div>
+</div>
+
+<dl class="term">
+  <dt>为什么要额外造一个 Desk 类</dt>
+  <dd>「类 Desk 的引入是为了给『代表已发出钥匙集合的那个状态成分』提供一个<strong>上下文</strong>。」和 Alloy 版一样只有一台前台，<strong>这个约束被记为不变式 <code>oneDesk</code></strong>。</dd>
+  <dt><code>Desk.allInstances</code> 与那条「非法写法」</dt>
+  <dd>原文警告：<strong>写 <code>Desk-&gt;size=1</code> 是非法的，因为 <code>Desk</code> 表示一个<em>类</em>而不是一个<em>集合</em></strong> —— 必须用 <code>Desk.allInstances</code> 取「该类的那些实例的集合」。这条就是上面「类 ≠ 对象集合」之区别的直接落地。</dd>
+  <dt>关联是关系，可以有任何元数 —— 用「角色个数」表示</dt>
+  <dd>「一个关联是一个关系，它可以有<em>任何元数</em>，由<em>角色的数目</em>表明：<code>fst</code> 和 <code>snd</code> 有两个角色，因此是二元的；而 <code>prev</code> 是<strong>三元</strong>的。」</dd>
+  <dt>命名约定 <code>c4a</code></dt>
+  <dd>本模型遵循：<strong>关联 a 中指向类 c 实例的那个角色，命名为 <code>c4a</code></strong>。所以 <code>key4prev</code> 就是「prev 关联里指向 Key 的那个角色」。</dd>
+  <dt>三元关联的角色到底表示什么（最容易读错的一条）</dt>
+  <dd>二元关联的两个角色互为转置的二元关系。<strong>但三元关系中，一个角色表示「一对二元关系」—— 每个可能的导航源一个</strong>（因为涉及另外两个类）；一般地，<strong>有 k 个角色的关联，每个角色表示 k−1 个不同的二元关系，具体哪一个由上下文选定</strong>。</dd>
+  <dt>原文给的例子</dt>
+  <dd>给定一台前台 d，<code>d.key4prev</code> 表示「d 作为某些房间的前钥匙而持有的那些钥匙的集合」；同样 <code>d.room4prev</code> 表示「在 d 处有前钥匙与之关联的那些房间的集合」。</dd>
+  <dt>角色的表达力不足，以及 OCL 的补救办法</dt>
+  <dd>「<strong>角色只提供了高阶关系的一个简化视图，并不完全具有表达力。</strong>」例：若有<em>多台</em>前台，就<strong>写不出</strong> Alloy 的 <code>d.prev[r]</code>（在<em>某台</em>前台处、<em>某个</em>房间的前钥匙）。所幸本模型只有一台前台，问题没暴露。<strong>当 OCL 真的需要一个高阶关系时，必须改用另一套做法：把该关系显式表示为「元组的集合」</strong> —— 原文指向 Richters 论文 [58] 第 4.9.2 节。</dd>
+  <dt>操作声明在 Room 上下文中 ⇒ 隐式 self，且可省略</dt>
+  <dd>这让每个操作都带一个可用 <code>self</code> 引用的隐式参数；<strong>与 Alloy 的 <code>this</code> 不同，它可以被省略</strong>：第 5 行的 <code>self.key4prev</code> 可写作 <code>key4prev</code>。<strong>而 Alloy 里没有这种简写，因为裸写 <code>key4prev</code> 表示的是整个关系。</strong></dd>
+  <dt>前后条件可拆成「有名字的子句」</dt>
+  <dd>「以便工具在<strong>检查一个测试案例违反模型时</strong>，能反馈<em>究竟是哪一条子句被违反</em>。」这是 OCL 面向「测试案例校验」而非「求解」取向的语法体现 —— 对照 Alloy：<code>check</code> 给的是反例<em>轨迹</em>，而不是「第几条 post 挂了」。</dd>
+  <dt><code>@pre</code> 标记</dt>
+  <dd>后条件中，引用<em>前状态</em>值的角色和属性加后缀 <code>@pre</code>。例：<code>g.card4cards = g.card4cards@pre-&gt;including(c)</code> 说的是「后状态里该客人的卡集合 = 前状态那个集合加上卡 c」。<strong>Alloy 用两列 <code>t</code> / <code>t'</code> 达到同一效果，OCL 用 <code>@pre</code> —— 因为它把状态机写死了。</strong></dd>
+</dl>
+
+<div class="callout pit">
+  <span class="tag">全附录最烧脑的一则辨析：为什么 <code>Set{c.key4snd}</code> 的 Set 并非多余</span>
+  <pre><code>self.key4prev = Set{c.key4snd}   <span class="c">// checkin 后条件（图 E.8 行 20）</span></code></pre>
+  <p><code>Set</code> 关键字把元素 <code>c.key4snd</code> 提升为一个集合。「<strong>你可能以为这里不必用它，因为角色 <code>key4prev</code> 与 <code>key4snd</code> 的重数分别是 <code>[0..1]</code> 和 <code>[1]</code>，类型上是兼容的。</strong>」</p>
+  <p><strong>但原文紧接着给出正确的道理：「对于一个三元关系，角色 r 的重数<em>并不</em>表示 <code>x.r</code> 可能表示的那个集合的大小；它表示的是<em>与「其他那些类型的实例的某种组合」相关联的该类型实例有多少个</em>。」</strong></p>
+  <p>结论：<strong>若存在多台前台，<code>self.key4prev</code> 尽管有那个重数，仍可能包含多把钥匙；因此任何与它作等式的值必须是集合而非标量。</strong></p>
+  <p>这条对读 Alloy 同样关键，因为它正是附录 B.7.3 嵌套标注所解决的问题的镜像：多层箭头上的重数描述的是「<em>对每个已定的其他坐标</em>」的像的大小，而不是任意切片视图的基数。<strong>把 <code>prev</code> 的前导坐标（Desk）当成「固定的那一个」，是这类误读的根源。</strong></p>
+</div>
+
+<h3 id="se33">E.3.3 OCL 的工具</h3>
+<div class="callout key">
+  <span class="tag">两类工具，功能差别像两个时代</span>
+  <p><strong>常规类</strong>：不少工具可用。有些是独立工具，如 <strong>Octopus</strong>（来自 Anneke Kleppe 创办的 Klasse Objecten 公司）；有些是更大的模型驱动开发套件里的组件，如 <strong>Borland Together Designer 的 OCL 组件</strong>。典型功能：<strong>语法与类型检查、在具体测试案例上解释（interpret）OCL 约束、从 OCL 表达式生成 Java/SQL 等代码</strong>。</p>
+  <p><strong>设计期分析类</strong>：<strong>支持设计期分析的工具较少</strong>；这一类中最强的似乎是不来梅大学的 <strong>USE 工具 [71]</strong>。它提供一个环境，让建模者<strong>亲手构造测试案例并在其上求值 OCL 表达式与约束</strong>。</p>
+  <p><strong>USE 的新能力</strong>：最近加入了一个<strong>「用用户提供的生成器枚举快照（snapshots）」</strong>的设施 [18]，<strong>「它允许在有限案例空间上作 Alloy 风格的穷尽搜索」</strong>。其界面把 OCL 与 UML 图形对象模型整合，支持声明的可视化编辑、快照与执行的图形展示。</p>
+</div>
+<div class="callout idea">
+  <span class="tag">最有说服力的一句</span>
+  <p>「<strong>借助 USE 工具，Martin Gogolla 得以模拟场景并发现了缺陷 —— 包括 Alloy 模型第一版中的那个初始化错误。</strong>」</p>
+  <p>也就是说：<strong>本节 E.1 里那个「Key0 未记为已发出」的漏洞，不是只有 Alloy 能发现 —— 一个基于生成器的快照枚举器同样抓到了它。</strong>这把导言里「其他方法基本只能做动画」的论断补上了一个诚实的例外，也印证了「穷尽有限空间」这一思想的普适性。</p>
+</div>
+
+<h2 id="se4"><span class="num">E.4</span>VDM</h2>
+<div class="card">
+  <p><strong>名字来历</strong>：VDM 代表 <strong>Vienna Development Method（维也纳开发方法）</strong>，因为它<strong>生长于 1970 年代 IBM 维也纳实验室在编程语言定义方面的工作</strong>。该方法由 <strong>Cliff Jones 与 Dines Bjørner</strong> 发展，包含一门规格语言 + 一套把规格精化成代码的路子。</p>
+  <p><strong>历史地位</strong>：<strong>「逻辑式规格（logic-based specification）的许多基本原理与想法，最早就是出现在 VDM 里。」</strong></p>
+  <p><strong>今天的所指与标准</strong>：如今「VDM」通常指那门<em>语言</em>，经典参考是 Jones 的书 [41]。最新版本 <strong>VDM-SL</strong>（VDM Specification Language）由 <strong>ISO 在 1990 年代标准化</strong> [47]；<strong>它有两套语法：一套基于 ASCII（多数 VDM 工具用它），一套使用特殊数学符号</strong>。</p>
+  <p><strong>工业应用</strong>：电子交易系统、安全智能卡，以及<strong>荷兰花卉拍卖系统</strong>。</p>
+  <p><strong>教材</strong>：两本讲 VDM 建模过程的书：[16] 用标准语言 VDM-SL，[17] 用带面向对象特性与并发支持的扩展 <strong>VDM++</strong>；两本都含案例研究，都强调<strong>用轻量级工具技术促进工程师与领域专家之间的对话</strong>。Jones 的一篇论文讨论 VDM 的设计原理 [42]。</p>
+</div>
+
+<h3 id="se41">E.4.1 VDM 的基本概念</h3>
+<dl class="term">
+  <dt>状态机 + 可实现性检查</dt>
+  <dd>一个 VDM 规格描述一台<strong>状态机</strong>：一组状态 + 一组操作。状态由<strong>一个顶层声明</strong>给出，并可用<strong>辅助声明</strong>引入它使用的任何复合类型；<strong>每个声明都可配一个不变式</strong>。</dd>
+  <dt>「implementable（可实现）」这条独特规则</dt>
+  <dd>操作有分离的前/后条件。<strong>每个操作都必须<em>可实现</em>：对每个满足前条件的前状态，其后条件至少容许一个后状态。</strong>若操作以<strong>显式风格</strong>（<em>postcondition 由「对后状态各成分的赋值」构成</em>）书写，则它<strong>「by construction」自动可实现</strong>。</dd>
+  <dt>不变式与 Alloy 相同地隐式并入</dt>
+  <dd>「不变式，<strong>如 Alloy、OCL、Z 中一样</strong>，被隐含地包含进前条件与后条件之中。<strong>显式操作必须保持不变式。</strong>」</dd>
+  <dt>操作引用（operation quotation）↔ Alloy 的一对谓词</dt>
+  <dd>一个操作的前后条件可以被另一个操作使用，机制叫<strong>操作引用</strong>，它「把该操作<em>几乎当作一对 Alloy 谓词</em>来对待」。</dd>
+  <dt>验证猜想 = Alloy 的断言，但<em>不在语言里</em></dt>
+  <dd>「<strong>验证猜想（validation conjectures）扮演着 Alloy 断言的角色，但它们是用<em>工具专属的语言扩展</em>来表达的，而不是用 VDM 语言本身。</strong>」—— 这条与导言「其他方法使用工具专属扩展，而 Alloy 把分析内建进语言」严格呼应。</dd>
+  <dt>VDM 最独特的设施：帧条件（frame conditions）</dt>
+  <dd>「<strong>与 Alloy、B、OCL、Z 都相反（也和 JML [48]、Larch 接口语言 [23] 这类更侧重描述代码接口的语言相同），VDM 有帧条件，标明某操作可以读或写哪些状态变量。</strong>」<ul>
+    <li><strong>好处</strong>：让操作<em>大幅简短</em>（不必提及不变化的成分），也许更容易一眼读懂。</li>
+    <li><strong>坏处</strong>：帧条件<strong>假定了一种比 Alloy、Z 之类语言所容许的更受限的规格形式</strong> —— 「你<em>不能</em>往状态里加一些<strong>由其他成分定义的冗余成分</strong>，而不必修改所有操作。」</li>
+  </ul></dd>
+</dl>
+
+<div class="callout pit">
+  <span class="tag">帧条件那条坏处值得展开：它直接封死了 Alloy 的核心手法</span>
+  <p>Alloy 里「冗余成分」是常规武器：第 6.4 的 <code>inv</code> 不变式把「所有有效 Inv」打包成一个字段供断言引用；A.5.1 的 <code>bijection</code>、第 6.2 的 <code>Room &lt;: keys</code> 都是「由别的成分定义的派生成分」。<strong>它们的存在只是为了让断言更好写，而每个操作都必须去「维护」它们 —— 在 VDM 的帧条件下这是不可接受的。</strong></p>
+  <p>这就是「<strong>声明式规格（Alloy/Z）vs 接口式规格（VDM/JML/Larch）</strong>」的分水岭：前者说「世界应当是什么样」，后者说「这个操作有权碰哪些格子」。</p>
+</div>
+
+<h3 id="se42">E.4.2 VDM 版样例模型（图 E.9–E.11）</h3>
+<div class="grid c2">
+  <div class="card">
+    <h4>图 E.9 · VDM 类型声明</h4>
+<pre><code><span class="k">types</span>
+ Key   = <span class="t">token</span>;
+ Room  = <span class="t">token</span>;
+ Guest = <span class="t">token</span>;
+ Card <span class="o">::</span>
+   fst : Key
+   snd : Key;
+ Desk <span class="o">::</span>
+   issued : set <span class="k">of</span> Key
+   prev   : map Room <span class="k">to</span> Key
+ <span class="k">inv</span> d == rng d.prev subset d.issued;
+<span class="k">state</span> Hotel <span class="k">of</span>
+  desk   : Desk
+  locks  : map Room <span class="k">to</span> Key
+  guests : map Guest <span class="k">to</span> set <span class="k">of</span> Card
+<span class="k">inv</span> h ==
+  dom h.desk.prev subset dom h.locks <span class="k">and</span>
+  dunion {{c.fst, c.snd} | c <span class="k">in set</span>
+            dunion rng h.guests}
+   subset h.desk.issued
+<span class="k">init</span> h == h.desk.issued = rng h.locks <span class="k">and</span>
+  h.desk.prev = h.locks <span class="k">and</span> rng h.guests = {{}}
+<span class="k">end</span></code></pre>
+  </div>
+  <div class="card">
+    <h4>图 E.10 · VDM 操作（隐式风格）</h4>
+<pre><code><span class="k">operations</span>
+ CheckIn(g:Guest,r:Room)
+  <span class="k">ext wr</span> desk : Desk
+     <span class="k">wr</span> guests : map Guest <span class="k">to</span> set <span class="k">of</span> Card
+  <span class="k">pre</span> r <span class="k">in set</span> dom desk.prev
+  <span class="k">post</span> exists new_k:Key <span class="o">&amp;</span>
+    new_k <span class="k">not in set</span> desk~.issued <span class="k">and</span>
+    <span class="k">let</span> new_c = mk_Card(desk~.prev(r),new_k) <span class="k">in</span>
+     desk.issued = desk~.issued union {new_k} <span class="k">and</span>
+     desk.prev = desk~.prev <span class="o">++</span> {r |-&gt; new_k} <span class="k">and</span>
+     <span class="k">if</span> g <span class="k">in set</span> dom guests
+      <span class="k">then</span> guests = guests~ <span class="o">++</span> {g |-&gt; guests~(g) union {new_c}}
+      <span class="k">else</span> guests = guests~ <span class="o">munion</span> {g |-&gt; {new_c}};
+
+ Enter(r:Room,g:Guest)
+  <span class="k">ext wr</span> locks : map Room <span class="k">to</span> Key
+     <span class="k">rd</span> guests : map Guest <span class="k">to</span> set <span class="k">of</span> Card
+  <span class="k">pre</span> r <span class="k">in set</span> dom locks <span class="k">and</span> g <span class="k">in set</span> dom guests <span class="k">and</span>
+    exists c <span class="k">in set</span> guests(g) <span class="o">&amp;</span>
+      c.fst = locks(r) <span class="k">or</span> c.snd = locks(r)
+  <span class="k">post</span> exists c <span class="k">in set</span> guests(g) <span class="o">&amp;</span>
+    c.fst = locks(r) <span class="k">and</span>
+      locks = locks~ <span class="o">++</span> {r |-&gt; c.snd} <span class="k">or</span>
+    c.snd = locks(r) <span class="k">and</span> locks = locks~;</code></pre>
+  </div>
+</div>
+
+<div class="card">
+  <h4>图 E.11 · VDM 操作（显式风格，供动画器执行）</h4>
+<pre><code>CheckInExpl: Guest * Room ==&gt; ()
+CheckInExpl(g,r) ==
+ <span class="k">let</span> new_k:Key <span class="k">be st</span> new_k <span class="k">not in set</span> desk.issued <span class="k">in</span>
+ <span class="k">let</span> new_c = mk_Card(desk.prev(r),new_k) <span class="k">in</span> (
+  desk.issued := desk.issued union {new_k};
+  desk.prev  := desk.prev  <span class="o">++</span> {r |-&gt; new_k};
+  guests := <span class="k">if</span> g <span class="k">in set</span> dom guests
+   <span class="k">then</span> guests <span class="o">++</span> {g |-&gt; guests(g) union {new_c}}
+   <span class="k">else</span> guests <span class="o">munion</span> {g |-&gt; {new_c}}
+ )
+<span class="k">pre</span> r <span class="k">in set</span> dom desk.prev;</code></pre>
+</div>
+
+<dl class="term">
+  <dt>token 类型 = Alloy 的无字段 sig</dt>
+  <dd>类型声明以 Key、Room、Guest 三个 <strong>token 类型</strong>开篇，意即「<strong>表示<em>无解释原子</em>的集合</strong>」—— 对应 Alloy 的 <code>sig Key, Room, Guest {}</code>。而 <strong>Card 和 Desk 被声明为记录（record）类型</strong>；对应全局状态的 <code>Hotel</code> 也是记录类型。</dd>
+  <dt>类型不变式 ↔ Alloy 的字段约束</dt>
+  <dd>Desk 的不变式（行 11）说的是：「<strong>有前钥匙的那些房间的集合，是已发出钥匙所属房间集合的子集</strong>」（<code>rng d.prev subset d.issued</code>）。各类型都可后跟一个不变式。</dd>
+  <dt>记录类型：一条好处与两条代价</dt>
+  <dd><strong>Alloy 相反，没有复合类型（除了关系）。</strong>用记录的好处：<strong>可以用构造器造出一个新值</strong>（如行 8 的 <code>mk_Card(...)</code>），而 <strong>Alloy 需要一个集合概括式或存在量词</strong>（如 Alloy 版 checkin 里 <code>some c: Card {…}</code>）。代价：<ul>
+    <li><strong>额外的记法</strong>：「注意 VDM 里 <code>c.fst</code> 用点，而 <code>locks(r)</code> 用括号」—— 同一件事两套存取语法。</li>
+    <li><strong>给分析制造问题</strong>（下条）。</li>
+  </ul></dd>
+  <dt>「记录没有独立于其值的身份」⇒ 无界全域问题（这是本附录与第 5 章最重要的一次勾连）</dt>
+  <dd>原文：<strong>「记录常能在 Alloy 里用 signature 表示，但<em>缺少构造器</em>这一点，正是 5.3 节所述『<strong>无界全域问题（unbounded universals problem）</strong>』的核心所在。」</strong>紧接着：<strong>「一个记录没有区别于其值的身份，因此这个 VDM 模型<em>不会区分</em>由不同客人持有、却恰好带有相同两把钥匙的两张卡。」</strong></dd>
+  <dt>VDM 的高阶性在状态不变式里现形（行 16–19）</dt>
+  <dd>那条 <code>dunion {{c.fst, c.snd} | c in set dunion rng h.guests} subset h.desk.issued</code> 说的是「<strong>客人们所持卡上的第一、第二把钥匙都必须已被前台记录为发出</strong>」。因为 <code>h.guests</code> 是「客人 → 卡的集合」的函数，<strong>它的值域 <code>rng h.guests</code> 是<em>集合的集合</em>，必须先取一次分布并（dunion）摊平，才能判断卡 c 是否属于</strong>。</dd>
+  <dt>同一条件的 Alloy 写法（原文逐字对照）</dt>
+  <dd><code>all t: Time | Guest.cards.t.(fst + snd) in Desk.issued.t</code> —— 「<strong>在 Alloy 里，集合的集合是不可表达的</strong>」，于是把高阶摊平换成一条沿 Time 的量化。</dd>
+  <dt>时间变量与状态变量的角色互换</dt>
+  <dd>「<strong>时间变量 t 扮演着 VDM 规格里状态变量 h 的角色。它的位置是所选习语的产物</strong> —— 若把状态建模成一个 signature（如第 6 章的内存例子或媒体资产例子），它就会出现在字段名<em>之前</em>而不是<em>之后</em>。」</dd>
+  <dt>帧条件如何缩短后条件</dt>
+  <dd>「注意帧条件如何缩短其所属的后条件：在 Enter 中，因为<strong>只有 <code>locks</code> 成分是可写的</strong>，就不必像 Alloy 版（图 E.2 第 17、18 行）那样为其余成分写等式。」这正是 Alloy 必须写 <code>issued.t = issued.t' and prev.t = prev.t' cards.t = cards.t'</code> 的原因。</dd>
+  <dt>显式前条件的一害（原文给的实证）</dt>
+  <dd>显式前条件让「操作何时适用」更易看清，但可能更啰嗦：<strong>「注意 Enter 的前条件（行 17）在后条件里被<em>重复了一遍</em>，因为存在量词无法横跨两者。」</strong>Alloy 不存在这个问题 —— 谓词体是一整个公式，量词自然覆盖全部。</dd>
+  <dt><code>~</code>、<code>&amp;</code> 与「状态是可变的顶层记录」</dt>
+  <dd>VDM 的前/后条件<strong>就是逻辑公式</strong>，像 Alloy 谓词体一样。<strong>但与 Alloy 不同、与其他方法（Z 相对轻些）相同：VDM 假定某种特定状态机习语并为之提供专门语法。</strong>状态声明<em>不像</em>其他类型声明 —— 它定义了一个<strong>可变结构，其各成分在操作的前状态与后状态中各有其值</strong>；成分 c 在前状态的值写作 <code>c~</code>，后状态写作 <code>c</code>。<strong>特殊符号 <code>&amp;</code> 分隔量词的约束部分与主体</strong>（<code>exists x &amp; body</code>）。</dd>
+  <dt>「所有变异都被限制在状态的顶层成分」</dt>
+  <dd>「这很方便，但不如 Alloy 的路子灵活。<strong>你<em>不能</em>把 cards 变成可变的，以便建模『黑客修改既有门卡』</strong> —— 而在 Alloy 里，只要给 Card 的关系加一列 Time 就行了。<strong>不过 VDM++ 允许所有结构都可变。</strong>」</dd>
+  <dt>VDM 区分集合与关系（映射）—— 一个 <code>+</code> vs <code>union</code>/<code>munion</code></dt>
+  <dd>「<strong>Alloy 对所有并运算都用同一个 <code>+</code>，而 VDM 对集合用 <code>union</code>、对映射用 <code>munion</code>。</strong>」作为高阶语言，VDM 还需要<strong>集合构造括号</strong>来区分映射与元组、集合与其元素：<ul>
+    <li>初始化行 21 把「客人→卡集合」映射的值域等同于 <code>{{}}</code> —— <strong>只含空集的那个集合</strong>；若写成 <code>{}</code> 意思就完全不同了。</li>
+    <li>扩充 <code>guests</code> 与 <code>locks</code> 两个映射时，一个需要集合括号（<code>{r |-&gt; new_k}</code>）一个不需要（<code>{g |-&gt; {new_c}}</code>）。</li>
+  </ul></dd>
+  <dt>显式风格：为动画器而改写</dt>
+  <dd>「<strong>要把动画器（如 VDMTools 的那个）应用于一个操作，该操作必须写成显式形式。</strong>」图 E.11 即 CheckIn 的显式版本：<strong>存在量词被换成 <code>let</code> 语句；后条件的各约束被换成赋值；帧条件不再必要。</strong>原文判语：「<strong>这个记法与 B 非常相似。</strong>」—— 恰好闭合了本节开头「VDM 支持显式与隐式两种建模」这句评价。</dd>
+</dl>
+
+<h3 id="se43">E.4.3 VDM 的工具</h3>
+<div class="callout key">
+  <span class="tag">VDMTools 与 Overture</span>
+  <p>在 <strong>Peter Gorm Larsen</strong> 的指导下，丹麦公司 <strong>IFAD</strong>（1990 年代提供 VDM 咨询）开发了 <strong>VDMTools</strong> —— 同时支持 VDM-SL 与 VDM++ 的工具箱。<strong>它包含一个类型检查器和一个定理证明器，并针对 VDM 的一个<em>可执行子集</em>提供规格模拟与测试设施，外加一个代码生成器。</strong>该工具箱现归日本 <strong>CSK 公司</strong>所有。</p>
+  <p>面向 VDM++ 的新工具支持正在 <strong>Overture 开源计划</strong>下开发。</p>
+  <p><strong>注意那句限定：「针对 VDM 的一个可执行子集」</strong> —— 这正好落在导言批评的点上：动画器要求可执行子集，而「<strong>Alloy Analyzer 不把语言限制在可执行子集内</strong>」。VDM 的显式风格（图 E.11）就是「为进入那个子集而做的改写」。</p>
+</div>
+
+<h2 id="se5"><span class="num">E.5</span>Z</h2>
+<div class="card">
+  <p><strong>来历与战绩</strong>：Z 于 <strong>1980 年代在牛津大学</strong>开发。它在教学与研究上影响极深，并成功应用于若干大型项目：<strong>牛津大学与 IBM 在 CICS 系统上的合作</strong>、<strong>Praxis Critical Systems</strong> 的一串项目，以及 <strong>NatWest 银行开发的 Mondex 电子钱包的安全验证 —— 这是史上第一个获 ITSEC Level 6 认证的产品</strong> [69, 68]。</p>
+  <p><strong>与 Alloy 的血缘</strong>：<strong>「Z 那干净而简单的语义基础，是 Alloy 设计的一个灵感来源。」</strong></p>
+  <p><strong>标准与主流教材</strong>：语言已由 ISO 标准化 [30]，但 <strong>Mike Spivey 的书 [65] 所描述的那个版本至今仍最流行</strong>。关于 Z 的书写得很多：教材 [40, 56, 74, 75]、案例集 [26]、风格指南 [3]。</p>
+</div>
+
+<h3 id="se51">E.5.1 Z 的基本概念</h3>
+<div class="callout key">
+  <span class="tag">一句最要紧的对照：Z 只有一个打包构造，Alloy 有两组</span>
+  <p>「<strong>Z 和 Alloy 一样，骨子里就是一套逻辑，加上若干语法构造以便描述软件抽象。</strong>在 Alloy 里，这些构造是 <em>signature</em>（用来打包<em>声明</em>）与 <em>facts / predicates / functions</em>（用来打包<em>约束</em>）。<strong>在 Z 里，同一个构造 —— schema —— 既用来打包声明，也用来打包约束。</strong>schema 的语言（<em>schema calculus</em>）足够丰富，能支持广泛的习语。」</p>
+</div>
+<dl class="term">
+  <dt>「Oxford style」已经变成事实上的语言的一部分</dt>
+  <dd>实践中，某一个习语 —— 又称 <strong>IBM style</strong> 或 <strong>「established strategy」[3]</strong> —— 自最早期起就被<strong>几乎所有 Z 规格</strong>采用。围绕它生长出一整套语法约定，<strong>并已成为语言事实的一部分</strong>。铁证：<strong>「按顺序组合操作的算子就假定了这一习语的使用；没有它，该算子不会具有预期的含义。」</strong></dd>
+  <dt>Z 没有内建精化，但有一套成熟的精化理论</dt>
+  <dd>与 B 不同，<strong>Z 没有内建的精化概念</strong>；事实上许多 Z 用户把它当作<em>系统建模语言</em>，根本不打算证明代码与模型的符合性。<strong>不过 Z 有一套确立良好的精化理论，语言也很适合逐步精化的开发</strong> —— Woodcock 的书 [74] 是该途径的易读入门。</dd>
+  <dt>schema 声明的两段结构与「隐式并入」</dt>
+  <dd>一个 Z 规格由一串 schema 声明搭成。<strong>每个声明有两部分：一串变量声明 + 一个约束它们的谓词。</strong>当引用一个先前声明过的 schema 时，<strong>它的变量声明和谓词都被隐含地并入</strong>。表示状态的 schema 通常<em>在既有状态 schema 上添加新成分并用额外不变式进一步约束状态</em>；表示操作的 schema 可以并入前状态与后状态两个状态 schema，也可以扩展一个既有操作 schema、追加约束使其行为更具体。</dd>
+  <dt>「简洁到神秘」：三种语言共享同一种力量</dt>
+  <dd>「<strong>因为并入一个 schema 会把它声明的变量带入作用域，schema 谓词里出现的变量常常没有显式声明。结果 Z 规格可以极其简洁 —— 有时简洁得近乎神秘。</strong>」原文随即把这种力量横向对比：<strong>「完全相同的力量、同样的简洁与同样的隐晦，出现在面向对象编程语言的继承机制中，也出现在 Alloy 的 signature 扩展机制里 —— 顺带一提，那个机制正是<em>刻意</em>为支持 schema 式结构化而设计的。」</strong></dd>
+  <dt>Oxford 风格下的不变式与前条件</dt>
+  <dd>状态不变式与状态声明一起声明，因而<strong>被隐含并入操作</strong>（如 VDM）；<strong>这与 B 形成鲜明对照 —— B 中不变式必须被证明为操作所保持。</strong>操作的<strong>前条件不与后条件分离</strong>。把前条件显式写在操作 schema 里被视为<strong>良好风格，但并非必需</strong>。</dd>
+  <dt>用「前条件定理」替代 VDM 的可实现性检查</dt>
+  <dd>「<strong>取代 VDM 的可实现性检查，Z 规格师从一个操作 schema 推导出一个前条件，再与他期望的前条件相比较。</strong>」</dd>
+  <dt>集合与关系：Z 与 B 同源，而 Alloy 来自另一支血统</dt>
+  <dd>集合与关系是 Z 的主导数据类型。这一点 <strong>Z 与 B 相似</strong>（不足为奇 —— B 的发明者 Abrial 早年是 Z 的开发者之一，更早前还研究过数据库语义）。<strong>对 Z 和 B 而言，集合是基本的、关系是派生的；Z 这个名字就来自它的根基 ZF（Zermelo–Fraenkel）集合论。</strong></dd>
+  <dt>Alloy 的血统：Tarski 与 Codd</dt>
+  <dd>「<strong>Alloy 同样基于集合与关系，但它的逻辑更多地受 Tarski 的关系演算 [70] 与 Codd 的关系数据库模型 [9] 这些关系式形式化传统的影响 —— 在 Alloy 里，集合被视作关系的一个特例。</strong>」这是全书关于 Alloy 血统最明确的一段自述。</dd>
+  <dt>schema 类型：比 signature 多了构造器，少了子类型</dt>
+  <dd>和 VDM 一样，<strong>Z 也包含记录类型</strong>：<strong>同一个语法上用于「把声明分组」的 schema 构造，语义上可用来声明一种「schema 类型」，其值是「字段名 → 值」的绑定</strong>。<ul>
+    <li><strong>比 Alloy signature 更强的地方</strong>：<em>提供构造器</em>。</li>
+    <li><strong>更弱的地方</strong>：<strong>schema 没有子类型</strong>。一个 schema 可定义为另一个 schema 的扩展，<strong>但两者的类型互不相关</strong>。原文的例子：若你声明了一个「文件系统对象」schema，并扩展成「文件」与「目录」两个 schema，那么<strong>你无法把文件 schema 或目录 schema 的实例放进一个声明在文件系统对象之上的集合或关系里</strong>。</li>
+  </ul>对照 Alloy：B.7.2 的 <code>extends</code> 天生带子类型关系与签名事实的自动适配，Z 在此处需要手工处理。</dd>
+  <dt>外观</dt>
+  <dd>Z 有独特的视觉外观：<strong>schema 四周画框</strong>，并有自己的一套数学符号。本附录采用「<strong>水平式（horizontal form）</strong>」—— 原文自嘲：「<strong>虽然不那么优雅，但不必专门的排版工具就能排出来。</strong>」</dd>
+</dl>
+
+<h3 id="se52">E.5.2 Z 版样例模型（图 E.12–E.14）</h3>
+<div class="callout idea">
+  <span class="tag">Z 版走的是 B 那条「先抽象、后精化」的路，且作者亲自解释了每一处不同</span>
+  <p>本节样本是<strong>一次精化开发中的<em>第一个、最抽象的</em>模型</strong>。与最抽象的 B 模型（图 E.4）一样，它<strong>靠查阅房间名册来决定能否进入</strong>；在随后的（未收录的）精化中，进入将由钥匙与锁单独决定。</p>
+  <p>但这个抽象 Z 模型<strong>并不完全不提钥匙和锁</strong>：<strong>卡上的「重编码钥匙」是在<em>进入</em>时选定的，而不是在 checkin 时</strong>。原文：「<strong>精化会把这个非确定选择往<em>时间上游</em>挪到 checkin，其理由与 6.4.6 那个例子所用的理由相同。</strong>」—— 这是「<em>把选择的时机推迟 ⇒ 规格更抽象、更容易证明</em>」这条精化直觉的又一次落地。</p>
+</div>
+
+<div class="card">
+  <h4>图 E.12 · Z 的状态与初始化（水平式）</h4>
+<pre><code>[<span class="t">Guest</span>, <span class="t">Key</span>, <span class="t">Room</span>]
+initkeys: <span class="t">Room</span> ↣ <span class="t">Key</span>;
+<span class="t">Msg</span> ::= okay
+      | room_already_allocated
+      | guest_already_registered
+      | room_not_allocated
+      | wrong_guest
+      | key_not_fresh
+
+<span class="t">Hotel</span> ≙ [
+  firsttime: ℙ <span class="t">Room</span>
+  key:       <span class="t">Room</span> ↣ <span class="t">Key</span>
+  guest:     <span class="t">Room</span> ↛ <span class="t">Guest</span>
+  ]
+
+<span class="t">InitHotel</span> ≙ [
+  <span class="t">Hotel</span>'
+  |
+  firsttime' = ∅
+  key'       = initkeys
+  guest'     = ∅
+  ]</code></pre>
+</div>
+
+<div class="grid c2">
+  <div class="card">
+    <h4>图 E.13 · Z 的 checkin 与两种 enter</h4>
+<pre><code>Checkin0 ≙ [
+  Δ <span class="t">Hotel</span>
+  g?: <span class="t">Guest</span>
+  r?: <span class="t">Room</span>
+  |
+  r? ∉ dom guest
+  g? ∉ ran guest
+  firsttime' = firsttime ∪ {r?}
+  key' = key
+  guest' = guest ∪ {r? ↦ g?}
+ ]
+
+EnterFst ≙ [
+  Δ <span class="t">Hotel</span>
+  g?: <span class="t">Guest</span>
+  r?: <span class="t">Room</span>
+  k?: <span class="t">Key</span>
+  |
+  r? ∈ firsttime
+  r? ∈ dom guest
+  guest r? = g?
+  k? ∉ ran key
+  firsttime' = firsttime \ {r?}
+  key' = key ⊕ {r? ↦ k?}
+  guest' = guest
+ ]
+
+EnterSnd ≙ [
+  Ξ <span class="t">Hotel</span>
+  g?: <span class="t">Guest</span>
+  r?: <span class="t">Room</span>
+  |
+  r? ∈ dom guest
+  guest r? = g?
+  r? ∉ firsttime
+ ]</code></pre>
+  </div>
+  <div class="card">
+    <h4>图 E.14 · Z 的异常情形与组装</h4>
+<pre><code>Success ≙ [m!: <span class="t">Msg</span> | m! = okay]
+
+EnterRoomNotAllocated ≙ [
+  Ξ <span class="t">Hotel</span>
+  r?: <span class="t">Room</span>
+  m!: <span class="t">Msg</span>
+  |
+  r? ∉ dom guest
+  m! = room_not_allocated
+ ]
+
+EnterWrongGuest ≙ [
+  Ξ <span class="t">Hotel</span>
+  g?: <span class="t">Guest</span>
+  r?: <span class="t">Room</span>
+  m!: <span class="t">Msg</span>
+  |
+  r? ∈ dom guest
+  guest r? ≠ g?
+  m! = wrong_guest
+ ]
+
+Enter ≙ EnterFst ∧ Success
+      ∨ EnterSnd ∧ Success
+      ∨ EnterRoomNotAllocated
+      ∨ EnterWrongGuest
+
+<span class="k">Theorem</span> preCheckin0
+  ∀ <span class="t">Hotel</span>; g?: <span class="t">Guest</span>; r?: <span class="t">Room</span> |
+   r? ∉ dom guest ∧ g? ∉ ran guest ∙ pre Checkin0</code></pre>
+  </div>
+</div>
+
+<dl class="term">
+  <dt>given set、全局常量与 datatype</dt>
+  <dd>首行 <code>[Guest, Key, Room]</code> 把三者声明为 <strong>given sets：无解释的原子集合，成为类型检查的基础</strong>（对应 Alloy 的无字段 sig）。<strong>全局变量 <code>initkeys</code></strong> 表示「把房间锁关联到其钥匙初始值」的那个函数。<strong><code>Msg</code> 是一个 datatype 声明</strong>，表示操作可能的结局。</dd>
+  <dt>箭头的种类即重数</dt>
+  <dd><code>Hotel</code> 引入三个变量：<code>firsttime</code>（房间的集合）、<code>key</code>（房间→钥匙的函数，代表某状态下各锁里的钥匙）、<code>guest</code>（房间→客人的函数，即占用名册）。<strong>「箭头的种类表明重数：<code>key</code> 是<em>偏单射</em>，<code>guest</code> 是<em>偏函数</em>。」</strong>（<code>↣</code> / <code>↛</code>）</dd>
+  <dt><code>firsttime</code> 为什么在 Alloy 版里不存在</dt>
+  <dd>因为本模型要<strong>精确说明「何时该允许进入、何时该重编码锁」</strong>（后续精化才描述「靠查钥匙来决定进入」这一机制）。<strong><code>firsttime</code> 用来标记「此后被进入时应当重编锁」的那批房间 —— 因为将有新客人第一次进入。</strong></dd>
+  <dt>装饰（decoration）：撇号</dt>
+  <dd><code>Hotel</code> 只有变量声明、不含谓词，<code>InitHotel</code> 则声明与谓词都有；其声明部分<strong>通过提及 schema 名并入 <code>Hotel</code></strong>。注意名字后的撇号：「这称为<strong>装饰（decoration）</strong>，其效果是并入<em>并非完全等于</em> Hotel 的那些声明，而是<strong>每个变量 likewise 加撇</strong>的版本」—— 撇号变量在 Z 中用于指「操作执行<em>后</em>的状态成分取值」。</dd>
+  <dt>schema 谓词只是约束的合取，等号<em>不是</em>赋值</dt>
+  <dd>「<strong>schema 谓词就是一个约束，由各行约束合取而成。每行的约束是一个简单数学公式，等号表示<em>相等</em>（不是赋值）。所以这些等式里各项的次序没有语义意义，把每个等式左右颠倒也不改变含义。</strong>」</dd>
+  <dt>那为什么本例还要把撇号变量写在左边</dt>
+  <dd>「本规格被写成<strong>暗示其可执行方式</strong>的形式：撇号变量在左。<strong>这使它可以用 Jaza 之类的工具做动画。</strong>同样的道理也解释了为什么初始化把 <code>key'</code> 等同于先前声明的 <code>initkeys</code> —— 正如 B 模型里对应成分被初始化那样（图 E.5 行 23）。<strong>而更传统的 Z 风格会干脆不提 <code>key'</code>，让它的值不受约束。</strong>」—— 一段极佳的「<em>为工具而牺牲纯度</em>」的实例。</dd>
+  <dt>Δ 与 Ξ（读 Z 操作的钥匙）</dt>
+  <dd><code>Checkin0</code> 与 <code>EnterFst</code> 提到 <code>Δ Hotel</code>：<strong>这是一个由约定隐式定义的 schema，包含 Hotel 与 Hotel'，从而为每个状态变量引入「普通版 + 撇号版」，代表执行前后。</strong><code>EnterSnd</code> 提到 <code>Ξ Hotel</code>：<strong>类似的 schema，也含 Hotel 与 Hotel'，但<em>额外</em>带一条「每个状态变量等于其撇号版本」的约束</strong> —— 因此它的使用表示<strong>一个对状态毫无影响的操作</strong>。<strong>注意 EnterSnd 的体内确实一条 <code>x' = x</code> 都不用写</strong>，对比 Alloy 必须在 enter 里逐条写出未变化等式。</dd>
+  <dt>输入 <code>?</code> / 输出 <code>!</code>：语法糖而非语义</dt>
+  <dd>「每个操作还声明了一些带问号装饰的变量。<strong>按约定它们代表输入参数；在语义上，它们与表示状态成分的变量毫无区别。</strong>」当操作 schema 在别处被使用时，这些参数<strong>由一次语法替换绑定</strong> —— 把 schema 里参数变量的每次出现替换为新上下文中的变量名。</dd>
+  <dt>与 Alloy 显式参数化的得失</dt>
+  <dd><strong>不便</strong>：「<em>表达式</em>不能替换<em>变量</em>，所以若实参还没有对应的变量存在，就必须用存在量词把它声明出来。」<strong>方便</strong>：「当实参与形参同名时不必替换，产出的文本不会被参数列表弄乱。」</dd>
+  <dt>Z 不在语法上区分前后条件</dt>
+  <dd>「<strong>Z 不在语法上区分前条件与后条件，而且根本无须显式写出前条件。把前条件完整列在属于后条件的那些约束之上，被视作良好风格。</strong>」例：<code>Checkin0</code> 的前条件是「r? 不在 guest 的域中，且 g? 不在其值域中」—— 即<strong>所指房间尚未被占用，且该客人尚未被指派到别的房间</strong>。</dd>
+  <dt>这条风格规范为什么工具查不了，以及 Alloy 的替代方案（重要）</dt>
+  <dd>「<strong>这条风格指南一般无法用简单语法手段检查，因为<em>显式</em>前条件可能容纳一些『后条件无法满足』的状态，从而使<em>实际的</em>前条件更强。</strong>」对策：可构造一条「该操作具有所期望的前条件」的定理（就是 <code>Theorem preCheckin0</code>）。而原文接着承认：<strong>「Alloy 无法表达这类定理，正如 5.3 节所解释的。非意图性的过度约束改由『模拟该操作』来缓解。」</strong></dd>
+  <dt>操作谓词本身</dt>
+  <dd><code>Checkin0</code> 往 guest 关系里加上「r? ↦ g?」；<code>EnterFst</code> <strong>用 <code>⊕</code>（覆盖）把 key 关系改写为「r? ↦ 新钥匙 k?」来重编锁</strong> —— 与 Alloy 的 <code>++</code>、VDM 的 <code>++</code> 一一对应。原文：<strong>「注意，与 Alloy 和 OCL 一样，<em>未被提及的状态变量是不受约束的</em>，所以若某成分不变，就需要一条显式等式（如第 24 行）。」</strong>（<code>guest' = guest</code>）</dd>
+  <dt>异常情形与组装 —— Z 把「操作 = 公式」贯彻到底</dt>
+  <dd><code>Success</code> 只引入输出参数 <code>m!</code> 并令其等于 <code>okay</code>；随后两个 schema 说明「进入应被视为不允许」的条件（房间根本未分配 / 尝试进入的客人不是合法住客），<strong>以<em>前条件</em>形式表达，并配上把消息值约束为相应取值的后条件</strong>。最后 <code>Enter</code> 用一个纯 <code>∧</code>/<code>∨</code> 的表达式把各情形拼起来，<strong>描述「尝试进入某房间」的全部场景</strong>。</dd>
+  <dt>全书在此处给 Alloy 记的一功</dt>
+  <dd>「<strong>注意它仅用析取与合取就完成了组装。</strong><em>这种简洁是『操作不过就是逻辑公式』这一事实的后果。Alloy 从 Z 借来了这个想法，因而支持同一种结构化。</em>」</dd>
+</dl>
+
+<h3 id="se53">E.5.3 Z 的工具</h3>
+<div class="callout key">
+  <span class="tag">证明器为主，动画器为辅</span>
+  <p><strong>大多数 Z 工具支持集中于定理证明。</strong>最广泛使用的证明工具是 <strong>ProofPower</strong>（Lemma 1 Ltd）与 <strong>Z/Eves</strong> —— Eves 定理证明器的前端（ORA Canada）。<strong>本附录的样例模型就是用 Z/Eves 分析的。</strong></p>
+  <p><strong>Z/Eves 能做的三件事</strong>：计算前条件；执行「<strong>域检查（domain checks）</strong>」（<em>确保偏函数绝不越出其定义域被应用</em>）；一般性定理证明。「虽然证明中的许多步骤可自动执行，<strong>复杂定理往往需要有经验的用户给予引导。</strong>」</p>
+  <p><strong>动画器</strong>：Z 也造了不少动画器。样例模型用 <strong>Jaza [72]</strong> 测过 —— Waikato 大学 <strong>Mark Utting</strong> 开发的动画器。<strong>Jaza 能执行以显式风格写成的操作，并能在小域上做一定程度的约束求解；上面整个样例模型都能交给 Jaza 处理。</strong></p>
+  <p>原文回扣 E.5.2 那个「传统 Z 风格不会写 <code>key' = initkeys</code>」的选择：「我们注意到初始化把全局函数 <code>initkeys</code> 赋给 <code>key'</code> 而不听任它不受约束；<strong>这使得在用户给出 <code>initkeys</code> 的一个取值时，初始化就能被执行。</strong>」</p>
+  <p>与 USE、VDMTools 的动画器一样，<strong>Jaza 能求值表达式、检查给定状态是否满足不变式、检查转移是否符合操作，并能在用户挑选操作的情况下模拟一条执行轨迹。</strong></p>
+</div>
+
+<div class="callout warn">
+  <span class="tag">Z/Eves 与 Alloy Analyzer 的分工，一句话讲清</span>
+  <p><strong>Z/Eves 会自动<em>推导</em>前条件并证明定理</strong>（例如「实际前条件 = 期望前条件」，这是 Alloy 语言表达不了的）；<strong>Alloy Analyzer 会<em>搜索</em>反例</strong>（例如 NoIntruder 的那条六状态轨迹，这是 Z/Eves 做不动的）。两边各自的短板恰是对方之长 —— 这正是本节末尾「关键场景下应当转而尝试证明」那句话的技术根据。</p>
+</div>
+
+<h2 id="scompare"><span class="num">对照</span>五家横向总表</h2>
+<div class="callout idea">
+  <span class="tag">用法提示</span>
+  <p>下表不是原文，而是把本附录五个小节里的对照断言归拢到一处，便于选型时快速定位。每格结论都能在上文找到对应原句。</p>
+</div>
+<div style="overflow-x:auto">
+<table>
+  <thead><tr>
+    <th>维度</th><th>Alloy</th><th>B</th><th>OCL</th><th>VDM</th><th>Z</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>核心打包构造</td><td><code>sig</code>（声明）+ <code>fact/pred/fun</code>（约束）</td><td>machine：SETS / VARIABLES / INVARIANT / INITIALISATION / OPERATIONS</td><td>class + association + constraints</td><td>types / state / operations</td><td><strong>schema 一身兼两职</strong>（声明与约束同一个构造）</td></tr>
+    <tr><td>后条件形态</td><td>逻辑公式（谓词体）</td><td><strong>替换 substitution</strong>（类赋值，须逐变量给出）</td><td>逻辑公式，可拆具名子句</td><td>逻辑公式（隐式风格）或赋值（显式风格）</td><td>逻辑公式（各行合取）</td></tr>
+    <tr><td>前条件</td><td>隐含在谓词参数与约束里</td><td>显式 <code>PRE</code>，且另有 <code>guard</code>（不满足则阻塞）</td><td>显式 <code>pre</code>，具名子句</td><td>显式 <code>pre</code>；另可实现性检查</td><td><strong>语法上不区分前后条件</strong>；显式前条件只是风格</td></tr>
+    <tr><td>状态可变性</td><td><strong>无内建状态概念</strong>：用时间列或 schema 式习语自选</td><td>状态机硬编码（VARIABLES）</td><td>状态机 + <code>@pre</code></td><td>状态机硬编码，<strong>变异仅限顶层成分</strong>（VDM++ 除外）</td><td>状态机（但只是约定俗成的 Oxford style）</td></tr>
+    <tr><td>「未提及即不受约束」</td><td>是</td><td><strong>否</strong>：必须给每个变量一个替换</td><td>是</td><td>靠<strong>帧条件</strong>豁免</td><td>是（原文明说与 Alloy、OCL 一致）</td></tr>
+    <tr><td>重数怎么表达</td><td><code>lone/one/some</code> + <code>m -&gt; n</code> 标注</td><td><strong>特殊箭头族</strong> <code>+-&gt;</code> 偏函数、<code>&gt;-&gt;</code> 单射、<code>-&gt;</code> 全函数</td><td>角色的 <code>[1] / [0..1] / [*]</code>，且<strong>重数进入类型</strong></td><td>类型本身：<code>set of</code> / <code>map</code> / <code>token</code></td><td><strong>特殊箭头族</strong> <code>↣</code> 偏单射、<code>↛</code> 偏函数</td></tr>
+    <tr><td>关系能否反向遍历</td><td>能（<code>~</code>）</td><td>能（<code>dom</code>/<code>ran</code>/<code>|-></code>）</td><td><strong>不能</strong>：to-many 存成「到集合的函数」，故每个方向各派生一个角色</td><td>能（<code>dom</code>/<code>rng</code>）</td><td>能（<code>dom</code>/<code>ran</code>）</td></tr>
+    <tr><td>表达式能否表示关系</td><td>能，<strong>一切表达式皆关系</strong></td><td>能</td><td><strong>不能</strong>：值须属库类型，关系不在其中</td><td>能（但区分 set 与 map，须 <code>union</code>/<code>munion</code>）</td><td>能</td></tr>
+    <tr><td>传递闭包</td><td>内建 <code>*</code> / <code>+</code>（util/ordering 等）</td><td>无内建（靠不变式/归纳）</td><td><strong>无</strong> ⇒ 改用递归定义 ⇒ 最小不动点语义 ⇒ 无法用约束求解器</td><td>无内建</td><td>无内建（可定义但需归纳）</td></tr>
+    <tr><td>高阶量化 / 集合的集合</td><td><strong>严格一阶</strong>（子集 sig 是最接近的替身）</td><td>支持（<code>POW</code>）</td><td>支持（<code>Set(OclAny)</code> 等库类型）</td><td>支持（<code>set of set of</code>、<code>dunion</code>）</td><td>支持，且被认为对大规格结构化极有用</td></tr>
+    <tr><td>构造器 / 记录身份</td><td><strong>无构造器</strong>；原子有独立身份（⇒ 5.3 无界全域问题）</td><td>集合外无记录</td><td>类实例有身份；<code>allInstances</code> 取集合</td><td><code>mk_Card(...)</code>；<strong>记录无独立于值的身份</strong>（两张同钥匙的卡不可区分）</td><td>schema 类型提供构造器，但<strong>schema 无子类型</strong></td></tr>
+    <tr><td>子类型</td><td><code>extends</code>（互斥、带签名事实自动适配）+ <code>in</code>（可重叠子集）</td><td>无（SETS 是扁平的）</td><td>变体类型系统支持子类型（Richters–Gogolla 变体）</td><td><code>token</code>/<code>record</code> 继承（VDM++）</td><td><strong>扩展不建立类型关系</strong></td></tr>
+    <tr><td>分析的作用域如何定</td><td><code>for 3 but 6 Time</code> —— <strong>逐命令</strong>、语言内建</td><td><strong>给基本集合列举具体元素</strong> —— 全局设定</td><td>USE 的<strong>用户提供的生成器</strong>枚举快照</td><td>工具相关；且动画只覆盖<strong>可执行子集</strong></td><td>Jaza 在小域上做一定约束求解；主要靠证明</td></tr>
+    <tr><td>能自动出反例吗</td><td><strong>能</strong>，任意 <code>check</code></td><td><strong>能</strong> —— 但只有 ProB，且限于不变式/精化的证明义务</td><td>USE 靠快照枚举，接近但受递归语义限制</td><td>动画器需给定输入</td><td>动画器需给定输入</td></tr>
+    <tr><td>证明工具</td><td>无内建（语言刻意削到一阶 + 可分析）</td><td>Atelier B / B-Toolkit（+ 代码生成）</td><td>无（OCL 不以证明为目标）</td><td>VDMTools 内含证明器 / Overture</td><td>ProofPower / Z/Eves（能算前条件、做域检查）</td></tr>
+    <tr><td>「断言」在语言里吗</td><td><strong>在</strong>：assertion 是规格的一部分</td><td>不直接；由不变式与 <code>REFINES</code> 生成证明义务</td><td>不变式/前后条件；不变式可具名</td><td><strong>不在</strong>：验证猜想是工具专属扩展</td><td><strong>不在</strong>：定理在规格之外表述</td></tr>
+    <tr><td>精化</td><td>需自行用 assertion 编码</td><td><strong>内建</strong> <code>REFINES</code> + 方法学（B 的最大卖点）</td><td>无</td><td>方法学层面（refining specifications into code）</td><td>理论成熟但语言不内建</td></tr>
+    <tr><td>血统</td><td>Tarski 关系演算 + Codd 关系模型；语义受 Z 启发</td><td>Abrial（Z 早期开发者）；比 Z 更操作式</td><td>Syntropy（Cook–Daniels）+ IBM 建模工作；OMG 标准</td><td>IBM 维也纳实验室，1970s；ISO 标准</td><td>牛津，1980s；ZF 集合论</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout key">
+  <span class="tag">三点最值得带走的结论</span>
+  <ol>
+    <li><strong>「同一道题」被五种语言各写一遍，但只有 Alloy 版<em>故意留了那个漏洞</em>。</strong>原文说明 Alloy 用 <code>check</code> 在 2 秒内给出反例轨迹，也说明<strong>Gogolla 用 USE 模拟场景同样「发现了缺陷，包括 Alloy 模型第一版中的那个初始化错误」</strong>。值得注意的对照是（本页归纳，非原文断言）：四个专家版本在写法上都<strong>预先避开了</strong>那一坑 —— OCL 的 <code>init</code> 后条件 <code>issued_eq_room_key: Desk.allInstances.key4issued = Room.allInstances.key4key</code> 与 VDM 的 <code>init h == h.desk.issued = rng h.locks</code> 恰好就是 Alloy 的<em>修复方案</em>；B 干脆不设「已发出」记录，把「全新」定义为 <code>k /: key</code>；抽象 Z 模型则把「全新」定义为 <code>k? ∉ ran key</code>。<strong>换言之：漏洞之所以在 Alloy 版里出现，是因为它被写成「教学用的第一版」，而不是语言差异所致。</strong></li>
+    <li><strong>四种「其他方法」的差异，绝大多数可以归约到一个轴：把状态机写死 vs 留给习语。</strong>B、VDM（及一定程度上 Z、OCL）在语言层面固定了「状态 / 前状态 / 后状态」；Alloy 只给关系与公式，状态习语（时间列、pre/post、动态块）随你挑。<strong>本附录里 Alloy 最反直觉的一点也由此而来：它没有 <code>@pre</code>、没有 <code>Δ</code>、没有撇号、没有帧条件，只有「多一列 Time」。</strong></li>
+    <li><strong>Alloy 承认的两处真实短板在四个样例里都留下了痕迹</strong>：（a）<strong>一阶限制</strong> —— Morgan 电话局的极大性高阶公式无法表达；本附录中 VDM 的 <code>rng h.guests</code>（集合的集合）在 Alloy 里被改写为沿 Time 的量化。（b）<strong>没有构造器</strong> —— VDM/Z 用 <code>mk_Card</code>/schema 类型直接构造新值，Alloy 必须写存在量词或概括式；且这一缺失「正是 5.3 无界全域问题的核心」。看到「Alloy 写起来更绕」的地方，几乎总能归因到这两条之一。</li>
+  </ol>
+</div>
+
+<h2 id="sum">附录 E 小结</h2>
+<div class="card">
+<ol>
+  <li><strong>本附录的定位</strong>：由 <strong>Butler / Fitzgerald / Gogolla / Larsen / Woodcock</strong> 五位专家分头建模同一个酒店门锁问题，供选型参考与「他山之石」对照。因篇幅所限收录不全（Gogolla 的第二个 OCL 模型、Woodcock 的全部前条件定理与 NoIntruder 证明均未入书）。</li>
+  <li><strong>选这四家的标准</strong>：能<strong>简洁而抽象地刻画复杂结构</strong>，知名且有活跃社区；<strong>模型检查器整体不入榜</strong>，因为除 FDR 外对数据结构化支持初级。</li>
+  <li><strong>五家共性</strong>：记法比编程语言更简洁直接；状态被视为<strong>经典数学结构（集合、关系）</strong>；行为以<strong>约束声明式</strong>描述；都有求值具体案例的<strong>轻量工具</strong>；都有新工具项目。</li>
+  <li><strong>五家差异</strong>：B 偏操作式（像抽象编程语言）；OCL 语法像 Smalltalk；<strong>B、VDM 把某种状态机观念写死</strong>（Z、OCL 也部分如此），Alloy 支持多种习语；<strong>B/VDM/Z 为证明而设计</strong>，配专用定理证明器，Alloy 与 OCL 不是。</li>
+  <li><strong>Alloy 的设计公式</strong>：语言<strong>削到只剩结构化建模的基本要素</strong>，与分析工具<strong>同步发展</strong>，<strong>任何妨碍分析的特性一律排除</strong>。</li>
+  <li><strong>Alloy 分析强于他人的三条机制</strong>：不要初始条件与输入；<strong>不限制到可执行子集</strong>；<strong>覆盖作用域内整个空间</strong> ⇒ 更擅长隐蔽 bug。另加两条：<strong>断言是规格的一部分</strong>、<strong>作用域只在命令里</strong>（他人靠工具专属扩展）。</li>
+  <li><strong>「小而简」换来的四处统一</strong>：一切数据结构统一为关系；同一个连接兼作索引/解引用/函数应用；signature 可模拟 Z 的 schema 与 OCL 的 class；assertion 可表达不变式保持、精化与轨迹上的时序性质。</li>
+  <li><strong>代价（明说）</strong>：Alloy <strong>不如其他语言表达力强</strong>；结构<strong>严格一阶</strong>，而 B/VDM/Z 支持高阶；<strong>Morgan 电话局的「连接=端点集合的集合」与那条极大性高阶公式在 Alloy 中不可表达</strong>；对<strong>序列与整数支持较弱</strong>。</li>
+  <li><strong>四家独门优势（明说）</strong>：B 通往实现更直接；OCL 与 UML 集成；VDM 显式与隐式双支持；Z 的高阶特性利于大规格结构化。</li>
+  <li><strong>E.1 的 Alloy 基准模型</strong>：Card 的两把钥匙是<strong>固定刻印</strong>（无 Time 列），其余成分（房间当前钥匙、前台发出记录、前台上次入住的房间→钥匙、客人持卡）都<strong>带 Time 列</strong>。初始化只对齐了「prev 与锁一致」，却<strong>漏了「锁里已有的钥匙须记为已发出」</strong>。</li>
+  <li><strong>分析节奏</strong>：<code>for 3 but 6 Time, 1 Room, 2 Guest</code> ⇒ 2 秒出反例（六状态轨迹）；修 init 后穷尽无解；<code>for 4 but 7 Time, 2 Guest, 1 Room</code> ⇒ 又出一例（同一客人两次入住，中间夹他人）；把 <code>cards.t' = cards.t + g-&gt;c</code> 改为 <code>++</code>（覆盖而非追加）⇒ <code>for 6 but 12 Time, 3 Guest, 3 Room</code> 一分钟内穷尽。</li>
+  <li><strong>方法论落点</strong>：「我们并未证明断言成立，更大作用域里仍可能有反例（虽不太可能）；<strong>关键场景下此时应尝试证明</strong>」，而定理证明器<strong>对本附录所有方法都可适用</strong>。</li>
+  <li><strong>B（E.2）</strong>：AMN = 语言 + 逐步精化方法；最著名应用为巴黎地铁制动系统。模型五段（SETS/VARIABLES/INVARIANT/INITIALISATION/OPERATIONS）；<strong>后条件是替换而非公式</strong>（利于证明、像程序、须逐变量给出，故增量性差）；<strong>precondition 与 guard 有别</strong>（后者导致阻塞）；<strong>用列举基本集合元素来定界，且全局生效</strong>；<code>POW</code> 体现高阶；<strong>不变式与声明语义无别但类型检查在意次序</strong>。</li>
+  <li><strong>B 的工具</strong>：Atelier B、B-Toolkit 重证明与代码生成；<strong>ProB 是唯一能全自动生成反例者</strong>，检验不变式/精化的证明义务，<strong>沿轨迹而非归纳地检验精化</strong>（无需归纳不变式），还能比对 B 与 CSP 描述的抽象。</li>
+  <li><strong>OCL（E.3）</strong>：UML 的约束语言（Warmer–Klepper，源自 Syntropy 与 IBM）；<strong>先标准化、后补形式语义 ⇒ 想简单却更复杂</strong>；标准未给声明配文本记法（USE 变体补上）；<strong>to-many 语义上是「到集合的函数」⇒ 关系有强方向性、不可反向遍历 ⇒ 关联以「角色」成对暴露</strong>；<strong>重数进入类型</strong>（导航返回集合或标量，改重数即改类型）；<strong>无传递闭包 ⇒ 允许递归 ⇒ 需最小不动点语义 ⇒ 无法使用约束求解器（会产生非极小解的伪案例）</strong>；<code>类 ≠ 对象集合</code>（故须 <code>allInstances</code>）；<strong>表达式不能表示关系</strong>；基本类型在库模块里 ⇒ <strong>类型检查器只能依赖声明类型，无法利用算子含义</strong>。</li>
+  <li><strong>OCL 样例的坑</strong>：<code>prev</code> 是三元关联；<strong>k 个角色的关联中每个角色表示 k−1 个二元关系</strong>；角色视图<strong>不完全具有表达力</strong>（多前台时写不出 <code>d.prev[r]</code>，须把关系显式表示为元组集合）；<code>Set{c.key4snd}</code> 的 <code>Set</code> 并非多余 —— <strong>三元关系中角色重数说的是「其他类型的某种实例组合对应多少个该类型实例」，不是 <code>x.r</code> 那个集合的大小</strong>。</li>
+  <li><strong>OCL 工具</strong>：Octopus / Together 组件做语法类型检查、测试案例解释、代码生成；<strong>USE 最强</strong>，新增「用户生成器枚举快照」后<strong>可按 Alloy 风格穷尽有限空间</strong>，并据此复现了 Alloy 第一版的初始化错误。</li>
+  <li><strong>VDM（E.4）</strong>：维也纳开发方法（Jones、Bjørner），<strong>逻辑式规格的许多原理首现于此</strong>；VDM-SL 由 ISO 标准化，两套语法（ASCII 与数学符号）；工业案例含电子交易、安全智能卡、荷兰花卉拍卖。</li>
+  <li><strong>VDM 的概念</strong>：状态机 + 每声明可带不变式；<strong>「可实现性」检查</strong>（显式风格自动满足）；不变式隐式并入前后条件（同 Alloy/OCL/Z）；<strong>操作引用 ≈ 一对 Alloy 谓词</strong>；<strong>验证猜想 = 断言，但用工具专属扩展表达</strong>；<strong>独有帧条件 <code>ext rd/wr</code></strong>（更简短、更好读，但<strong>排斥「由其他成分定义的冗余状态成分</strong> —— 而这恰是 Alloy 的常用手法）。</li>
+  <li><strong>VDM 样例的洞见</strong>：<code>token</code> = 无解释原子；<code>mk_Card</code> 构造器是 Alloy 所缺；<strong>「记录无独立于值的身份」⇒ 两张同钥匙的卡不可区分，这「正是 5.3 无界全域问题的核心」</strong>；状态不变式里的 <code>dunion rng h.guests</code> 是<strong>集合的集合</strong>，Alloy 须写成沿 Time 的量化 <code>all t | Guest.cards.t.(fst+snd) in Desk.issued.t</code>；<strong>时间变量 t 扮演 VDM 状态变量 h 的角色，位置只是习语的产物</strong>；帧条件省掉了 Alloy 必须显式写的一串「未变化」等式；<strong>Enter 的前条件被迫在后条件里重复一遍（存在量词无法横跨两者）</strong>；<code>c~</code> 表前状态、<code>&amp;</code> 分隔量词约束与主体；<strong>变异仅限状态顶层成分（不能把 cards 变可变来模拟黑客改卡；VDM++ 可以）</strong>；<strong>区分 set 与 map（union/munion）且需集合括号区分 <code>{{}}</code> 与 <code>{}</code></strong>；动画器要求显式风格：<strong>存在量词→let、约束→赋值、帧条件可省 —— 该记法与 B 极像</strong>。</li>
+  <li><strong>VDM 工具</strong>：IFAD 的 VDMTools（类型检查 + 定理证明 + <strong>可执行子集</strong>的模拟测试 + 代码生成），现属 CSK；VDM++ 的新支持在 <strong>Overture</strong> 开源计划下开发。</li>
+  <li><strong>Z（E.5）</strong>：牛津 1980s；CICS、Praxis、<strong>Mondex（首个 ITSEC Level 6 产品）</strong>；<strong>其干净简单的语义基础是 Alloy 的灵感来源</strong>；已 ISO 标准化但 Spivey 的版本最流行。</li>
+  <li><strong>Z 的概念</strong>：<strong>一个 schema 同时打包声明与约束</strong>（Alloy 分 sig 与 fact/pred/fun）；schema calculus 丰富到足以支持多种习语，但<strong>Oxford style 的约定已成语言事实的一部分</strong>（顺序组合算子离开它就失去预期含义）；<strong>无内建精化但有成熟精化理论</strong>；<strong>引用 schema 即隐式并入其声明与谓词 ⇒ 变量常无显式声明 ⇒ 简洁到神秘，此力量与 OO 继承、Alloy 的 <code>extends</code> 同源（后者正是为 schema 式结构化而设计）</strong>；不变式随状态声明隐式并入操作（<strong>与 B 的「须证明保持」相反</strong>）；<strong>不区分前后条件，显式前条件只是风格</strong>；以「推导前条件并与期望比较」的定理取代 VDM 的可实现性检查。</li>
+  <li><strong>Alloy 的血统声明（本页最重要的一段史料）</strong>：Z/B 视<strong>集合为基本、关系为派生</strong>（Z 之名来自 ZF 集合论）；<strong>Alloy 虽也用集合与关系，但其逻辑更多受 Tarski 关系演算与 Codd 关系数据库模型影响，把集合当作关系的特例</strong>。</li>
+  <li><strong>Z 的 schema 类型 vs Alloy 的 signature</strong>：<strong>多了构造器，少了子类型</strong> —— 扩展 schema 与被扩展 schema <strong>类型互不相关</strong>，故文件系统对象的实例无法放进声明在「文件系统对象」上的集合/关系里（Alloy 的 <code>extends</code> 无此限制）。</li>
+  <li><strong>Z 样例的要点</strong>：given sets <code>[Guest,Key,Room]</code> 作类型检查基础；<code>initkeys</code> 是全局常量、<code>Msg</code> 是 datatype；<strong>箭头种类表重数</strong>（<code>↣</code> 偏单射、<code>↛</code> 偏函数）；<code>firsttime</code> 是 Alloy 版没有的成分，用来标记「下次进入即须重编锁」的房间；<strong>撇号 = decoration</strong>（并入逐变量加撇的声明）；<strong>schema 谓词只是各行合取，<code>=</code> 是相等不是赋值，等式两侧可互换</strong>；之所以把撇号写在左边是为了<strong>可动画</strong>，且「更传统的 Z 风格会干脆不提 <code>key'</code>」；<code>Δ</code>=前后两套变量，<code>Ξ</code>=再加「每变量等于其撇号版」⇒ <strong>表示无影响的操作</strong>；<code>?</code>/<code>!</code> 只是约定，语义上与普通变量无异，绑定靠<strong>语法替换</strong>（故<strong>表达式不能替换变量</strong>，无对应变量时须用存在量词声明）。</li>
+  <li><strong>Z 的两处「Alloy 做不到 / Alloy 抄了 Z」</strong>：<strong>「这类前条件定理在 Alloy 中不可表达（见 5.3），非意图性的过度约束改由模拟操作来缓解」</strong>；反之「<strong>操作不过是逻辑公式，故可用 ∧/∨ 组装 —— Alloy 从 Z 借来此想法并支持同类结构化</strong>」。另注意：<strong>未被提及的状态变量不受约束、需要显式等式</strong>，原文明说这一点 Z 与 Alloy、OCL 相同。</li>
+  <li><strong>Z 工具</strong>：重心在证明 —— <strong>ProofPower</strong>、<strong>Z/Eves</strong>（能算前条件、做<strong>域检查</strong>确保偏函数不越域应用、一般定理证明，复杂定理需老手引导）；动画器 <strong>Jaza</strong>（Utting，Waikato）能执行显式风格操作并在小域上做一定约束求解，整个样例模型皆可处理；与 USE、VDMTools 动画器一样可求值表达式、校验状态与转移、按用户选操作模拟轨迹。</li>
+  <li><strong>选型口诀（本页归纳）</strong>：要<em>一路做到代码</em> ⇒ B；要在 <em>UML 上贴约束</em> ⇒ OCL；要<em>接口式、显隐双轨</em> ⇒ VDM；要<em>高阶结构化 + 定理证明</em> ⇒ Z；要<em>最快找到隐蔽 bug、语言最小、可自由选习语</em> ⇒ Alloy。</li>
+  <li><strong>全书终章的一句话精神</strong>：这些语言<strong>都早于 Alloy，Alloy 从它们的经验中大大受益</strong>；差异不在优劣，而在<strong>「表达力 ↔ 可分析性」这条光谱上各占一点</strong>。</li>
+</ol>
+</div>
+
+<div class="pager">
+  <a href="appD.html"><div class="d">← 上一章</div><div class="n">附录 D · 图形记法</div></a>
+  <a href="index.html" class="next"><div class="d">回到</div><div class="n">全站目录 →</div></a>
+</div>
+
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 附录 E · 本站共 6 章 + 前言 + 附录 A–E</div>
+</div>
+</body>
+</html>
