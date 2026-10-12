@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>前言 &amp; 致谢 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">前言 &amp; 致谢</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html" class="on">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1>前言 &amp; 致谢</h1>
+<p class="sub">Preface（p. xi–xiv）与 Acknowledgments（p. xv–xvi）· 一门语言诞生的十年</p>
+
+<div class="callout">
+  <span class="tag">一句话概括</span>
+  <p>Alloy 是 Jackson 花了十年，试图把 <strong>Z 的优雅</strong>（牛津的庭院）和 <strong>SMV 模型检查的自动化暴力</strong>
+  （匹兹堡的钢厂烟囱）缝合起来的产物。缝合的方式是：语言上继承 Z 的极简关系论，分析上放弃定理证明、
+  改用 SAT 求解器做有限作用域内的穷举。</p>
+</div>
+
+<h2 id="story">一、缘起：四次转折</h2>
+<p>前言其实是一部个人思想史，四次转折构成了 Alloy 的全部动机：</p>
+
+<div class="card">
+  <h4>① 1980s 中期 · Larch 的许诺</h4>
+  <p style="color:var(--ink-soft)">Jackson 在伦敦 Logica UK 当程序员，因 VDM 与 JSP 的小成功而成为形式化方法的狂热鼓吹者，
+  坚信它会终结「软件危机」。真正吸引他的是 Guttag 与 Horning 的 <strong>Larch</strong>——一门适合机械分析的语言，
+  他们证明「关于设计的问题可以被自动回答」。这意味着真正的软件「蓝图」：在写代码之前先分析设计的本质。
+  他因此去 MIT 跟 John Guttag 读博。</p>
+</div>
+
+<div class="card">
+  <h4>② 博士期间 · 幻灭</h4>
+  <p style="color:var(--ink-soft)">形式化方法不是银弹。两个致命问题：</p>
+  <ul style="color:var(--ink-soft)">
+    <li><strong>建模太难</strong>：要为系统的每个细节写规格说明，成本不可接受。</li>
+    <li><strong>定理证明无法全自动</strong>：Larch 依赖的分析手段需要「数学大牛的细心引导」，
+      而且再过 20 年研究后依然如此。</li>
+  </ul>
+  <p style="color:var(--ink-soft)">于是他转向更保守的路线——自动检测代码中的 bug，但始终没有放弃设计分析的野心。</p>
+</div>
+
+<div class="card">
+  <h4>③ 1992 · CMU 的震撼</h4>
+  <p style="color:var(--ink-soft)">那时他已像许多形式化方法社区的人一样迷恋 <strong>Z</strong>：Z 抛弃了早期语言的复杂性，
+  建立在集合论最简单的概念上。但 Z 比 Larch 更不可分析——唯一广泛使用的工具是 pretty printer 和类型检查器。</p>
+  <p style="color:var(--ink-soft)">就在那次访问中，Ken McMillan 给他看了 <strong>SMV 模型检查器</strong>：
+  能在几秒内检查十亿状态的状态机，<em>完全不需要用户协助</em>。原文用词是「I was awestruck」。</p>
+</div>
+
+<div class="card">
+  <h4>④ 关键落差 · 模型检查不适合软件</h4>
+  <p style="color:var(--ink-soft)">模型检查让「verification」一夜之间重新时髦，芯片厂商的采用证明了
+  <strong>工程师真的会写形式化模型</strong>——只要收益足够大，他们会自发去做。</p>
+  <p style="color:var(--ink-soft)">但模型检查器的语言不适合软件。它们处理的是<em>多个简单状态机并发交互</em>产生的复杂性；
+  而软件设计中，复杂性来自<em>单个机器内部状态的复杂结构</em>。模型检查器处理不了这种结构——
+  甚至连<strong>间接引用（indirection）</strong>都处理不了，而间接引用是一切软件设计的本质。</p>
+</div>
+
+<div class="callout idea">
+  <span class="tag">值得记住的论断</span>
+  <p>「模型检查器连 indirection 都处理不了」这句话，是理解 Alloy 存在理由的钥匙。
+  软件的本质就是指针、引用、别名、层级委托——A 引用 B，B 引用 C，C 又绕回 A。
+  这类结构在布尔状态机的扁平位向量表达里是灾难。Alloy 的解法是：
+  把一切结构都建模成<strong>关系</strong>（原子的元组集合），关系天然就能表达间接引用，
+  而且关系的 join / 传递闭包正是导航表达式的语义基础。</p>
+</div>
+
+<h2 id="design">二、Alloy 的两个组成部分</h2>
+<div class="grid c2">
+  <div class="card">
+    <h4>语言：根植于 Z，吸收对象建模</h4>
+    <ul style="font-size:14.5px;color:var(--ink-soft)">
+      <li>像 Z 一样，用<strong>最小的数学工具集</strong>描述所有结构（空间的和时间的），
+        而且工具集比 Z 更小更简单。</li>
+      <li>受 <strong>OMT / Syntropy</strong> 等对象建模记法强烈影响：容易对对象分类，
+        并按分类给对象关联性质。</li>
+      <li>支持<strong>导航表达式</strong>（navigation expressions）——如今对象建模的支柱，
+        而 Alloy 的语法「特别简单而统一」。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>分析：其实不像模型检查</h4>
+    <ul style="font-size:14.5px;color:var(--ink-soft)">
+      <li>Alloy Analyzer 与其灵感来源（模型检查）<strong>几乎没有相似之处</strong>。</li>
+      <li>它依赖 <strong>SAT（布尔可满足性）</strong>技术的进展：把 Alloy 约束翻译成布尔约束，
+        交给现成的 SAT 求解器。</li>
+      <li>因此<strong>求解器变快，Alloy 就变快</strong>，能扩展到更大问题。
+        用当时最好的求解器，可以检查数百 bit 宽的空间（即 10<sup>60</sup> 以上的案例）。</li>
+      <li>硬件进步也有功劳：同样的分析在 10 年前的机器上要花一小时。</li>
+    </ul>
+  </div>
+</div>
+<p style="color:var(--ink-dim);font-size:14px">
+  Jackson 顺便澄清：Alloy 并非 SAT 在这类问题上的首次应用。SAT 此前已被用于铁路控制系统分析、硬件检查、规划（planning）；
+  自 Alloy 采用后，SAT 也被引入到了模型检查器中。
+</p>
+
+<h2 id="exp">三、用自动分析器建模的体验：先兴奋，后羞辱</h2>
+<p>这是前言里最生动、也最该被每个建模者读到的一段。Jackson 说这种体验「at once thrilling and humiliating」：</p>
+<ol>
+  <li><strong>第一阶段是惊叹</strong>：当你得到即时的、可视化的反馈时，建模变得有趣多了。
+    模拟一个不完整的模型，你立刻看到实例，这些实例会<strong>提示你该加什么新约束</strong>。</li>
+  <li><strong>然后羞辱感袭来</strong>：你发现自己几乎什么都做不对。
+    <em>你写下的东西并不精确地意味着你以为它意味着的东西</em>；而当它确实是那个意思时，
+    <em>它又没有你预期的后果</em>。</li>
+  <li><strong>自动分析工具远比人类评审者无情</strong>。Jackson 写道：
+    「我现在一想到自己写过（甚至发表过）的那些从未被分析过的模型就发怵，因为我知道它们一定错误百出。」</li>
+  <li>但慢慢地，工具教会你犯越来越少的错误，你对自己建模能力（以及你的模型）的信心会增长。</li>
+</ol>
+
+<div class="callout key">
+  <span class="tag">一个被低估的用法</span>
+  <p>分析不仅能让模型<strong>更正确</strong>，还能让它<strong>更简洁、更优雅</strong>。
+  当你想重构一条约束时，可以让分析器检查<em>新旧约束是否同义</em>——
+  这就像用单元测试保护代码重构，只不过分析器通常检查数十亿个案例，而且<strong>不需要写测试套件</strong>。</p>
+</div>
+
+<h2 id="lfm">四、Lightweight Formal Methods（轻量级形式化方法）</h2>
+<p>Jackson 把自己的路线称为 <strong>lightweight formal methods</strong>：以更低成本、无需大额前期投入，
+获取传统形式化方法的收益。其特征是：</p>
+<ul>
+  <li>模型<strong>增量开发</strong>，由建模者对「软件哪些方面最重要、风险最大在哪里」的判断驱动；</li>
+  <li>尽早利用自动化工具发现缺陷。</li>
+</ul>
+<p>但与此同时，他明确承认传统形式化方法的<strong>核心前提是对的</strong>，并引用 Tony Hoare 图灵奖演讲中的名言：</p>
+<div class="fig" style="border-left:4px solid var(--warn)">
+  <p style="font-family:var(--serif);font-size:17.5px;line-height:1.75;margin:0;color:#f0e6d2">
+    “There are two ways of constructing a software design: One way is to make it so simple
+    there are <strong>obviously no deficiencies</strong> and the other way is to make it so complicated
+    that there are <strong>no obvious deficiencies</strong>.”
+  </p>
+  <div class="cap">—— C.A.R. Hoare，图灵奖演讲</div>
+</div>
+<p>由此推出的实践主张：</p>
+<ul>
+  <li>承诺设计的简洁，意味着<strong>显式地、前置地</strong>处理设计的本质——软件所依赖的抽象。</li>
+  <li>抽象被表述、解释、评审、深入考察，<strong>与实现细节隔离</strong>。</li>
+  <li>这<strong>不</strong>意味着瀑布式流程（所有设计与规格说明先于所有编码）。
+    但体验过这种关注点分离好处的开发者会不愿仓促写代码，因为他们知道：
+    <strong>在抽象设计上花的一小时，能省下几天的重构。</strong></li>
+</ul>
+
+<div class="callout idea">
+  <span class="tag">书名与「特洛伊木马」</span>
+  <p>Jackson 直言：Alloy 语言和它的分析是一匹<strong>特洛伊木马</strong>——
+  试图抓住那些深陷实现技术「焦油坑」的开发者的注意力，把他们带回对底层概念的深度思考。
+  这正是书名选 <em>Software Abstractions</em> 而非 <em>The Alloy Language</em> 的原因：
+  语言只是手段，主题是抽象。他的愿景是，如果我们不再为一丁点性能提升或越来越复杂的功能而奋斗，
+  而是为<strong>简洁与清晰</strong>奋斗，软件会更强大、更可靠、更好用——
+  像土木与机械工程的最佳造物一样，成为「效用与美的结合」。</p>
+</div>
+
+<h2 id="ack">五、致谢：谁造出了 Alloy</h2>
+<p>致谢部分实际上是一份精确的技术贡献清单，几个关键名字值得记住：</p>
+<table>
+  <thead><tr><th>人物</th><th>贡献</th><th>为什么重要</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Ilya Shlyakhter</strong></td>
+      <td>发明了「给每个关系加一列状态原子」来表达动态的建模范式；设计了 Alloy Analyzer 的关键算法</td>
+      <td>这个范式直接导致了 <code>sig</code>（signature）构造的设计，并使 Alloy 在<strong>表达力与可处理性之间达成微妙平衡</strong>。第 2.4 节「执行轨迹」正是这一思想的展开。</td>
+    </tr>
+    <tr>
+      <td><strong>Manu Sridharan</strong></td>
+      <td>对语言贡献广泛，设计实现了分析器的大部分</td>
+      <td>在 Alloy 还没有可信示例之前就是它的拥护者</td>
+    </tr>
+    <tr>
+      <td><strong>Jonathan Edwards</strong></td>
+      <td>主导了 Alloy <strong>新类型系统</strong>的设计</td>
+      <td>对应第 4.4 节「Types and Type Checking」——那个「有子类型和并集但不需要向下转型」的类型系统</td>
+    </tr>
+    <tr>
+      <td><strong>Viktor Kuncak</strong></td>
+      <td>发展了 <strong>unbounded universal quantifier</strong> 问题背后的理论</td>
+      <td>对应第 5.3 节——这是 Alloy 分析中最阴险的一类假阴性来源</td>
+    </tr>
+    <tr>
+      <td><strong>Emina Torlak</strong></td>
+      <td>Alloy 的首席开发者（当时）</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Butler / Fitzgerald / Gogolla / Gorm Larsen / Woodcock</td>
+      <td>各自用自己的语言为<strong>酒店房卡锁问题</strong>给出解法</td>
+      <td>构成了附录 E 的 B / VDM / OCL / Z 对比材料；第 6.2 节的酒店案例因此成为全书的多语言基准</td>
+    </tr>
+    <tr>
+      <td>通读全书的评审者</td>
+      <td>Michael Jackson（其父）、Jeremy Jacob、Viktor Kuncak、Butler Lampson、Chris Wallace、David Wilczynski、Pamela Zave</td>
+      <td>「几乎在每一页都找到了要修的东西」</td>
+    </tr>
+  </tbody>
+</table>
+<p style="color:var(--ink-dim);font-size:14px">
+  致谢末尾很有温度：他把书献给妻子 Claudia，她教会他「分析并不是一切」（以及《纽约客》比《经济学人》有趣多了）；
+  也提到孩子们将在一个「比今天更好、更简单的软件世界」里长大。
+  他还感谢哥哥 Adam Jackson 坚持要求正文做<strong>光学对齐</strong>（optical alignment）并教他怎么做——
+  这解释了原书排版为何如此讲究。
+</p>
+
+<h2 id="take">六、读完前言应该带走的五个判断</h2>
+<div class="grid c2">
+  <div class="callout key" style="margin:0">
+    <span class="tag">1</span>
+    <p>Alloy 的定位不是「验证工具」，而是<strong>设计探索工具</strong>。它的价值发生在写代码之前。</p>
+  </div>
+  <div class="callout key" style="margin:0">
+    <span class="tag">2</span>
+    <p>它用<strong>放弃完备性</strong>换来了<strong>全自动</strong>。这个交易在第 5 章会被严格讨论边界在哪。</p>
+  </div>
+  <div class="callout key" style="margin:0">
+    <span class="tag">3</span>
+    <p>「不需要写测试用例」是它相对测试的核心优势：你提供的是<strong>性质</strong>，而性质通常和单个测试用例一样简短。</p>
+  </div>
+  <div class="callout key" style="margin:0">
+    <span class="tag">4</span>
+    <p>建模会被工具羞辱，这是<strong>特性不是缺陷</strong>。人类评审者会客气，SAT 求解器不会。</p>
+  </div>
+  <div class="callout key" style="margin:0">
+    <span class="tag">5</span>
+    <p>技术的赌注押在 SAT 求解器的持续进步上——这使得 Alloy 的分析能力<strong>随外部技术水涨船高</strong>，无需重新设计。</p>
+  </div>
+  <div class="callout warn" style="margin:0">
+    <span class="tag">注意</span>
+    <p>前言写于 2006 年。今天的 Alloy 6 已加入 relsat、时序运算符（<code>eventually</code>/<code>after</code>）、
+    可变字段与增量实例化，分析能力远超书中所述，但<strong>逻辑内核与建模范式没有变</strong>。</p>
+  </div>
+</div>
+
+<div class="pager">
+  <a href="index.html"><div class="d">返回</div><div class="n">全书目录</div></a>
+  <a href="ch1.html" class="next"><div class="d">下一章</div><div class="n">1 · Introduction 导论 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 前言与致谢</div>
+</div>
+</body>
+</html>
