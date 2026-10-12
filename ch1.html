@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第 1 章 · Introduction 导论 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">第 1 章 · 导论</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html" class="on">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">1</span>Introduction · 导论</h1>
+<p class="sub">原书 p. 1–3 · 只有三页，却是全书的论证骨架：抽象 → 一厢情愿 → 代码不适合探索抽象 → 形式化方法的两大障碍 → Alloy 的三要素</p>
+
+<div class="toc">
+  <div class="t">本章地图</div>
+  <ol>
+    <li><a href="#s1">抽象决定成败</a></li>
+    <li><a href="#s2">抽象也是给用户用的</a></li>
+    <li><a href="#s3">抽象是什么：发明还是发现</a></li>
+    <li><a href="#s4">为什么「本该简单的流程」行不通</a></li>
+    <li><a href="#s5">XP 的答案与代码的局限</a></li>
+    <li><a href="#s6">形式化方法：成功与两大障碍</a></li>
+    <li><a href="#s7">本书的新路径</a></li>
+    <li><a href="#s8">逻辑 / 语言 / 分析三要素</a></li>
+    <li><a href="#s9">读者对象与本书体例</a></li>
+  </ol>
+</div>
+
+<h2 id="s1"><span class="num">1.1</span>抽象决定成败</h2>
+<p>开篇第一句就是全书的论点：<strong>「Software is built on abstractions.」</strong>
+接下来是一个非常干净的二分：</p>
+<div class="grid c2">
+  <div class="card" style="border-left:3px solid var(--accent-2)">
+    <h4 style="color:var(--accent-2)">选对抽象</h4>
+    <ul style="font-size:14.5px;color:var(--ink-soft);margin:0">
+      <li>编程会<strong>自然地从设计中流淌出来</strong>（flow naturally from design）</li>
+      <li>模块拥有<strong>小而简单</strong>的接口</li>
+      <li>新功能<strong>更可能直接装进去</strong>，无需大规模重组</li>
+    </ul>
+  </div>
+  <div class="card" style="border-left:3px solid var(--danger)">
+    <h4 style="color:var(--danger)">选错抽象</h4>
+    <ul style="font-size:14.5px;color:var(--ink-soft);margin:0">
+      <li>编程变成一连串<strong>讨厌的意外</strong></li>
+      <li>接口为了容纳未预料到的交互而变得<strong>巴洛克式地繁复笨拙</strong>（baroque and clumsy）</li>
+      <li>连最简单的改动都难以下手</li>
+    </ul>
+  </div>
+</div>
+<div class="callout pit">
+  <span class="tag">本章最重的一句话</span>
+  <p><strong>「No amount of refactoring, bar starting again from scratch, can rescue a system built on flawed concepts.」</strong><br>
+  建立在有缺陷的概念之上的系统，除了推倒重来，任何程度的重构都救不了它。
+  这句话直接否定了「先写起来，以后再重构」的乐观主义，也正是 Alloy 要在设计期介入的理由。</p>
+</div>
+
+<h2 id="s2"><span class="num">1.2</span>抽象也是给用户用的</h2>
+<p>Jackson 特别强调抽象不只影响开发者，也直接影响用户，而且两类用户的诉求是相反方向的：</p>
+<table>
+  <thead><tr><th>用户类型</th><th>想要的抽象</th></tr></thead>
+  <tbody>
+    <tr><td><strong>新手</strong></td><td>简单、易于理解</td></tr>
+    <tr><td><strong>专家</strong></td><td>健壮、通用，足以<strong>用新的方式组合</strong></td></tr>
+  </tbody>
+</table>
+<p>当好的抽象在设计中缺失，或者随着系统演化而<strong>侵蚀</strong>（erode）时，程序会长出「复杂性的藤壶」
+（<em>barnacles of complexity</em>）。后果由用户承担：</p>
+<ul>
+  <li>被迫掌握一大堆<strong>伪细节</strong>（spurious details）；</li>
+  <li>被迫发展出<strong>绕路方案</strong>（workarounds）；</li>
+  <li>被迫接受<strong>频繁且无法解释的失败</strong>。</li>
+</ul>
+
+<h2 id="s3"><span class="num">1.3</span>抽象是什么：发明还是发现</h2>
+<div class="callout key">
+  <span class="tag">定义</span>
+  <p>「An abstraction is not a module, or an interface, class, or method;
+  it is <strong>a structure, pure and simple</strong>—an idea reduced to its essential form.」<br>
+  抽象<strong>不是</strong>模块、接口、类或方法；它是<strong>纯粹的结构</strong>——一个被还原到本质形式的想法。</p>
+</div>
+<p>由此 Jackson 提出一个很有哲学味道的区分：</p>
+<ul>
+  <li>由于同一个想法可以被还原成<strong>不同的形式</strong>，抽象在某种意义上<strong>总是发明</strong>（inventions），
+    即使它们所还原的想法早已存在于软件之外的世界里。</li>
+  <li>但<strong>最好的抽象</strong>如此自然、如此令人信服地捕捉了底层想法，以至于它们<strong>更像是发现</strong>（discoveries）。</li>
+</ul>
+<p style="color:var(--ink-dim);font-size:14.5px">
+  这段话解释了为什么本书要用「结构」而非「代码构件」作为建模对象，也解释了第 6 章那些案例为何读起来像「发现了某个早已存在的真理」。
+</p>
+
+<h2 id="s4"><span class="num">1.4</span>为什么「本该简单的流程」行不通</h2>
+<p>Jackson 先描述了一个理想流程：</p>
+<ol>
+  <li>从对问题及其可能未来变体的仔细考量中<strong>设计抽象</strong>；</li>
+  <li>再开发它在代码中的<strong>体现</strong>：接口与模块、数据结构与算法
+    （用面向对象的话说，就是类层次、数据类型表示和方法）。</li>
+</ol>
+<p>然后一句话推翻：<strong>「Unfortunately, this approach rarely works.」</strong> 原因是 Bertrand Meyer 所称的
+<strong>wishful thinking（一厢情愿）</strong>：</p>
+<div class="callout warn">
+  <span class="tag">一厢情愿的机制</span>
+  <p>你想出一组看起来简单又健壮的抽象。但当你去实现它们时，它们被证明是<strong>不连贯的</strong>（incoherent），
+  甚至可能是<strong>自相矛盾的</strong>（inconsistent）；而随着代码增长、你试图调整它们时，
+  它们在复杂性中<strong>崩塌</strong>（crumble）。</p>
+</div>
+<p>接着 Jackson 提出了一个非常尖锐的反问，并自己回答：</p>
+<div class="qa">
+  <div class="q">Q：为什么那些在设计期逃过你眼睛的缺陷，到了编码期会变得如此刺眼（而且痛苦）？</div>
+  <div class="a">
+    <p><strong>不是因为</strong>你选的抽象在各方面都完美、只在「能否用代码实现」这一点上有问题。</p>
+    <p><strong>而是因为</strong>编程的环境比勾画设计抽象的环境<strong>苛刻得多</strong>（exacting）：</p>
+    <ul>
+      <li>编译器<strong>完全不容忍任何含糊</strong>（admits no vagueness whatsoever）；</li>
+      <li>跑几个测试，<strong>粗大的错误立刻暴露</strong>。</li>
+    </ul>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这才是 Alloy 的真正机会</span>
+  <p>这个分析非常关键。它说明「编码期发现 bug」<strong>不是因为代码阶段更聪明，而是因为代码阶段更严苛</strong>。
+  那么逻辑结论就是：<em>把严苛性提前到设计期</em>——用一个「不容忍含糊」的记法来写抽象。
+  这正是 Alloy 做的事：它是一门<strong>精确、无歧义</strong>的语言，配上<strong>自动分析</strong>，
+  于是设计草图获得了编译器级别的严格性，却不必背上可执行性的包袱。</p>
+</div>
+
+<h2 id="s5"><span class="num">1.5</span>XP 的答案，以及代码作为媒介的局限</h2>
+<p>Jackson 承认「极限编程」（XP）对这个问题给出了一个自洽的回答：
+认识到早期使用工具的好处与一厢情愿的风险后，XP <strong>干脆取消了作为独立阶段的设计</strong>——
+软件设计随代码一起演化，靠类型检查和单元测试的严格性来约束。</p>
+<p>但他紧接着指出 XP 的隐含代价：</p>
+<div class="callout pit">
+  <span class="tag">核心批评</span>
+  <p><strong>「But code is a poor medium for exploring abstractions.」</strong>——代码是探索抽象的糟糕媒介。四条理由：</p>
+  <ol style="margin-bottom:0">
+    <li><strong>可执行性带来复杂性之网</strong>：即使一个简单的抽象也会陷入无关细节的泥沼。</li>
+    <li><strong>作为记法笨拙冗长</strong>：code is clumsy and verbose as a notation for expressing abstractions。</li>
+    <li><strong>探索全局改动代价高</strong>：为了试一个简单的全局变更，设计师可能要跨多个文件做大量编辑。</li>
+    <li><strong>评审者最惨</strong>：「And pity the reviewer who has to critique design abstractions by poring over a code listing.」
+      ——可怜那个必须靠研读代码清单来评判设计抽象的评审者。</li>
+  </ol>
+</div>
+
+<h2 id="s6"><span class="num">1.6</span>形式化方法：真实成功与两大障碍</h2>
+<p>另一条路是<strong>正面进攻</strong>抽象设计：选用一种为「易于表达和探索」而设计的记法。
+通过让记法精确无歧义，来降低一厢情愿的风险。这就是<strong>形式化规格说明</strong>（formal specification），
+它已经有若干重大成功。</p>
+<div class="card">
+  <h4>案例：Praxis</h4>
+  <p style="color:var(--ink-soft);margin-bottom:0">一家英国公司，用<strong>形式化规格说明 + 静态分析</strong>的组合开发关键系统。
+  它为产品<strong>提供质保</strong>（warranty），缺陷率比行业平均<strong>低一个数量级</strong>，
+  而且是在<strong>成本相当</strong>的前提下做到的。这证明形式化方法在经济上可以是划算的。</p>
+</div>
+<p>那么为什么形式化规格说明没有被更广泛地使用？Jackson 给出两个障碍：</p>
+<table>
+  <thead><tr><th>#</th><th>障碍</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>①</td>
+      <td><strong>数学化的语法令人望而生畏</strong></td>
+      <td>尽管它们本质上比大多数编程语言<strong>更简单</strong>，但数学记号让软件设计师感到害怕。这是一个<em>表面</em>障碍。</td>
+    </tr>
+    <tr>
+      <td>②</td>
+      <td><strong>除类型检查和美化打印外缺乏工具支持</strong></td>
+      <td>这是<strong>更根本</strong>的障碍。定理证明器在过去 20 年进步巨大，但仍然要求超出大多数软件项目承受能力的投入，
+        并且迫使你把注意力放在<strong>并不反映所探索抽象之根本性质的数学细节</strong>上。</td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">解读</span>
+  <p>注意障碍②的措辞非常精准：定理证明的痛点不只是「难」，而是<strong>难点跑偏了</strong>——
+  你花大量精力在归纳引理、量词实例化、证明项构造上，而这些与「我的文件系统抽象到底对不对」毫无关系。
+  Alloy 通过<strong>放弃完备性、换取全自动</strong>，把这些跑偏的数学细节一次性消除了。
+  代价（分析不完备）在第 5 章被诚实地讨论。</p>
+</div>
+
+<h2 id="s7"><span class="num">1.7</span>本书的新路径</h2>
+<p>「This book presents a new approach.」它的配方是一次明确的取舍：</p>
+<div class="grid c2">
+  <div class="card">
+    <h4 style="color:var(--accent-2)">保留（来自形式化规格说明）</h4>
+    <p style="color:var(--ink-soft);margin:0">一种<strong>精确而富有表达力的记法</strong>，
+    建立在<strong>极小核心的简单健壮概念</strong>之上。</p>
+  </div>
+  <div class="card">
+    <h4 style="color:var(--danger)">替换（放弃定理证明）</h4>
+    <p style="color:var(--ink-soft);margin:0">换成<strong>全自动的分析</strong>，提供<strong>即时反馈</strong>。</p>
+  </div>
+</div>
+<p>然后 Jackson 立刻坦白代价，并解释为什么这个代价可以接受：</p>
+<ul>
+  <li>与定理证明不同，这种分析<strong>不是「完备的」</strong>：它只检查<strong>有限</strong>的案例空间。</li>
+  <li>但由于约束求解技术的近期进展，被检查的案例空间通常<strong>极其巨大</strong>——数十亿甚至更多——
+    因此它提供了<strong>测试无法达到的覆盖度</strong>。</li>
+  <li>而且与测试不同，这种分析<strong>不需要测试用例</strong>。用户提供的是一个<strong>待检查的性质</strong>，
+    而这个性质通常可以和单个测试用例一样简短。</li>
+</ul>
+<div class="callout key">
+  <span class="tag">本章的落点</span>
+  <p>于是一种新的探索方式成为可能，它<strong>同时兼具</strong>：</p>
+  <p style="margin-bottom:0">极限编程的<strong>增量性与即时性</strong>（incrementality and immediacy）
+  <span style="color:var(--ink-dim)">+</span> 形式化规格说明的<strong>深度与清晰</strong>（depth and clarity）。</p>
+</div>
+
+<h2 id="s8"><span class="num">1.8</span>逻辑 / 语言 / 分析：三要素逐条拆解</h2>
+<p>这是全书的路线图，原文用三个 bullet 精确界定，值得逐字对照：</p>
+
+<h3>① 逻辑（Logic → 第 3 章）</h3>
+<ul>
+  <li>提供语言的<strong>构建块</strong>（building blocks）。</li>
+  <li><strong>所有结构都表示为关系</strong>（All structures are represented as relations）。</li>
+  <li>结构性质用<strong>少数几个简单但强大的算子</strong>表达。</li>
+  <li><strong>状态和执行都用约束描述</strong>（逻辑学家叫 formulas，程序员叫 boolean expressions），
+    这带来一种<strong>增量方法</strong>：行为可以通过<strong>添加新约束</strong>来细化。</li>
+</ul>
+<div class="callout idea">
+  <span class="tag">解读：「状态与执行同构」为什么重要</span>
+  <p>这是 Alloy 最优雅的设计决定之一。传统方法里，「结构」和「行为」是两套记法（类图 + 状态机），
+  彼此衔接处总是最容易出错。Alloy 里执行轨迹不过是<strong>多带一个「时刻」维度的关系</strong>——
+  于是同一个逻辑、同一套算子、同一个分析器就能同时处理静态和动态。第 2.4 节会演示这一点。</p>
+</div>
+
+<h3>② 语言（Language → 第 4 章）</h3>
+<ul>
+  <li>在逻辑之上只加了<strong>少量语法</strong>，用于<strong>组织描述</strong>（structuring descriptions）。</li>
+  <li>为支持<strong>分类</strong>（classification）与<strong>增量细化</strong>，它有一个<strong>灵活的类型系统</strong>：
+    有<strong>子类型</strong>和<strong>并集</strong>，但<strong>不需要向下转型</strong>（requires no downcasts）。</li>
+  <li>一个简单的<strong>模块系统</strong>，允许泛型声明和约束在不同上下文中复用。</li>
+</ul>
+
+<h3>③ 分析（Analysis → 第 5 章）</h3>
+<ul>
+  <li>是一种<strong>约束求解</strong>（constraint solving）。</li>
+  <li><strong>模拟（Simulation）</strong>= 找到满足给定性质的状态或执行的<strong>实例</strong>。</li>
+  <li><strong>检查（Checking）</strong>= 找到一个<strong>反例</strong>——违反给定性质的实例。</li>
+  <li>搜索在一个由用户以 <strong>scope</strong> 指定维度的空间中进行；scope 给每种类型的对象数量指定一个上界。</li>
+  <li><strong>即使很小的 scope 也定义了一个巨大的空间</strong>，因此通常足以发现微妙的 bug。</li>
+</ul>
+
+<div class="fig">
+  <div class="rel" style="flex-direction:column;align-items:stretch;gap:14px">
+    <div style="text-align:center">
+      <div class="atom d" style="font-size:14px;padding:10px 22px">LOGIC · 一切皆关系 + 少量算子</div>
+    </div>
+    <div style="text-align:center;color:var(--ink-dim)">▲ 加上少量语法用于组织</div>
+    <div style="text-align:center">
+      <div class="atom" style="font-size:14px;padding:10px 22px">LANGUAGE · sig / field / fact / pred / assert / module</div>
+    </div>
+    <div style="text-align:center;color:var(--ink-dim)">▲ 翻译成布尔约束，交给 SAT 求解器</div>
+    <div style="text-align:center">
+      <div class="atom b" style="font-size:14px;padding:10px 22px">ANALYSIS · run（找实例）/ check（找反例），受 scope 限定</div>
+    </div>
+  </div>
+  <div class="cap">图 1-A　三要素的层次关系（依原文归纳）</div>
+</div>
+
+<h2 id="s9"><span class="num">1.9</span>读者对象与本书体例</h2>
+<h3>读者对象</h3>
+<p>本书面向<strong>软件设计师</strong>——无论他们自称需求分析师、规格说明者、设计师、架构师还是程序员。
+适合高年级本科生，以及专业型和研究型硕士项目的研究生。</p>
+<ul>
+  <li><strong>前置要求</strong>：除高中程度的<strong>集合论基本概念</strong>外，不假设任何规格说明或建模的先验知识。</li>
+  <li><strong>但</strong>：对有软件开发经验和建模背景的读者吸引力更大。</li>
+</ul>
+
+<h3>三个体例约定</h3>
+<table>
+  <thead><tr><th>约定</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>「model」这个词</strong></td>
+      <td>全书用它指代<strong>对一个软件抽象的描述</strong>。Jackson 承认这不理想——
+        软件抽象未必是任何东西的「模型」——但它比「description」短，而且已有广泛（且含糊的）用法。</td>
+    </tr>
+    <tr>
+      <td><strong>Q&amp;A 段落</strong></td>
+      <td>为了保持正文简短切题，较棘手的要点讨论和旁白被放到<strong>穿插全文的问答小节</strong>里。
+        对研究者而言，这些小节也用来解释 Alloy 语言与建模方法背后的<strong>设计理据</strong>。<br>
+        <span style="color:var(--ink-dim);font-size:13.5px">→ 本站用<span style="color:var(--warn)">橙色 Q&amp;A 块</span>标注这类内容，它们往往是最有价值的部分。</span></td>
+    </tr>
+    <tr>
+      <td><strong>附录</strong></td>
+      <td>A 习题（培养建模与分析技能）· B 语言参考手册 · C 逻辑语义摘要 · D 图形记法 · E 与知名替代方案的对比。</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout key">
+  <span class="tag">作者的学习建议（原文）</span>
+  <p>「<strong>There's no better way to learn modeling than to do it.</strong>」——学建模没有比动手更好的方法。
+  他建议读者在阅读时亲手试跑示例，并做实验看修改的效果。</p>
+  <p style="margin-bottom:0">工具与材料：<strong>Alloy Analyzer</strong> 免费提供于
+  <code>http://alloy.mit.edu</code>（多平台），能以文本和图形形式显示结果，
+  并带有可视化设施让你为当前模型定制图形输出。书中所有示例可在
+  <code>http://softwareabstractions.org</code> 下载，另有补充材料。</p>
+</div>
+
+<h2 id="sum">本章小结：一页纸记住第 1 章</h2>
+<div class="card">
+  <ol style="margin:0;font-size:15px">
+    <li>软件建立在抽象上；<strong>抽象是结构，不是类或模块</strong>。选错抽象，重构救不了，只能重写。</li>
+    <li>抽象也决定用户体验：新手要简单，专家要可组合。抽象侵蚀 → 程序长出藤壶 → 用户被迫掌握伪细节、绕路、忍受莫名失败。</li>
+    <li>理想流程（先设计抽象、再写代码）<strong>很少行得通</strong>，因为 <strong>wishful thinking</strong>：抽象在实现时暴露为不连贯、不一致。</li>
+    <li>缺陷在编码期变得刺眼，不是因为编码更聪明，而是因为<strong>编译器与测试更严苛</strong>。</li>
+    <li>XP 的对策是取消设计阶段，但<strong>代码是探索抽象的糟糕媒介</strong>：冗长、笨拙、全局改动代价高、评审痛苦。</li>
+    <li>形式化规格说明有效（Praxis：缺陷率低一个数量级、成本相当、敢给质保），但被两件事挡住：
+      <strong>数学语法吓人</strong>（表面）+ <strong>缺工具支持、定理证明投入过大且难点跑偏</strong>（根本）。</li>
+    <li>Alloy 的路径：保留<strong>精确记法 + 极小概念核心</strong>，把定理证明换成<strong>全自动的有限作用域分析</strong>。
+      不完备，但覆盖数十亿案例，且<strong>不需要写测试用例</strong>。</li>
+    <li>三要素：<strong>逻辑</strong>（一切皆关系，状态与执行同用约束表达）·
+      <strong>语言</strong>（少量语法 + 无向下转型的类型系统 + 模块）·
+      <strong>分析</strong>（run 找实例 / check 找反例，scope 限定维度）。</li>
+    <li>结果：XP 的<strong>增量与即时</strong> + 形式化方法的<strong>深度与清晰</strong>。</li>
+  </ol>
+</div>
+
+<div class="pager">
+  <a href="preface.html"><div class="d">← 上一章</div><div class="n">前言 &amp; 致谢</div></a>
+  <a href="ch2.html" class="next"><div class="d">下一章</div><div class="n">2 · A Whirlwind Tour 速览 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 第 1 章</div>
+</div>
+</body>
+</html>
