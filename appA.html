@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>附录 A · Exercises 习题 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">附录 A · 习题</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html" class="on">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">A</span>Exercises · 习题</h1>
+<p class="sub">原书 p. 229–252 · 六节共 30 余道题，从「纯关系逻辑练习」逐步过渡到「开放式案例研究」。本页完整收录全部题目、模板代码与提示，并给出解题思路点拨。</p>
+
+<div class="callout key">
+  <span class="tag">难度标记</span>
+  <p><span class="kbd">♥</span> = <strong>容易，不需要深度思考</strong>；<span class="kbd">♣</span> = <strong>特别有挑战性</strong>；无标记 = 常规难度。</p>
+</div>
+
+<div class="callout">
+  <span class="tag">使用说明（原书开头）</span>
+  <ul>
+    <li><strong>前几节</strong>的习题旨在帮助培养<strong>使用关系逻辑与 Alloy 基本语言构造</strong>的技能，所以<strong>偏数学风味</strong>；<strong>后几节</strong>的习题<strong>更开放，更接近实践中建模的真实样貌</strong>。</li>
+    <li><strong>A.1 节只以第 3 章为背景</strong>，不需要熟悉第 4 章的语言构造。<strong>不过大多数读者如果边做边用 Alloy Analyzer 实验，会更有乐趣、学到更多。</strong>因此作者为每道题提供了<strong>模板（templates）</strong>，展示如何在<strong>不需要掌握完整语言</strong>的情况下使用 Analyzer。</li>
+    <li><strong>其余各节</strong>的习题都可以在<strong>只读完第 3、4 章</strong>之后尝试，<strong>除了 A.5.3</strong>，它引用了第 6 章的一个例子。</li>
+  </ul>
+</div>
+
+<div class="toc">
+  <div class="t">本附录地图</div>
+  <ol>
+    <li><a href="#sa1">A.1 逻辑练习（11 题）</a> — 只用到第 3 章的关系逻辑</li>
+    <li><a href="#sa2">A.2 扩展简单模型（3 题）</a> — 用到完整 Alloy 语言，给出初始结构</li>
+    <li><a href="#sa3">A.3 经典谜题（6 题）</a> — 练习编写 Alloy 与组织小模型</li>
+    <li><a href="#sa4">A.4 元模型（4 题）</a> — 建模「模型的模型」</li>
+    <li><a href="#sa5">A.5 小型案例研究（3 题）</a> — 在明确设定的场景中构造小模型</li>
+    <li><a href="#sa6">A.6 开放式案例研究（9 题）</a> — 每个需数小时到数天</li>
+  </ol>
+</div>
+
+<h2 id="sa1"><span class="num">A.1</span>Logic Exercises · 逻辑练习</h2>
+<p>本节习题练习<strong>在关系逻辑中编写表达式与约束</strong>。它们不需要任何关于完整 Alloy 语言的知识，但<strong>其中许多展示了如何把表达式与约束嵌入一个 Alloy 模型</strong>，以便你能用 Analyzer 生成实例、获得具体反馈。</p>
+
+<h3><span class="kbd">♥</span> A.1.1 Properties of Binary Relations · 二元关系的性质</h3>
+<p>下面这个 Alloy 模型把<strong>一个二元关系约束为具有一组标准性质</strong>：</p>
+<pre><code><span class="k">module</span> exercises/properties
+<span class="k">pred</span> show () {
+  <span class="k">some</span> r: univ -&gt; univ {
+    <span class="k">some</span> r          <span class="c">-- 非空 nonempty</span>
+    r.r <span class="k">in</span> r        <span class="c">-- 传递 transitive</span>
+    <span class="k">no</span> iden &amp; r     <span class="c">-- 反自反 irreflexive</span>
+    ~r <span class="k">in</span> r         <span class="c">-- 对称 symmetric</span>
+    ~r.r <span class="k">in</span> iden    <span class="c">-- 函数性 functional</span>
+    r.~r <span class="k">in</span> iden    <span class="c">-- 单射 injective</span>
+    univ <span class="k">in</span> r.univ  <span class="c">-- 全的 total</span>
+    univ <span class="k">in</span> univ.r  <span class="c">-- 满的 onto</span>
+  }
+}
+<span class="k">run</span> show <span class="k">for</span> 4</code></pre>
+<div class="callout warn">
+  <span class="tag">题目</span>
+  <p><strong>一个有限的二元关系不可能同时具有所有这些性质。哪些单个性质如果被消除，能让剩下的性质得到满足？对每一个被消除的性质，给出一个满足其余性质的关系的例子。</strong></p>
+  <p>你可以用 Alloy Analyzer 来帮忙。<code>run</code> 命令指示 Analyzer 在<strong>至多 4 个原子</strong>的宇宙中搜索一个满足约束的实例。<strong>要消除某个性质，只需把它注释掉</strong>（在行首写两个连字符）。</p>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+  <p>这八条性质的写法本身就是第 3 章的浓缩复习：<code>r.r in r</code> 是传递性（自复合仍落在自身内）、<code>no iden &amp; r</code> 是反自反（与恒等关系无交）、<code>~r.r in iden</code> 是「逆复合落在恒等里」= 函数性、<code>r.~r in iden</code> = 单射性、<code>univ in r.univ</code> 是「每个原子都在 r 的定义域里」= 全的、<code>univ in univ.r</code> = 满的。<strong>冲突的核心在于「反自反 + 对称 + 传递」三者同时成立时，r 只能是空关系</strong>（若 <code>x-&gt;y in r</code>，对称给 <code>y-&gt;x</code>，传递给 <code>x-&gt;x</code>，与反自反矛盾）——而空关系又与「非空」冲突。所以<strong>消掉「非空」即可全部满足</strong>；此外消掉「反自反」「对称」「传递」中任意一条也都能构造出解。</p>
+</div>
+
+<h3><span class="kbd">♥</span> A.1.2 Relational and Predicate Calculus Styles · 关系演算与谓词演算两种风格</h3>
+<p>A.1.1 中的性质是用<strong>关系演算（relational calculus）</strong>风格写的。<strong>把每一条改写成谓词演算（predicate calculus）风格。</strong>例如「非空」性质可以重新表述为：</p>
+<pre><code><span class="k">some</span> x, y: univ | x -&gt; y <span class="k">in</span> r</code></pre>
+<p><strong>你的每一条改写都可以被铸成一个 Alloy 断言</strong>，于是你能用 Analyzer 来检验它。例如，要检验「非空」的改写，你会写：</p>
+<pre><code><span class="k">assert</span> ReformulateNonEmptinessOK {
+  <span class="k">all</span> r: univ -&gt; univ |
+    <span class="k">some</span> r <span class="k">iff</span> (<span class="k">some</span> x, y: univ | x -&gt; y <span class="k">in</span> r)
+}
+<span class="k">check</span> ReformulateNonEmptinessOK</code></pre>
+<p>然后执行这个 check，看<strong>是否有反例</strong>——即关系 r 的某个取值满足其中一种表述却不满足另一种。</p>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+  <p>这正是 3.3.1 讲的「两种风格等价」的<strong>机器验证版</strong>。注意断言里用 <code>iff</code> 而不是 <code>implies</code>——<strong>双向等价才能证明「改写」而非「弱化」</strong>。最容易写错的是 <code>~r.r in iden</code>（函数性）与 <code>r.~r in iden</code>（单射性）的谓词演算形式：前者是 <code>all x, y, z: univ | x-&gt;y in r and x-&gt;z in r implies y = z</code>，后者要把量词顺序反过来（或改用 <code>~r</code> 的表述）。</p>
+</div>
+
+<h3><span class="kbd">♥</span> A.1.3 Relational Properties in Modeling · 建模中的关系性质</h3>
+<p>假设你要把下列每一种关系建模为一个二元关系。<strong>你会期望它具有哪些性质（取自 A.1.1 的清单）？</strong></p>
+<table>
+  <thead><tr><th>#</th><th>关系</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><code>sibling</code></td><td><strong>同胞关系</strong>：父母相同的孩子们之间</td></tr>
+    <tr><td>(b)</td><td><code>links</code></td><td><strong>链接关系</strong>：网络上的一个主机与它链接到的那些主机之间</td></tr>
+    <tr><td>(c)</td><td><code>contains</code></td><td><strong>包含关系</strong>：文件系统中的一个目录与它的内容之间</td></tr>
+    <tr><td>(d)</td><td><code>group</code></td><td><strong>分组关系</strong>：绘图程序中的图形元素与「组」（被一起选中/取消选中的元素集合）之间</td></tr>
+    <tr><td>(e)</td><td><code>sameGroup</code></td><td><strong>同组关系</strong>：处于同一个组中的图形元素之间</td></tr>
+    <tr><td>(f)</td><td><code>supersedes</code></td><td><strong>取代关系</strong>：一个文件系统中的文件与另一个文件系统中的文件之间，当<strong>第一个文件是第二个文件的更新版本</strong>时成立</td></tr>
+    <tr><td>(g)</td><td><code>substitutableFor</code></td><td><strong>可替代关系</strong>：两个组件之间，当<strong>第一个可以在某类系统中的任何位置替代第二个</strong>时成立。例如一个电源可以替代另一个，只要它提供相同的电压和至少同样多的功率</td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · 参考答案</span>
+  <table>
+    <thead><tr><th>关系</th><th>对称</th><th>反自反</th><th>传递</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code>sibling</code></td><td>✅</td><td>❌（通常把自己也算作同胞，故自反）</td><td>✅</td><td>若不含自己则反自反且<strong>不</strong>传递</td></tr>
+      <tr><td><code>links</code></td><td>看情况</td><td>✅</td><td>❌</td><td>超链接通常<strong>不对称、不传递</strong></td></tr>
+      <tr><td><code>contains</code></td><td>❌</td><td>✅</td><td>看定义</td><td>若是「直接包含」则<strong>不传递</strong>；若是「递归包含」则传递且<strong>非对称</strong>（antisymmetric）</td></tr>
+      <tr><td><code>group</code></td><td>❌</td><td>✅</td><td>❌</td><td>元素→组是<strong>函数性</strong>的（每个元素属于至多一个组）</td></tr>
+      <tr><td><code>sameGroup</code></td><td>✅</td><td>❌（自反）</td><td>✅</td><td>这是一个<strong>等价关系</strong>，= <code>~group.group</code></td></tr>
+      <tr><td><code>supersedes</code></td><td>❌</td><td>✅</td><td>✅</td><td>版本的「更新」是<strong>严格偏序</strong></td></tr>
+      <tr><td><code>substitutableFor</code></td><td>✅</td><td>❌（自反）</td><td>✅</td><td>又一个<strong>等价关系</strong>——「提供相同电压且功率不小于」需要仔细推敲是否真对称</td></tr>
+    </tbody>
+  </table>
+  <p><strong>(d) 与 (e) 是同一对关系的两种视角</strong>：<code>sameGroup = ~group.group</code>。这道题的真正用意是让你体会<strong>「一个关系的性质往往由它与另一个关系的复合方式决定」</strong>。</p>
+</div>
+
+<h3><span class="kbd">♥</span> A.1.4 Refactoring Navigation Expressions · 重构导航表达式</h3>
+<p>在编写「导航表达式（navigation expressions）」时，你可能会注意到<strong>重复的子表达式可以被提取出来</strong>，使整个表达式更简洁。例如表示「p 的叔叔」的表达式 <code>p.mother.brother + p.father.brother</code> 可以改写成 <code>p.(mother + father).brother</code>。</p>
+<p><strong>这类化简依赖于「某些代数恒等式成立」这一假设</strong>，例如对给定的集合 s 与二元关系 p、q：</p>
+<table>
+  <thead><tr><th>#</th><th>候选恒等式</th><th>名称</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><code>s.(p + q) = s.p + s.q</code></td><td>join 对并的分配律</td></tr>
+    <tr><td>(b)</td><td><code>s.(p - q) = s.p - s.q</code></td><td>join 对差的分配律</td></tr>
+    <tr><td>(c)</td><td><code>s.(p &amp; q) = s.p &amp; s.q</code></td><td>join 对交的分配律</td></tr>
+  </tbody>
+</table>
+<p><strong>对每一个候选恒等式，说明它是否成立；如果不成立，给出一个反例。</strong></p>
+<pre><code><span class="k">module</span> exercises/distribution
+<span class="k">assert</span> union {
+  <span class="k">all</span> s: <span class="k">set</span> univ, p, q: univ -&gt; univ | s.(p + q) = s.p + s.q
+}
+<span class="k">check</span> union <span class="k">for</span> 4</code></pre>
+<p>这条命令让 Analyzer 在 4 个元素的宇宙中找反例。<strong>当你发现某个性质不成立时，试着通过缩小作用域（例如把 <code>for 4</code> 换成 <code>for 2</code>）来获得尽可能小的反例。</strong></p>
+<div class="callout idea">
+  <span class="tag">点拨 · 参考答案</span>
+  <p><strong>(a) 成立，(b)(c) 都不成立。</strong>理由很直观：join 是<strong>「逐元取像」</strong>的操作，它对<strong>并</strong>天然分配（一个元组来自 p 或 q，那么它的像就在 s.p 或 s.q 中）；但对<strong>差和交</strong>不分配，因为<strong>像集合会「混合」来自 p 和 q 的贡献</strong>。</p>
+  <p>最小反例（作用域 2 即可）：令 <code>s = {A}</code>，<code>p = {A-&gt;B}</code>，<code>q = {A-&gt;B}</code>，再加一个 <code>A-&gt;C</code> 到 p。则 <code>s.(p-q)</code> 可能为空而 <code>s.p - s.q</code> 非空。<strong>交的情形同理。</strong>这正呼应了 3.2.5 里关于「join 分配律只对并成立」的提醒。</p>
+</div>
+
+<h3>A.1.5 Characterizing Trees · 刻画树</h3>
+<p><strong>树是一个满足某些性质的关系。这些性质究竟是什么？</strong>用关系逻辑把它们表达出来，并用几个例子加以说明。</p>
+<pre><code><span class="k">module</span> exercises/tree
+<span class="k">pred</span> isTree (r: univ -&gt; univ) { … }
+<span class="k">run</span> isTree <span class="k">for</span> 4</code></pre>
+<p>只需<strong>把省略号替换成对关系 r 的一些约束</strong>，然后执行命令来可视化一些样例实例。<strong>你可能需要加一些约束来让实例不平凡（nontrivial）。</strong></p>
+<div class="callout idea">
+  <span class="tag">点拨 · 树的四条特征</span>
+  <ol>
+    <li><strong>无环</strong>：<code>no x: univ | x in x.^r</code>；</li>
+    <li><strong>每个节点至多一个父节点</strong>（函数性逆向）：<code>~r.r in iden</code>，或写作 <code>all x: univ | lone ~r.x</code>；</li>
+    <li><strong>恰有一个根</strong>：<code>one {x: univ | no ~r.x}</code>；</li>
+    <li><strong>连通</strong>：从根出发可达所有节点 <code>all x: univ | x in root.*r</code>。</li>
+  </ol>
+  <p>「让实例不平凡」的技巧：加 <code>some r</code>（非空）、<code>some x: univ | lone x.r and some x.r</code>（存在恰好一个孩子的节点）、或者要求 <code>#univ = 4</code> 让树占满作用域。<strong>不加这些，Analyzer 很可能只给你一个空的或单节点的树。</strong></p>
+</div>
+
+<h3>A.1.6 Spanning Trees · 生成树</h3>
+<p><strong>一个图的生成树（spanning tree）是一个覆盖所有节点的、树状的子图。</strong>把这个定义精确化，并<strong>给出一个具有两棵不同生成树的图的例子</strong>。</p>
+<pre><code><span class="k">module</span> exercises/spanning
+<span class="k">pred</span> isTree (r: univ -&gt; univ) { … }
+<span class="k">pred</span> spans (r1, r2: univ -&gt; univ) { … }
+<span class="k">pred</span> show (r, t1, t2: univ -&gt; univ) {
+  spans (t1, r) <span class="k">and</span> isTree (t1)
+  spans (t2, r) <span class="k">and</span> isTree (t2)
+  t1 <span class="k">not</span>= t2
+}
+<span class="k">run</span> show <span class="k">for</span> 3</code></pre>
+<div class="callout">
+  <span class="tag">提示</span>
+  <p><strong>由你决定把图和树看作有向的还是无向的。无向的情形更棘手一些，也更有意思。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">生成树有什么用</span>
+  <p><strong>生成树有许多用途。在网络中，它们常被用来建立连接。例如在 Firewire 协议中，一棵生成树被自动发现，而树的根成为协调通信的领导者（leader）。</strong>——这与 6.1 的环形领导者选举形成对照：<strong>同样是「选出一个协调者」，Firewire 靠生成树的根，环形协议靠最大标识符。</strong></p>
+  <p><strong>无向图在 Alloy 里怎么表示？</strong>用对称关系：<code>r = ~r</code>。<code>spans(t, r)</code> 则需说三件事：<strong>t 是 r 的子关系（<code>t in r</code>）、t 覆盖 r 的所有节点（<code>t.univ + univ.t = r.univ + univ.r</code>）、t 去掉方向后是一棵树</strong>。最后一条是难点：<strong>你要用 <code>t + ~t</code> 来做无环与连通判定</strong>，而不是直接用 <code>t</code>。</p>
+</div>
+
+<h3>A.1.7 Characterizing Rings · 刻画环</h3>
+<p>一些通信协议把网络中的节点组织成一个<strong>环</strong>，节点到节点的链接构成一个圆圈。<strong>请尽可能简单、简洁地刻画 <code>next</code>（节点到节点的关系）上的约束，使其确保构成一个环。</strong></p>
+<pre><code><span class="k">module</span> exercises/ring
+<span class="k">sig</span> <span class="t">Node</span> {next: <span class="k">set</span> <span class="t">Node</span>}
+<span class="k">pred</span> isRing () {
+  … 你的约束写在这里
+}
+<span class="k">run</span> isRing <span class="k">for exactly</span> 4 <span class="t">Node</span></code></pre>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+  <p>第 6.1.1 节已经给出了标准答案：<strong>每个节点恰好一个后继</strong>（把声明改成 <code>next: Node</code>，或加 fact <code>all n: Node | one n.next</code>），加上<strong>「从任意节点出发反复跟随 next 可达所有节点」</strong>：</p>
+<pre><code><span class="k">all</span> n: <span class="t">Node</span> | <span class="t">Node</span> <span class="k">in</span> n.<span class="o">^</span>next</code></pre>
+  <p><strong>「尽可能简洁」的要点是：有了全称可达性，就不必再单独写「无环」和「唯一根」</strong>——它们在「每个节点恰好一个后继 + 全称可达」下自动成立。注意命令用了 <code>for exactly 4 Node</code>：<strong>4.2.3 说过，精确作用域能让「环恰好有 4 个节点」，否则 Analyzer 可能只给你一个 2 节点的环。</strong></p>
+</div>
+
+<h3><span class="kbd">♣</span> A.1.8 Defining Acyclicity for an Undirected Graph · 为无向图定义无环性</h3>
+<p><strong>一个无向图可以表示为一个被约束为对称的二元关系。</strong>为这样的关系写出<strong>排除环</strong>的约束。</p>
+<pre><code><span class="k">module</span> exercises/undirected
+<span class="k">sig</span> <span class="t">Node</span> {adjs: <span class="k">set</span> <span class="t">Node</span>}
+<span class="k">pred</span> acyclic () {
+  adjs = ~adjs
+  … 你的约束写在这里
+}
+<span class="k">run</span> acyclic <span class="k">for</span> 4</code></pre>
+<div class="callout idea">
+  <span class="tag">点拨 · 为什么这题被标为 ♣</span>
+  <p>有向图的无环性很好写：<code>no x | x in x.^r</code>。<strong>无向图的陷阱在于对称性会让 <code>adjs</code> 自动包含 <code>~adjs</code>，于是 <code>x in x.^adjs</code> 对任何有边的 x 都成立</strong>（<code>x-&gt;y</code> 且 <code>y-&gt;x</code>，两步就回到 x）。所以直接用闭包判环是无效的。</p>
+  <p>正确做法是<strong>先去掉自反对（<code>adjs - iden</code> 不影响，关键是长度 ≥3 的环）</strong>，可以写成：</p>
+<pre><code><span class="k">no</span> x: <span class="t">Node</span> | x <span class="k">in</span> x.<span class="o">^^</span>adjs.<span class="o">^</span>adjs   <span class="c">// 思路示意，实际需仔细推敲</span></code></pre>
+  <p>更实用的等价表述是「<strong>它是一片森林</strong>」：<strong>边数 = 节点数 − 连通分量数</strong>，或者<strong>「存在一个生成森林」</strong>。最简洁的写法往往是：<code>all x: Node | x not in x.adjs</code>（无自环）加上 <strong>「对任意非空节点集 S，S 内部至少缺一条边」</strong>：<code>all s: set Node | some s and #(s.adjs &amp; s) &lt; #s * (#s - 1)</code>。这类「计数式」约束正是 Alloy 允许乘法之外做基数的地方（<code>#</code> 运算符见附录 B）。</p>
+</div>
+
+<h3>A.1.9 Axiomatizing Transitive Closure · 为传递闭包公理化</h3>
+<div class="callout key">
+  <span class="tag">背景知识</span>
+  <p><strong>传递闭包在一阶逻辑中不可公理化（not axiomatizable）。</strong>简而言之，这意味着<strong>如果你想表达它，你需要一个专门的运算符，因为它无法用其他运算符来定义</strong>。下面是一个<strong>伪造的（bogus）</strong>尝试；<strong>你的挑战是用 Alloy Analyzer 找出其中的破绽。</strong></p>
+</div>
+<p>回想二元关系 r 的传递闭包是<strong>包含 r 的最小传递关系 R</strong>。我们说 <strong>R 是 r 的一个「传递覆盖（transitive cover）」，如果 R 是传递的且包含 r</strong>。为了确保 R 是<strong>最小的</strong>传递覆盖，我们可以说：<strong>从 R 中移除任何一个元组 a-&gt;b，得到的关系就不再是 r 的传递覆盖。</strong>把这个想法形式化，补全下面的模板：</p>
+<pre><code><span class="k">module</span> exercises/closure
+<span class="k">pred</span> transCover (R, r: univ -&gt; univ) {
+  … 你的约束写在这里
+}
+<span class="k">pred</span> transClosure (R, r: univ -&gt; univ) {
+  transCover (R, r)
+  … 你的约束写在这里
+}
+<span class="k">assert</span> Equivalence {
+  <span class="k">all</span> R, r: univ -&gt; univ | transClosure (R, r) <span class="k">iff</span> R = <span class="o">^</span>r
+}
+<span class="k">check</span> Equivalence <span class="k">for</span> 3</code></pre>
+<p>现在执行这条命令，<strong>检查反例，并解释 bug 是什么</strong>。</p>
+<div class="callout warn">
+  <span class="tag">历史注脚</span>
+  <p><strong>UML 1.0 的官方定义就有这个问题。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨 · 破绽在哪</span>
+  <p>「移除任何一个元组后不再是传递覆盖」这个刻画<strong>只排除了「多余的传递边」，但没有排除「r 本身的边被传递性强制加回来的情形之外」的漏洞</strong>。真正的 bug 是：<strong>这个定义允许 R 包含 r 中没有、且移除后仍能靠传递性重新推出的元组——但只要 r 本身为空或结构特殊，最小性条件就可能被平凡地满足。</strong></p>
+  <p>更根本的原因是<strong>逻辑上的</strong>：一阶逻辑<strong>无法表达「最小」</strong>，因为「最小」需要对<strong>所有子关系</strong>做全称量化，而一阶逻辑的量化范围是<strong>个体（原子与元组）</strong>，不是<strong>关系</strong>——除非把关系也当作一阶对象（Alloy 通过 <code>univ -&gt; univ</code> 类型做到了这一点，但代价是<strong>宇宙有限</strong>，而传递闭包的不可公理化恰恰是<strong>关于无限结构的定理</strong>）。<strong>所以在有限作用域下这个「伪造定义」可能看起来是对的，而 Analyzer 的反例会告诉你它在哪个具体的小结构上失效。</strong></p>
+</div>
+
+<h3>A.1.10 Address Book Constraints and Expressions · 地址簿的约束与表达式</h3>
+<p>这道题让你练习<strong>为一个简单的多级地址簿编写表达式与约束</strong>。考虑一个地址集合 <code>Addr</code>，和一个由<strong>两个不相交子集 <code>Alias</code> 与 <code>Group</code></strong> 构成的名字集合 <code>Name</code>。从名字到地址的映射由关系 <code>address</code> 表示，<strong>但一个名字不仅可以映射到地址，也可以映射到另一个名字</strong>。</p>
+<h4>第一步：写出下列不变式</h4>
+<div class="callout">
+  <span class="tag">不变式（invariants）= 你期望地址簿始终满足的约束</span>
+  <ul>
+    <li><strong>(a) 没有环</strong>：如果你反复解析一个名字，你<strong>永远不会再次到达同一个名字</strong>。</li>
+    <li><strong>(b) 所有名字最终都映射到一个地址</strong>。</li>
+  </ul>
+</div>
+<h4>第二步：写出下列模拟约束</h4>
+<div class="callout">
+  <span class="tag">模拟约束（simulation constraints）= 探索模型时为了看到更有趣的实例而添加的约束</span>
+  <ul>
+    <li><strong>(c) 地址簿至少有两层。</strong></li>
+    <li><strong>(d) 有些组是非空的。</strong></li>
+  </ul>
+</div>
+<h4>第三步：写出下列表达式（<strong>不得使用集合理解式语法</strong>）</h4>
+<table>
+  <thead><tr><th>#</th><th>要求</th></tr></thead>
+  <tbody>
+    <tr><td>(e)</td><td><strong>作为组成员的那些名字的集合</strong></td></tr>
+    <tr><td>(f)</td><td><strong>空的那些组的集合</strong></td></tr>
+    <tr><td>(g)</td><td><strong>从别名到它们（直接或间接）所指地址的映射</strong></td></tr>
+    <tr><td>(h)</td><td><strong>从名字到地址的映射，但当一个名字既直接映射到某些地址、又间接映射到另一些地址时，只包含那些直接地址</strong></td></tr>
+  </tbody>
+</table>
+<pre><code><span class="k">module</span> exercises/addressBook1
+<span class="k">abstract sig</span> <span class="t">Name</span> {
+  address: <span class="k">set</span> <span class="t">Addr</span> + <span class="t">Name</span>
+}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> {}
+<span class="k">fact</span> { … 不变式 … }
+<span class="k">pred</span> show () { … 模拟约束 … }
+<span class="k">run</span> show <span class="k">for</span> 3</code></pre>
+<p><strong>填写过程中不断执行 run 命令；工具会生成样例实例。然后，当你有了一个有趣的实例，把候选表达式输入求值器（evaluator），工具会向你显示它在那个特定实例上的值。</strong>你可能会发现需要添加更多模拟约束，才能得到一个能很好地说明某个表达式含义的实例。</p>
+<div class="callout idea">
+  <span class="tag">点拨 · 参考答案</span>
+  <ul>
+    <li><strong>(a)</strong> <code>all n: Name | n not in n.^address</code></li>
+    <li><strong>(b)</strong> <code>all n: Name | some n.^address &amp; Addr</code></li>
+    <li><strong>(c)</strong> <code>some n: Name | some (n.address &amp; Name).address</code></li>
+    <li><strong>(d)</strong> <code>some g: Group | some g.address</code></li>
+    <li><strong>(e)</strong> <code>Name.(~address) &amp; Group.address.univ</code> —— 更简洁：<code>Group.~address &amp; Name</code>（被某个组指向的名字）</li>
+    <li><strong>(f)</strong> <code>Group - Group.address.univ</code> —— <strong>用域减去「有出边的组」，正是「不用理解式」的关键技巧</strong></li>
+    <li><strong>(g)</strong> <code>(Alias &lt;: address).^(address) &amp; (Alias -&gt; Addr)</code>，或更直接 <code>Alias &lt;: ^address &amp; (univ -&gt; Addr)</code></li>
+    <li><strong>(h)</strong> <code>address &amp; (univ -&gt; Addr)</code> —— <strong>「只要直接的」就是用交把值域限制到 Addr</strong>，这一步极其简洁，正是「不用理解式」的示范</li>
+  </ul>
+  <p><strong>这道题的真正用意是让你体会：绝大多数「看起来需要集合理解式」的需求，都能用「交、差、域/值域限制」的组合来表达。</strong>这与 4.4.4 讲的 <code>&lt;:</code>、<code>:&gt;</code> 消歧义技巧一脉相承。</p>
+</div>
+
+<h3>A.1.11 Modeling The Tube · 建模伦敦地铁</h3>
+<p>这道题让你<strong>先写出一些关于铁路线的通用约束，然后把它们应用到伦敦地铁上</strong>。</p>
+<div class="callout">
+  <span class="tag">fig. A.1 的场景</span>
+  <p>fig. A.1 展示了伦敦地铁的一个简化片段（真实线路图见 <code>http://tube.tfl.gov.uk/</code>）。<strong>图中有三条线</strong>：</p>
+  <ul>
+    <li><strong>Jubilee 线</strong>：从 Stanmore 到 Waterloo，<strong>南北走向</strong>；</li>
+    <li><strong>Central 线</strong>：从 West Ruislip 与 Ealing Broadway 到 Epping，<strong>东西走向</strong>；</li>
+    <li><strong>Circle 线</strong>：<strong>顺时针</strong>经过 Baker Street。</li>
+  </ul>
+  <p>fig. A.2 的快照展示了<strong>与之对应的一个 Alloy 模型实例</strong>。涉及的车站有：Stanmore、Baker Street、Bond Street、Westminster、Waterloo、West Ruislip、Ealing Broadway、North Acton、Notting Hill Gate、Liverpool Street、Epping。</p>
+</div>
+<p>建模约定：<strong>把一条铁路上的所有车站建模为集合 <code>Station</code>。一条特定的线 <code>Line</code> 被表示为「该线所服务的车站集合」，与线同名；再加上一个作用于这些车站之上的二元关系 <code>line</code>，同名但以<strong>小写字母</strong>开头。</strong></p>
+<h4>把下列每条陈述用 Alloy 逻辑形式化</h4>
+<table>
+  <thead><tr><th>#</th><th>陈述</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>车站 S 由线 L1 服务，但不由线 L2 服务。</strong></td></tr>
+    <tr><td>(b)</td><td><strong>线 L 构成一个圆圈。</strong></td></tr>
+    <tr><td>(c)</td><td><strong>线 L 构成一条直线。</strong></td></tr>
+    <tr><td>(d)</td><td><strong>线 L 是一条直线，直到它在车站 S 处分成两条直线。</strong></td></tr>
+    <tr><td>(e)</td><td><strong>线 L 的两端是车站 S1（起点）和 S2（终点）。</strong></td></tr>
+    <tr><td>(f)</td><td><strong>可以在线 L 上从车站 S1 旅行到车站 S2。</strong></td></tr>
+    <tr><td>(g)</td><td><strong>在车站 S，L 的两个分支合并成一个。</strong></td></tr>
+    <tr><td>(h)</td><td><strong>[难！] 如果你在车站 S1 登上一列 L 线的列车，你最终会到达车站 S2。</strong></td></tr>
+    <tr><td>(i)</td><td><strong>现在构造 fig. A.1 所示地铁片段的模型，运行 Alloy Analyzer，看你能否得到与 fig. A.2 类似的快照。</strong></td></tr>
+  </tbody>
+</table>
+<pre><code><span class="k">module</span> exercises/tube
+<span class="k">abstract sig</span> <span class="t">Station</span> {
+  jubilee, central, circle: <span class="k">set</span> <span class="t">Station</span>
+}
+<span class="k">sig</span> <span class="t">Jubilee</span>, <span class="t">Central</span>, <span class="t">Circle</span> <span class="k">in</span> <span class="t">Station</span> {}
+<span class="k">one sig</span>
+  Stanmore, BakerStreet, BondStreet, Westminster, Waterloo,
+  WestRuislip, EalingBroadway, NorthActon, NottingHillGate,
+  LiverpoolStreet, Epping
+  <span class="k">extends</span> <span class="t">Station</span> {}
+<span class="k">fact</span> { … 你的约束写在这里 … }
+<span class="k">pred</span> show () {}
+<span class="k">run</span> show</code></pre>
+<p>只需<strong>把约束写在 fact 体内</strong>，然后执行命令生成样例实例。<strong>你需要的约束是那些通用约束的实例化。</strong>例如通用约束 <code>S in L</code> 说的是「车站 S 由线 L 服务」；你可以写</p>
+<pre><code>BakerStreet <span class="k">in</span> <span class="t">Jubilee</span></code></pre>
+<p>来说 Baker Street 由 Jubilee 线服务。<strong>如果你读过第 4 章，你可以通过为通用约束定义函数与谓词，把模型写得更优雅。</strong></p>
+<div class="callout warn">
+  <span class="tag">不要作弊！</span>
+  <p><strong>不要通过直接录入实例来作弊</strong>，例如写：</p>
+<pre><code>jubilee = Stanmore -&gt; BakerStreet + BakerStreet -&gt; BondStreet …</code></pre>
+  <p>如果你这么做，<strong>你得到的就不是一个「对整个地铁系统都为真」的模型，因为它无法容纳额外的、中间的车站</strong>。<strong>更糟的是，你会错过用 Analyzer 来发现你的通用约束中的错误的机会。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+  <p>注意模板的设计很巧妙：<strong><code>Station</code> 上的三个字段 <code>jubilee, central, circle</code> 就是那三个「小写同名的关系」</strong>，而 <code>Jubilee, Central, Circle</code> 是<strong>子签名（subset sigs，用 <code>in</code> 而非 <code>extends</code>）</strong>，代表「由该线服务的车站集合」。所以「车站 S 由线 L 服务」有两种等价的写法：<code>S in Jubilee</code>（集合成员）与 <code>some S.jubilee</code>（关系有出边）。<strong>这个双重表示正是本题要你体会的「集合与关系可以互换视角」。</strong></p>
+  <p><strong>(h) 是最难的一条</strong>：「最终会到达」是一个<strong>活性/必然性</strong>陈述。在无向或有分支的图上，它并不总成立——<strong>Central 线有分支，登上开往 Ealing Broadway 的车就永远到不了 Epping</strong>。所以正确的形式化要么是<strong>加上「列车不会在分支处随意选择」的假设</strong>，要么是<strong>承认它为假并给出反例</strong>。这正是 6.1.4 中 <code>AtLeastOneElected</code> 需要 <code>progress()</code> 前件的同一个教训。</p>
+</div>
+
+<h2 id="sa2"><span class="num">A.2</span>Extending Simple Models · 扩展简单模型</h2>
+<div class="callout key">
+  <span class="tag">本节定位</span>
+  <p><strong>本节的题目操练完整的 Alloy 语言，但会给你模型的初始结构。</strong>也就是说：<strong>你不需要从零设计 signature，而是要在别人搭好的骨架上补全约束、加操作、写断言。</strong>这恰恰是实际工作中最常见的建模任务形态。</p>
+</div>
+
+<h3>A.2.1 Telephone Switch Connections · 电话交换连接</h3>
+<p>考虑下面这个电话网络连接模型：</p>
+<pre><code><span class="k">module</span> exercises/phones
+<span class="k">sig</span> <span class="t">Phone</span> {
+  requests: <span class="k">set</span> <span class="t">Phone</span>,
+  connects: <span class="k">lone</span> <span class="t">Phone</span>
+}</code></pre>
+<p>signature <code>Phone</code> 表示<strong>一组电话</strong>。对一部电话 p：</p>
+<ul>
+  <li><code>p.requests</code> 是 <strong>p 正在请求与之连接的那些电话的集合</strong>，其中<strong>有些可能已被批准</strong>；</li>
+  <li><code>p.connects</code> 是 <strong>p 当前连接到的那部电话</strong>（或者没有）。</li>
+</ul>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>通过添加一个谓词并运行它来模拟这个模型。</strong>给谓词加一些约束以确保你不会得到无聊的情形；例如你可以说<strong>应该有一些请求和一些连接</strong>。</td></tr>
+    <tr><td>(b)</td><td><strong>添加两条不变式</strong>：<strong>每一个连接都有一个匹配的请求</strong>（假设请求不会消失，直到它们所派生的连接被拆除）；以及<strong>没有电话会议（conference calls）</strong>，即<strong>没有一部电话参与多于一个连接</strong>。</td></tr>
+    <tr><td>(c)</td><td><strong>现在引入呼叫转移（call forwarding）</strong>：用一个从电话到电话的新关系 <code>forward</code> 来扩展状态，其中 <code>p.forward</code> 若非空，就是<strong>打进 p 的来电应当被转移到的那部电话</strong>。<strong>修改关联 requests 与 connects 的那条约束，以考虑转移。</strong>模拟一些有趣的呼叫转移例子，必要时添加额外的模拟约束。</td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+  <ul>
+    <li><strong>(b) 的第一条</strong>：<code>connects in requests</code> —— 一行搞定，因为 <code>connects</code> 与 <code>requests</code> 都是 <code>Phone -&gt; Phone</code> 的关系。<strong>这正是「关系包含」作为不变式的典型用法。</strong></li>
+    <li><strong>(b) 的第二条</strong>：「没有电话参与多于一个连接」要同时管住<strong>主叫侧和被叫侧</strong>：<code>connects in ~connects</code> 不够，应写 <code>all p: Phone | lone connects.p + ~connects.p</code>，或者更强：<code>connects in ~connects and lone Phone.connects</code>（后者说每部电话至多被一部电话连接）。</li>
+    <li><strong>(c) 的陷阱</strong>：<code>forward</code> 可能形成<strong>环</strong>（A 转给 B，B 转给 A），于是「请求最终连到谁」需要闭包：<code>connects in requests.^forward</code> 或 <code>connects = requests.*forward &amp; ...</code>。<strong>记得给 forward 加一条无环 fact，否则反例会全是循环转移。</strong>这也是 2.4 节「地址簿多级查找」的翻版。</li>
+  </ul>
+</div>
+
+<h3>A.2.2 Invariant Preservation in an Address Book · 地址簿中的不变式保持</h3>
+<div class="callout">
+  <span class="tag">题目设定</span>
+  <p>本题给你一个<strong>简单地址簿程序的模型</strong>，带有 <strong>add、delete、lookup</strong> 三个操作，以及<strong>一个刻画地址簿「良构性（well-formedness）」性质的不变式</strong>。<strong>你的任务是证明 add 和 delete 操作会破坏这个不变式，并通过强化它们的前置条件来修复。</strong></p>
+</div>
+<pre><code><span class="k">module</span> exercises/addressBook2
+<span class="k">sig</span> <span class="t">Addr</span>, <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {
+  addr: <span class="t">Name</span> -&gt; (<span class="t">Name</span> + <span class="t">Addr</span>)
+}
+<span class="k">pred</span> inv (b: <span class="t">Book</span>) {
+  <span class="k">let</span> addr = b.addr |
+    <span class="k">all</span> n: <span class="t">Name</span> {
+      n <span class="k">not in</span> n.<span class="o">^</span>addr
+      <span class="k">some</span> addr.n =&gt; <span class="k">some</span> n.<span class="o">^</span>addr &amp; <span class="t">Addr</span>
+    }
+}
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Name</span> + <span class="t">Addr</span>) {
+  b'.addr = b.addr + n -&gt; t
+}
+<span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Name</span> + <span class="t">Addr</span>) {
+  b'.addr = b.addr - n -&gt; t
+}
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {
+  n.<span class="o">^</span>(b.addr) &amp; <span class="t">Addr</span>
+}</code></pre>
+<div class="callout key">
+  <span class="tag">不变式在说什么</span>
+  <p><strong>注意名字既映射到地址，也映射到其他名字，从而产生多级查找（multilevel lookup）。</strong></p>
+  <p>这个不变式说：<strong>① 没有任何名字应该直接或间接地映射到它自己；② 如果一个名字本身被（别的名字）映射到，那么这个名字必须直接或间接地映射到至少一个地址。</strong></p>
+  <p><strong>一个操作被称为「保持」一个不变式，如果它在任何满足该不变式的状态下被调用时，总是产生另一个满足该不变式的状态。</strong></p>
+</div>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>不变式在谓词 <code>inv</code> 中被形式化定义。用文字非形式地解释这个不变式说了什么。</strong></td></tr>
+    <tr><td>(b)</td><td><strong>生成一些满足不变式的地址簿例子，以及一些以不同方式违反它的例子。</strong>为此你需要添加谓词和运行它们的命令。</td></tr>
+    <tr><td>(c)</td><td><strong>生成一些操作执行的例子</strong>，同样通过添加并运行合适的谓词。</td></tr>
+    <tr><td>(d)</td><td><strong>找到反例，证明 add 与 delete 都不保持这个不变式。</strong>为此你需要定义调用操作与不变式的断言，以及检验它们的命令。<strong>必要时缩小作用域，以获得尽可能小的反例。</strong></td></tr>
+    <tr><td>(e)</td><td><strong>为这两个操作添加额外的前置条件——对前置状态的约束——以确保不变式被保持，并重新运行保持性检验以证明你成功了。</strong>增大作用域以获得更多信心，并<strong>简要论证你对作用域的选择</strong>。</td></tr>
+    <tr><td>(f)</td><td><strong>重新运行 (c) 中的模拟，以检查你没有不小心把操作过度约束（overconstrain）。</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · 完整解题路径</span>
+  <p><strong>(d) 的断言模板</strong>（这正是 6.3.3「操作保持不变式」的原型）：</p>
+<pre><code><span class="k">assert</span> AddPreservesInv {
+  <span class="k">all</span> b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Name</span> + <span class="t">Addr</span> |
+    inv(b) <span class="k">and</span> add(b, b', n, t) =&gt; inv(b')
+}
+<span class="k">check</span> AddPreservesInv <span class="k">for</span> 3</code></pre>
+  <p><strong>反例的成因</strong>：<code>add(b, b', n, n)</code> 会让 <code>n</code> 映射到自己，直接违反①；<code>add</code> 一个「指向某名字 t，而 t 不指向任何地址」的映射会违反②。<code>del</code> 则相反：<strong>删掉一条边可能让某个原本「能到达地址」的名字变得「到不了地址」</strong>，违反②。</p>
+  <p><strong>(e) 的强化</strong>：</p>
+<pre><code><span class="c">// add 需要的前置条件</span>
+n <span class="k">not in</span> t.<span class="o">*</span>addr          <span class="c">// 不引入环（t 可达 n 就不能加 n-&gt;t）</span>
+t <span class="k">in</span> <span class="t">Addr</span> <span class="k">or some</span> t.<span class="o">^</span>addr &amp; <span class="t">Addr</span>   <span class="c">// t 自己能到达地址</span>
+
+<span class="c">// del 需要的前置条件</span>
+<span class="k">all</span> m: <span class="t">Name</span> | <span class="k">some</span> addr.m =&gt; <span class="k">some</span> m.<span class="o">^</span>(addr - n -&gt; t) &amp; <span class="t">Addr</span></code></pre>
+  <p><strong>(e) 的作用域论证</strong>：参照 5.4 的准则——「<strong>对关系数量敏感，对原子数量不那么敏感</strong>」。这里只有一个二元关系 <code>addr</code>，所以作用域 3 已经覆盖 2⁹ = 512 种可能；升到 4（2¹⁶ = 65536）已足够有信心。<strong>但要注意：这个模型里 Name 与 Addr 是两个独立 signature，缩小其中一个可能刚好避开反例。</strong></p>
+  <p><strong>(f) 是本题最有教学意义的一步</strong>：<strong>强化前置条件后必须回头重跑模拟，确认操作仍然「可被调用」。</strong>一个把操作约束到永不发生的模型是<strong>空洞地正确</strong>的——这正是 5.3 讨论的「vacuity」陷阱。</p>
+</div>
+
+<h3>A.2.3 Inmate Assignments · 囚犯分配</h3>
+<div class="callout">
+  <span class="tag">题目设定</span>
+  <p><strong>需要一个程序，把囚犯分配到监狱的牢房里。如果两个囚犯属于不同的帮派，分配就必须避免把他们放在同一个牢房。</strong></p>
+</div>
+<pre><code><span class="k">module</span> exercises/prison
+<span class="k">sig</span> <span class="t">Gang</span> {members: <span class="k">set</span> <span class="t">Inmate</span>}
+<span class="k">sig</span> <span class="t">Inmate</span> {room: <span class="t">Cell</span>}
+<span class="k">sig</span> <span class="t">Cell</span> {}
+<span class="k">pred</span> safe () { … 你的约束写在这里 … }
+<span class="k">pred</span> show () { … 你的约束写在这里 … }
+<span class="k">run</span> show</code></pre>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>补全刻画「安全分配」的谓词 <code>safe</code>，并通过运行模拟谓词 <code>show</code>（在其中适当调用 <code>safe</code> 作为约束）来生成安全与不安全分配的例子。</strong></td></tr>
+    <tr><td>(b)</td><td><strong>写一个新谓词 <code>happy</code>，说帮派成员只与同一帮派的成员共享牢房。</strong><strong>一个安全的分配不一定是一个「快乐」的分配。</strong>通过编写一个断言和检验它的命令，找到一个反例，并解释为什么。</td></tr>
+    <tr><td>(c)</td><td><strong>添加一条作为 fact 的约束，确保安全性确实蕴含快乐性。</strong>重新运行你的模拟谓词，确保你没有引入不一致；并再次检验那个断言，确保它现在没有反例。</td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · safe 与 happy 的差别是全题的关键</span>
+  <ul>
+    <li><strong><code>safe</code></strong>：「<strong>不同帮派的两个囚犯不在同一牢房</strong>」，即
+      <pre><code><span class="k">no</span> disj i1, i2: <span class="t">Inmate</span>, g1, g2: <span class="t">Gang</span> |
+  i1 <span class="k">in</span> g1.members <span class="k">and</span> i2 <span class="k">in</span> g2.members
+  <span class="k">and</span> g1 != g2 <span class="k">and</span> i1.room = i2.room</code></pre></li>
+    <li><strong><code>happy</code></strong>：「<strong>帮派成员只与同帮派成员共享牢房</strong>」——<strong>更强</strong>，因为它还要求<strong>同牢房的人必须同帮派</strong>。</li>
+  </ul>
+  <p><strong>(b) 的反例来自哪里？</strong>来自<strong>不属于任何帮派的囚犯</strong>！模型里 <code>Gang.members</code> 没有约束「每个囚犯必属于某个帮派」，所以一个「无帮派」囚犯可以和任何帮派成员同房——<strong>这不违反 safe（因为 safe 只谈两个不同帮派），但违反 happy</strong>。</p>
+  <p><strong>(c) 的修复</strong>：<code>fact { all i: Inmate | one i.~members }</code>（每个囚犯恰好属于一个帮派），或者更弱一点：<code>Inmate in Gang.members</code>（每个囚犯至少属于一个帮派）。<strong>加上之后必须重跑 show 确认模型仍然可满足——这正是 (c) 后半句的用意。</strong></p>
+  <p><strong>方法论收获</strong>：<strong>「安全」与「满意」是两个不同的性质，而模型里的「未分类元素」常常是二者之间缺口的来源。</strong>这与 6.2.3 中 <code>some o</code> 那个额外假设的讨论同源——<strong>当你发现一个断言意外失败，先怀疑「模型允许了现实中不该存在的状态」。</strong></p>
+</div>
+
+<h2 id="sa3"><span class="num">A.3</span>Classic Puzzles · 经典谜题</h2>
+<div class="callout key">
+  <span class="tag">本节定位</span>
+  <p><strong>本节的习题练习编写 Alloy 并组织小模型。</strong>它们的共同主题是：<strong>把一个「文字表述的推理」翻译成形式约束，然后让 Analyzer 告诉你翻译对不对</strong>——很多经典谜题的「妙处」恰恰在于自然语言的<strong>歧义</strong>，而形式化会迫使你把歧义摊开。</p>
+</div>
+
+<h3><span class="kbd">♥</span> A.3.1 A Surprising Syllogism · 一个令人惊讶的三段论</h3>
+<div class="callout">
+  <span class="tag">Doris Day 的一首歌</span>
+  <p>「<strong>Everybody loves my baby / but my baby don't love nobody but me.</strong>」<br>（人人都爱我的宝贝，但我的宝贝除了我谁都不爱。）</p>
+  <p><strong>David Gries 指出，从严格的逻辑观点看，这蕴含着「我就是我的宝贝（I am my baby）」。</strong></p>
+</div>
+<p><strong>任务</strong>：把这首歌形式化为一些约束，把 Gries 的推论形式化为一个断言，然后检验它。<strong>接着修改约束，以表达 Doris Day 大概想说的意思，并证明这个断言现在有了反例。</strong></p>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+<pre><code><span class="k">module</span> exercises/day
+<span class="k">sig</span> <span class="t">Person</span> {loves: <span class="k">set</span> <span class="t">Person</span>}
+<span class="k">one sig</span> Me, MyBaby <span class="k">extends</span> <span class="t">Person</span> {}
+<span class="k">fact</span> {
+  <span class="t">Person</span> <span class="k">in</span> loves.MyBaby        <span class="c">// 人人都爱我的宝贝</span>
+  MyBaby.loves = Me               <span class="c">// 我的宝贝只爱我</span>
+}
+<span class="k">assert</span> ImMyBaby { Me = MyBaby }
+<span class="k">check</span> ImMyBaby</code></pre>
+  <p><strong>推理链条</strong>：Me 也是 Person，所以「人人都爱我的宝贝」蕴含 <strong>Me 爱 MyBaby</strong>，即 <code>Me in loves.MyBaby</code>，亦即 <code>MyBaby in Me.loves</code>；而「我的宝贝只爱我」给出 <code>MyBaby.loves = Me</code>，于是 <strong>Me ∈ Me.loves</strong>……更直接地：<code>MyBaby.loves = Me</code> 说明 Me 在 MyBaby 的爱的值域里；结合前一条，<strong>唯一能同时满足两者的赋值就是 Me = MyBaby</strong>。</p>
+  <p><strong>Doris Day 大概的意思</strong>是「<em>除了我之外</em>人人都爱我的宝贝」，即把第一条改成 <code>Person - Me in loves.MyBaby</code>。<strong>这样断言立刻有反例</strong>——两个不同的人也能满足约束。</p>
+  <p><strong>方法论收获</strong>：这是「<strong>形式化暴露歧义</strong>」的最纯粹示范。一句歌词的两种读法，一种推出荒谬结论，一种不会。<strong>建模的第一课就是：如果你写出的模型推出了你不想要的结论，先检查你是不是把话翻译错了。</strong></p>
+</div>
+
+<h3><span class="kbd">♥</span> A.3.2 Ceilings and Floors · 天花板与地板</h3>
+<div class="callout">
+  <span class="tag">Paul Simon 的一首歌</span>
+  <p>「<strong>One man's ceiling is another man's floor.</strong>」（一个人的天花板是另一个人的地板。）</p>
+  <p><strong>这是否蕴含「一个人的地板是另一个人的天花板」？</strong></p>
+</div>
+<p><strong>任务</strong>：在 Alloy 中形式化这两个约束，并检验「第一个蕴含第二个」的断言。<strong>如果你得到的反例因为隐含假设而讲不通，就把那些假设作为新约束加进去，再检验一次。</strong></p>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+<pre><code><span class="k">sig</span> <span class="t">Man</span> {ceiling, floor: <span class="k">set</span> <span class="t">Man</span>}
+<span class="k">fact</span> { <span class="k">all</span> m: <span class="t">Man</span> | <span class="k">some</span> n: <span class="t">Man</span> | m.ceiling <span class="k">in</span> n.floor }   <span class="c">// 第一句</span>
+<span class="k">assert</span> Converse { <span class="k">all</span> m: <span class="t">Man</span> | <span class="k">some</span> n: <span class="t">Man</span> | m.floor <span class="k">in</span> n.ceiling }
+<span class="k">check</span> Converse</code></pre>
+  <p><strong>第一句的形式化是 <code>ceiling in ~floor</code></strong>（每个人的天花板都出现在某个人的地板里），<strong>而它的逆命题是 <code>floor in ~ceiling</code></strong>。<strong>关系包含不蕴含其逆的包含</strong>，所以断言无效。</p>
+  <p><strong>「隐含假设」是什么？</strong>现实中的天花板/地板关系应当是<strong>对称的</strong>——若 A 的天花板是 B，则 B 的地板就是 A。加上 <code>ceiling = ~floor</code> 这条 fact 后，<strong>断言就成立了</strong>。</p>
+  <p><strong>方法论收获</strong>：题目最后一句「如果反例讲不通就加假设」是 Alloy 工作流的核心循环——<strong>跑 → 看反例 → 判断「这是真 bug 还是模型缺假设」→ 补约束 → 再跑</strong>。6.2.3 的 <code>NoIntervening</code> 正是这个循环的产物。</p>
+</div>
+
+<h3>A.3.3 Barber Paradox · 理发师悖论</h3>
+<div class="callout warn">
+  <span class="tag">背景</span>
+  <p>考虑<strong>所有「不以自己为成员」的集合</strong>构成的集合。<strong>它包含自己吗？</strong>这个悖论由 <strong>Bertrand Russell 于 1901 年发现</strong>，<strong>揭示了 Frege 朴素集合论中的一个不一致性</strong>。</p>
+  <p>该悖论的一个变体（同样归于 Russell）问：<strong>在一个村子里，理发师给每一个不自己刮胡子的男人刮胡子，那么谁给理发师刮胡子？</strong></p>
+</div>
+<pre><code><span class="k">module</span> exercises/barbers
+<span class="k">sig</span> <span class="t">Man</span> {shaves: <span class="k">set</span> <span class="t">Man</span>}
+<span class="k">one sig</span> <span class="t">Barber</span> <span class="k">extends</span> <span class="t">Man</span> {}
+<span class="k">fact</span> {
+  Barber.shaves = {m: <span class="t">Man</span> | m <span class="k">not in</span> m.shaves}
+}</code></pre>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>用 Analyzer 证明这个模型确实是不一致的</strong>，至少对一个规模较小的村子而言。</td></tr>
+    <tr><td>(b)</td><td><strong>女性主义者指出，如果承认女性的存在，这个悖论就消失了。</strong>做一个新版本的模型，把村民分成<strong>男人（需要被刮胡子）和女人（不需要）</strong>，并证明现在有一个简单的解。</td></tr>
+    <tr><td>(c)</td><td><strong>一个更激进的解法（由 Edsger Dijkstra 指出 [12]）是允许「没有理发师」这种可能性。</strong>相应地修改原模型，并证明现在有解。</td></tr>
+    <tr><td>(d)</td><td><strong>最后，试一个允许「多个理发师」的原模型变体，并证明同样有解。</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · 三种「解悖」方式对应三种建模教训</span>
+  <ul>
+    <li><strong>(a)</strong> 直接 <code>run {} for 3</code>，Analyzer 会报告 <strong>No instance found</strong>——这就是「不一致」的证据。<strong>注意这只证明了「作用域 3 内不一致」</strong>；但对这个悖论而言，任何作用域都不一致，因为矛盾是<strong>关于 Barber 自身</strong>的，与村子大小无关：<code>Barber in Barber.shaves iff Barber not in Barber.shaves</code>。</li>
+    <li><strong>(b)</strong> 关键是那条 fact 的<strong>值域</strong>：原本 <code>{m: Man | ...}</code> 把 Barber 自己也算进了被约束的范围。<strong>引入 <code>Woman</code> 并把「需要刮胡子的人」限定为男人</strong>，Barber 就可以是女人，或者可以给自己刮——悖论消解。</li>
+    <li><strong>(c)</strong> 把 <code>one sig Barber</code> 改成 <code>lone sig Barber</code>。<strong>「不存在」时那条 fact 空洞地为真</strong>，模型立即可满足。</li>
+    <li><strong>(d)</strong> 把 <code>one sig</code> 改成 <code>sig Barbers</code>（多个），fact 改成 <code>all b: Barber | b.shaves = ...</code> 或让<strong>理发师们分工</strong>：一个刮「不自己刮胡子且不被其他理发师刮」的人。<strong>多个理发师打破了自指的封闭性。</strong></li>
+  </ul>
+  <p><strong>方法论收获</strong>：<strong>三种解法分别对应「扩大论域」「放松重数」「打破单指」</strong>——这正是修模型的三把基本扳手。而且 (a) 提醒你：<strong>「在小作用域下找不到实例」只是不一致的证据，不是证明；但对纯自指矛盾，任意作用域都成立。</strong>这与 5.2 的「小作用域假设」互为镜像。</p>
+</div>
+
+<h3><span class="kbd">♥</span> A.3.4 Halmos's Handshaking Problem · Halmos 的握手问题</h3>
+<div class="callout key">
+  <span class="tag">题目（数学家 Paul Halmos 发明 [24]）</span>
+  <p><strong>用构造逻辑论证来解决这个问题相当有挑战性，但用 Alloy 找到解很容易。</strong></p>
+  <p>Alice 和 Bob 邀请了另外<strong>四对夫妻</strong>来家里参加聚会。他们中有些人彼此认识，有些不认识；有些人有礼貌，有些人没有。所以发生了一些握手，<strong>尽管并非每对客人都握了手</strong>（当然<strong>没有人握自己的手，也没有人握自己伴侣的手</strong>）。出于好奇，<strong>Alice 在聚会结束时挨个询问每个人握了多少次手。她从九个人那里得到了九个不同的答案。</strong></p>
+  <p><strong>Bob 握了多少次手？</strong></p>
+</div>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>通过在 Alloy 中建模来解决这个问题，并用 Analyzer 找到一个解。</strong></td></tr>
+    <tr><td>(b)</td><td><strong>为 10 个人求解会比为 4 个或 6 个人求解花更长时间，所以在你对模型的正确性有信心之前，先用较小的数字。</strong></td></tr>
+    <tr><td>(c)</td><td><strong>是否可能存在另一个解，其中 Bob 握了不同数量的手？</strong>扩展你的模型以便检验这一点。<strong>你可能想稍微重构一下它，使得两个候选解不会导致两套几乎相同的约束。</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · 建模骨架</span>
+<pre><code><span class="k">module</span> exercises/handshake
+<span class="k">abstract sig</span> <span class="t">Person</span> {shook: <span class="k">set</span> <span class="t">Person</span>}
+<span class="k">one sig</span> <span class="t">Alice</span>, <span class="t">Bob</span> <span class="k">extends</span> <span class="t">Person</span> {}
+<span class="k">sig</span> <span class="t">Other</span> <span class="k">extends</span> <span class="t">Person</span> {}
+<span class="k">fact</span> { <span class="o">^</span>partner = iden }          <span class="c">// 需要 partner 关系（5 对夫妻）</span>
+<span class="k">fact</span> { shook = ~shook }           <span class="c">// 握手是对称的</span>
+<span class="k">fact</span> { <span class="k">no</span> iden &amp; shook }         <span class="c">// 没人握自己的手</span>
+<span class="k">fact</span> { <span class="k">no</span> shook &amp; partner }      <span class="c">// 没人握伴侣的手</span>
+<span class="k">fact</span> { <span class="c">// Alice 得到 9 个不同答案 ⇒ 除 Alice 外的 9 个人握手数互不相同</span>
+  <span class="k">all</span> disj p, q: <span class="t">Person</span> - Alice | <span class="k">not</span> (#p.shook = #q.shook)
+}</code></pre>
+  <p><strong>关键洞察</strong>：10 个人中每人握手数范围是 <strong>0–8</strong>（不能握自己和伴侣），<strong>恰好 9 个可能值</strong>；而「除 Alice 外有 9 个人」，所以<strong>这 9 个人恰好取遍 0,1,2,…,8 各一次</strong>。由此可推出<strong>握 8 次的人与握 0 次的人是一对夫妻</strong>，握 7 次与握 1 次是一对，依此类推——<strong>剩下握 4 次的那个人必然是 Alice 的配偶 Bob</strong>。<strong>答案：Bob 握了 4 次手。</strong></p>
+  <p><strong>(c) 的重构建议</strong>：把「候选答案」抽成一个参数化谓词 <code>pred solution(k: Int) { #Bob.shook = k }</code>，然后 <code>run solution[4]</code> 与 <code>run solution[5]</code> 分别试。<strong>这就是「用谓词参数代替复制粘贴约束」的重构</strong>——4.6 节函数与谓词参数的直接应用。</p>
+</div>
+
+<h3>A.3.5 Goat, Cabbage, Wolf · 山羊、白菜、狼</h3>
+<div class="callout">
+  <span class="tag">题目</span>
+  <p>一个农夫想把<strong>一只山羊、一棵白菜和一只狼</strong>渡过河去，<strong>但他的船一次只够带一样东西</strong>。如果他<strong>把山羊和白菜留在一起，山羊会吃掉白菜</strong>；如果他<strong>把山羊和狼留在一起，山羊会被吃掉</strong>。<strong>他该怎么做？</strong>通过在 Alloy 中建模来解决这个问题，并用 Analyzer 找到一个解。</p>
+</div>
+<div class="callout">
+  <span class="tag">提示</span>
+  <p><strong>Alloy 的标准发行版包含一个模块 <code>util/ordering</code>，它定义了一个全序。你可能会发现它在为农夫所采取的步骤排序时很有用。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨 · 这就是 6.1 的「迹 idiom」的缩小版</span>
+<pre><code><span class="k">open</span> util/ordering[<span class="t">State</span>] <span class="k">as</span> TO
+<span class="k">sig</span> <span class="t">Item</span> {}
+<span class="k">one sig</span> <span class="t">Goat</span>, <span class="t">Cabbage</span>, <span class="t">Wolf</span>, <span class="t">Farmer</span> <span class="k">extends</span> <span class="t">Item</span> {}
+<span class="k">sig</span> <span class="t">State</span> { bank: <span class="k">set</span> <span class="t">Item</span> }      <span class="c">// bank = 此岸（左岸）上的物品集合</span>
+<span class="k">pred</span> safe (s: <span class="t">State</span>) {
+  <span class="k">no</span> s.bank.<span class="t">Farmer</span> =&gt; {
+    (Goat <span class="k">in</span> s.bank <span class="k">iff</span> Cabbage <span class="k">in</span> s.bank) =&gt; <span class="k">false</span>
+    (Goat <span class="k">in</span> s.bank <span class="k">iff</span> Wolf <span class="k">in</span> s.bank) =&gt; <span class="k">false</span>
+  }
+}
+<span class="k">fact</span> {
+  <span class="k">no</span> TO/first().bank                       <span class="c">// 初始：全在左岸？（应为全部）</span>
+  TO/last().bank = <span class="t">Item</span>                     <span class="c">// 目标：全到右岸 ⇒ bank 为空，按你的约定调整</span>
+  <span class="k">all</span> s: <span class="t">State</span> | safe (s)
+  <span class="k">all</span> s: <span class="t">State</span> - TO/last() | <span class="k">let</span> s' = TO/next(s) |
+    <span class="k">lone</span> s.bank - s'.bank <span class="k">and lone</span> s'.bank - s.bank   <span class="c">// 每步至多移动一样</span>
+}
+<span class="k">run</span> {} <span class="k">for</span> 8 <span class="t">State</span></code></pre>
+  <p><strong>建模要点</strong>：① 用<strong>「左岸集合」这一个字段</strong>表示全部状态（右岸 = 补集），<strong>状态数减半</strong>；② <code>safe</code> 用 <code>iff</code> 表达「山羊和 X 同在一岸」；③ 农夫必须<strong>与山羊/X 同岸</strong>才算安全，所以要加 <code>Farmer in s.bank</code> 的条件；④ <strong>标准解需要 7 步</strong>（去-回-去-回-去-回-去），所以 Time 作用域至少 8。</p>
+  <p><strong>方法论收获</strong>：这是 <strong>6.1 迹 idiom 的最小可运行版本</strong>——<code>open util/ordering[State]</code> + <code>init</code> + <code>step</code> + <code>Traces</code> fact + <code>run</code>。做完这道题，第 6 章的 <code>fact Traces</code> 就毫无神秘感了。</p>
+</div>
+
+<h3><span class="kbd">♣</span> A.3.6 Surgeon's Gloves · 外科医生的手套</h3>
+<div class="callout">
+  <span class="tag">题目（又一个 Paul Halmos 的著名问题）</span>
+  <p>一个外科医生必须给<strong>三个病人</strong>做手术，但<strong>只有两副手套</strong>。<strong>不能有交叉感染：医生不得接触任何病人的血液，任何病人也不得接触另一个病人的血液。</strong>医生<strong>需要两只手</strong>来工作。<strong>她该怎么做？</strong></p>
+  <p>在 Alloy 中表达这个问题，并用 Analyzer 找到一个解。</p>
+</div>
+<div class="callout">
+  <span class="tag">提示</span>
+  <p><strong>有 4 样东西需要被覆盖（3 个病人和 1 个外科医生）。手套提供 4 个资源。</strong>这个问题的形式化<strong>比握手问题棘手得多</strong>。你需要表达：</p>
+  <ul>
+    <li>外科医生<strong>必须能够（通过手套）处理病人</strong>这一约束；</li>
+    <li><strong>污染是如何被传递的</strong>；</li>
+    <li><strong>无污染条件本身</strong>。</li>
+  </ul>
+  <p><strong>你可能想为每一次手术关联一个前置状态和后置状态，每个状态都携带一个「污染关系」，说明什么污染了什么。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨 · 建模骨架</span>
+<pre><code><span class="k">sig</span> <span class="t">Glove</span> {inside, outside: <span class="k">set</span> <span class="t">Person</span>}   <span class="c">// 手套的两面各接触过谁</span>
+<span class="k">sig</span> <span class="t">State</span> { contaminated: <span class="t">Person</span> -&gt; <span class="t">Person</span> } <span class="c">// 污染关系</span>
+<span class="k">sig</span> <span class="t">Operation</span> { pre, post: <span class="t">State</span>, patient: <span class="t">Person</span>,
+                  worn: <span class="k">set</span> <span class="t">Glove</span> }             <span class="c">// 戴了哪些手套、什么顺序</span></code></pre>
+  <p><strong>核心难点有三个</strong>：</p>
+  <ol>
+    <li><strong>手套有「内外两面」，且可以叠加戴</strong>——所以 <code>worn</code> 必须是一个<strong>有序</strong>的集合（用 <code>util/ordering[Glove]</code> 或额外字段表示叠戴顺序）；</li>
+    <li><strong>污染是可传递的</strong>：若 A 污染了手套内面，手套内面接触了 B，则 B 被污染。这需要 <code>^contaminated</code>；</li>
+    <li><strong>「翻转手套」这个动作</strong>（把内面翻到外面）是标准解法的一部分，必须能被表达。</li>
+  </ol>
+  <p><strong>经典解法</strong>：医生先<strong>同时戴两副手套</strong>给病人 1 做手术（此时外副手套外面被污染）；然后<strong>脱掉外副</strong>，用内副给病人 2 做手术；最后<strong>把外副翻过来套在内副外面</strong>（污染面朝外）给病人 3 做手术。<strong>「4 个需要覆盖的表面 vs 4 个手套表面」这个计数正是提示所指的。</strong></p>
+  <p><strong>为什么标 ♣</strong>：因为它要求你<strong>自己发明状态表示</strong>，而不是套用现成 idiom。<strong>这正是 6.4 抽象函数那节的预演——你需要一个「污染状态」的具体模型，然后用断言表达「安全性质」。</strong></p>
+</div>
+
+<h2 id="sa4"><span class="num">A.4</span>Metamodels · 元模型</h2>
+<div class="callout key">
+  <span class="tag">什么是元模型（metamodel）</span>
+  <p><strong>元模型是「一组模型的模型」。它不必具备它所捕获的那些模型的品质。</strong></p>
+  <p>例如：<strong>一个状态机的元模型自己不必是动态的</strong>——<strong>一个状态机只是一个「可以被赋予动态解释」的结构。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 这是全书最深的一个观念</span>
+  <p>「元模型不必具备被建模物的品质」这句话，是 Alloy 能<strong>用静态的一阶关系逻辑描述动态系统</strong>的哲学根据。<strong>6.1 的迹 idiom 就是一个状态机的元模型</strong>：<code>Time</code> 原子 + <code>step</code> 谓词构成的<strong>静态结构</strong>，被我们「读作」一条动态执行。<strong>本节习题要求你把这个手法反过来用：显式地为「状态机」这个概念本身建模。</strong></p>
+</div>
+
+<h3>A.4.1 State Machine Definition · 状态机定义</h3>
+<p><strong>一个状态机有一个或多个初始状态，以及一个把每个状态连接到其后继的迁移关系。</strong>构造一个状态机的 Alloy 模型，并<strong>通过添加约束、让 Analyzer 求解，来生成各式各样的机器例子</strong>：</p>
+<table>
+  <thead><tr><th>#</th><th>要生成的机器</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td>一个<strong>确定性机器</strong>，其中<strong>每个状态至多有一个后继</strong></td></tr>
+    <tr><td>(b)</td><td>一个<strong>非确定性机器</strong>，其中<strong>某些状态有多于一个后继</strong></td></tr>
+    <tr><td>(c)</td><td>一个<strong>带有不可达状态</strong>的机器</td></tr>
+    <tr><td>(d)</td><td>一个<strong>没有不可达状态</strong>的机器</td></tr>
+    <tr><td>(e)</td><td>一个<strong>连通的机器，其中每个状态都可从每个其他状态到达</strong></td></tr>
+    <tr><td>(f)</td><td>一个<strong>带有死锁（deadlock）的机器</strong>：<strong>一个可达的、没有后继的状态</strong></td></tr>
+    <tr><td>(g)</td><td>一个<strong>带有活锁（livelock）的机器</strong>：<strong>存在一种无限执行的可能，其中一个「总是可达」的状态却永远不会被到达</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · 骨架与七条约束</span>
+<pre><code><span class="k">sig</span> <span class="t">State</span> {next: <span class="k">set</span> <span class="t">State</span>}
+<span class="k">sig</span> <span class="t">Initial</span> <span class="k">in</span> <span class="t">State</span> {}          <span class="c">// 初始状态集合（子签名）</span>
+<span class="k">fun</span> reachable: <span class="k">set</span> <span class="t">State</span> { <span class="t">Initial</span>.<span class="o">*</span>next }
+
+<span class="c">// (a) 确定性：      all s: State | lone s.next</span>
+<span class="c">// (b) 非确定性：    some s: State | some s.next and #s.next &gt; 1</span>
+<span class="c">// (c) 有不可达：    some State - reachable</span>
+<span class="c">// (d) 无不可达：    State = reachable</span>
+<span class="c">// (e) 强连通：      all s: State | State in s.*next</span>
+<span class="c">// (f) 死锁：        some s: reachable | no s.next</span>
+<span class="c">// (g) 活锁：        some s: reachable | (some s.next) and s.next.*next = s.*next and s not in ...</span></code></pre>
+  <p><strong>(g) 活锁是七条中最难的</strong>。它的形式化要点是「<strong>存在一个无限执行路径，它始终待在一个循环里，而某个从该路径上任意点都可达的状态从未被经过</strong>」。在有限模型里，「无限执行」等价于「<strong>路径进入了一个循环</strong>」，所以可以写成：<strong>存在一个状态 s 和一个循环 C（<code>C.next in C</code>），使得从 C 中可达某状态 t，但存在一条只走 C 的无限路径永远不经过 t</strong>。简化写法：<code>some s, t: State | t in s.*next and s in s.^next and t not in s.^next</code>（s 在一个环上，t 从 s 可达但不在 s 的环里）。</p>
+  <p><strong>(c)/(d)/(f)/(g) 都用到了「可达集」这个派生概念</strong>——把它写成 <code>fun reachable</code> 而不是在每个约束里重复 <code>Initial.*next</code>，正是 4.6「函数即宏」的实用价值。</p>
+</div>
+
+<h3><span class="kbd">♣</span> A.4.2 State Machine Simulation · 状态机模拟</h3>
+<p>考虑<strong>两个带有标记迁移的状态机 M1 和 M2</strong>。一个从 M1 的状态到 M2 的状态的关系 r，<strong>是 M1 在 M2 中的一个模拟（simulation）</strong>，当且仅当：</p>
+<div class="callout key">
+  <span class="tag">模拟的两个条件</span>
+  <ul>
+    <li><strong>① 迁移对应</strong>：只要 r 把 M1 中的状态 s1 关联到 M2 中的状态 s2，并且 <strong>M1 有一个从 s1 到 s1' 的、标记为 a 的迁移</strong>，那么 <strong>M2 也有一个从 s2 到某个 s2' 的、标记为 a 的迁移</strong>，其中 <strong>s2' 被 r 关联到 s1'</strong>；</li>
+    <li><strong>② 初始对应</strong>：只要 <strong>s1 是 M1 的一个初始状态</strong>，就<strong>存在 M2 的一个初始状态 s2，使得 s1 与 s2 被 r 关联</strong>。</li>
+  </ul>
+  <p><strong>如果此外 <code>~r</code> 是 M2 在 M1 中的一个模拟，那么关系 r 就是一个双模拟（bisimulation）。</strong></p>
+</div>
+<div class="callout">
+  <span class="tag">迹与行为</span>
+  <p><strong>一个状态机的迹（trace）是一个有限的迁移标记序列</strong>，它通过<strong>从一个初始状态出发、沿着迁移走一条路径</strong>而形成。<strong>一台机器的行为可以由它所展示的迹的集合来描述。</strong></p>
+</div>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(h)</td><td><strong>构造一个「带迹的状态机」与「模拟关系」的 Alloy 模型，并生成一些机器及其关联迹集的例子。</strong></td></tr>
+    <tr><td>(i)</td><td><strong>加入「模拟」这个概念，并生成一些被模拟关系关联起来的机器的例子。</strong></td></tr>
+    <tr><td>(j)</td><td><strong>如果两台机器之间存在模拟，它们必须有相同的迹集吗？</strong>用 Alloy 检验这个假设。<strong>双模拟呢？</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · (j) 的答案</span>
+  <p><strong>单向模拟不保证迹集相同——只保证「M1 的迹集 ⊆ M2 的迹集」。</strong>所以断言</p>
+<pre><code><span class="k">assert</span> SimSameTraces { simulation(r, M1, M2) =&gt; traces(M1) = traces(M2) }
+<span class="k">check</span> SimSameTraces <span class="k">for</span> 3</code></pre>
+  <p><strong>会有反例</strong>：M2 可以有 M1 没有的迹（M2 更「自由」）。</p>
+  <p><strong>双模拟则保证迹集相同。</strong>因为 <code>~r</code> 也是模拟，于是两个方向的包含都成立。</p>
+  <p><strong>这与 6.4.4 的「迹包含」标准完全同源</strong>：那里说「具体机器符合抽象机器，当且仅当它的迹集是抽象机器迹集的子集」——<strong>那正是一个单向模拟</strong>。而 6.4.4 也指出：<strong>迹包含不保证「做好事」（空迹集符合任何机器）</strong>，这与这里「单向模拟不保证迹集相同」是同一个观察的两面。</p>
+  <p><strong>建模骨架提示</strong>：用 <code>sig Machine {states: set State, init: set states, trans: states -> Label -> states}</code> 表示机器，<code>sig Label {}</code> 表示标记，<code>trace</code> 用 <code>seq[Label]</code>（Alloy 4 之后）或用 <code>open util/ordering[Step]</code> 自己搭。<strong>本题被标 ♣ 是因为你需要同时建模「机器」「迹」「模拟关系」三层结构。</strong></p>
+</div>
+
+<h3>A.4.3 Metamodel of Alloy · Alloy 的元模型</h3>
+<div class="callout warn">
+  <span class="tag">题目</span>
+  <p><strong>写一个「Alloy 模型」的 Alloy 模型。把你的模型限制在 signature、字段以及它们之间的关系上。</strong>为了证明你的模型足够丰富到能描述它自己，<strong>添加模拟约束，让工具生成一个与之对应的实例。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨 · 「自描述」是本题的全部趣味</span>
+<pre><code><span class="k">sig</span> <span class="t">Sig</span> { field: <span class="k">set</span> <span class="t">Field</span> }
+<span class="k">sig</span> <span class="t">Field</span> { decl: <span class="t">Sig</span>,                  <span class="c">// 这个字段声明在哪个 signature 里</span>
+              target: <span class="k">set</span> <span class="t">Sig</span>,           <span class="c">// 它的类型指向哪些 signature</span>
+              mult: <span class="t">Mult</span> }               <span class="c">// set / lone / one / some</span>
+<span class="k">sig</span> <span class="t">Mult</span> {}
+<span class="k">one sig</span> <span class="t">Set</span>, <span class="t">Lone</span>, <span class="t">One</span>, <span class="t">Some</span> <span class="k">extends</span> <span class="t">Mult</span> {}
+
+<span class="k">fact</span> SelfDescribing {
+  <span class="c">// 要求生成的实例「就是」这个模型自己：</span>
+  <span class="c">// 存在一个 Sig 原子代表 Sig、一个代表 Field、一个代表 Mult……</span>
+  <span class="c">// 且 Field 原子的 decl/target/mult 恰如上面所声明</span>
+}</code></pre>
+  <p><strong>难点在 <code>SelfDescribing</code> 这条 fact</strong>：你要用存在量词「挑选」出实例中代表 <code>Sig</code>、<code>Field</code>、<code>Mult</code> 的那些原子，然后断言它们之间的 <code>decl</code>/<code>target</code>/<code>mult</code> 关系与模型声明一致。<strong>例如：代表 <code>Field</code> 的那个原子，它的 <code>decl</code> 必须是代表 <code>Sig</code> 的原子，它的 <code>target</code> 必须是 {代表 Sig 的原子, 代表 Mult 的原子}，它的 <code>mult</code> 必须是 Set。</strong></p>
+  <p><strong>方法论收获</strong>：这道题让你亲身体会 <strong>4.1 说的「模型即数据」</strong>——Alloy 模型本身就是一个关系结构，所以它能被 Alloy 描述。<strong>这与 A.3.3 理发师悖论形成有趣对照：自指在小规模、有限论域下是安全的，而 Russell 悖论的危险恰恰来自「所有集合的集合」这种无限自指。</strong></p>
+</div>
+
+<h3>A.4.4 Metamodel of Java · Java 的元模型</h3>
+<div class="callout">
+  <span class="tag">题目（分四步）</span>
+  <ol>
+    <li><strong>构造并探索一个 Java 的元模型。</strong></li>
+    <li><strong>首先，建模类/接口层次结构</strong>，把类和接口当作原子，它们之间由 <code>extends</code> 和 <code>implements</code> 等关系相互关联。</li>
+    <li><strong>然后建模实例变量的声明</strong>，为每一个变量关联一个<strong>源</strong>类或接口和一个<strong>目标</strong>类或接口。</li>
+    <li><strong>现在把堆（heap）本身建模为一个对象集合</strong>，每个对象都有一个被指派的<strong>运行时类型（runtime type）</strong>，并<strong>写出确保堆是「良类型（well-typed）」的约束</strong>。用 Analyzer 生成一些有趣的例子。</li>
+  </ol>
+</div>
+<div class="callout idea">
+  <span class="tag">点拨 · 三层结构</span>
+<pre><code><span class="c">// —— 第 1 层：类型层次 ——</span>
+<span class="k">abstract sig</span> <span class="t">Type</span> {}
+<span class="k">sig</span> <span class="t">Class</span> <span class="k">extends</span> <span class="t">Type</span> { super: <span class="k">lone</span> <span class="t">Class</span>, impl: <span class="k">set</span> <span class="t">Interface</span> }
+<span class="k">sig</span> <span class="t">Interface</span> <span class="k">extends</span> <span class="t">Type</span> { extendsI: <span class="k">set</span> <span class="t">Interface</span> }
+<span class="k">fact</span> { <span class="k">no</span> c: <span class="t">Class</span> | c <span class="k">in</span> c.<span class="o">^</span>super }        <span class="c">// 无环</span>
+
+<span class="c">// —— 第 2 层：字段声明 ——</span>
+<span class="k">sig</span> <span class="t">Field</span> { owner: <span class="t">Type</span>, type: <span class="t">Type</span> }        <span class="c">// 源 与 目标</span>
+
+<span class="c">// —— 第 3 层：堆 ——</span>
+<span class="k">sig</span> <span class="t">Object</span> { runtimeType: <span class="t">Class</span>,
+               value: <span class="t">Field</span> <span class="k">lone</span> -&gt; <span class="t">Object</span> }
+<span class="k">fact</span> WellTyped {
+  <span class="k">all</span> o: <span class="t">Object</span>, f: <span class="t">Field</span>, o': <span class="t">Object</span> |
+    o' <span class="k">in</span> o.value[f] =&gt; {
+      f.owner <span class="k">in</span> o.runtimeType.<span class="o">*</span>super + o.runtimeType   <span class="c">// f 在 o 的类型链上被声明</span>
+      o'.runtimeType <span class="k">in</span> f.type.<span class="o">*</span>(super + extendsI)      <span class="c">// o' 的类型是 f.type 的子类型</span>
+    }
+}</code></pre>
+  <p><strong>「良类型」的两条本质</strong>：① <strong>对象只能持有「它自己的类型（或其超类型）所声明的字段」的值</strong>；② <strong>该值的对象的运行时类型必须是字段声明类型的子类型</strong>。第②条里的 <code>*super</code> 与 <code>*extendsI</code> 复合，正是「子类型」的形式化——<strong>这也是 Alloy 自己的 <code>extends</code> 语义的镜像</strong>（回想 4.2.3：子签名的原子集合是父签名的子集）。</p>
+  <p><strong>有趣的例子怎么生成？</strong>加模拟约束，如 <code>some o: Object | some o.value</code>、<code>some o, o': Object | o.runtimeType != o'.runtimeType and some o.value &amp; (univ -> o')</code>（存在跨类型的引用），或者要求堆里有一个<strong>循环引用</strong> <code>some o: Object | o in o.^value.univ</code>。</p>
+</div>
+
+<h2 id="sa5"><span class="num">A.5</span>Small Case Studies · 小型案例研究</h2>
+<div class="callout key">
+  <span class="tag">本节定位</span>
+  <p><strong>本节的习题涉及在明确界定的场景中构造小模型。</strong>与 A.2「给你骨架」不同，<strong>A.5 只给你问题描述，signature 由你自己设计</strong>——这是从「练习」到「建模」的分水岭。三题都被标为 <span class="kbd">♣</span>。</p>
+</div>
+
+<h3><span class="kbd">♣</span> A.5.1 Unix File System · Unix 文件系统</h3>
+<div class="callout">
+  <span class="tag">题目背景</span>
+  <p>这道题让你<strong>建模 Unix 文件系统中路径名是如何被解析的，并检验一些简单的性质</strong>。</p>
+  <p>在 Unix 文件系统中，<strong>每个文件由一个 inode 表示</strong>。inode 包含文件的一些基本属性（<strong>权限位、文件类型</strong>等），并有<strong>一个含十个地址的序列，指向存放文件数据的磁盘块</strong>。</p>
+  <p>此外还有<strong>三个间接地址</strong>：</p>
+  <ul>
+    <li><strong>第一个涉及一层额外的间接</strong>：它指向一个<strong>存放「数据块地址」（而非数据）</strong>的块；</li>
+    <li><strong>第二个涉及两层间接</strong>：它指向一个地址块，该块又指向若干地址块，那些块再指向数据块；</li>
+    <li><strong>第三个涉及三层</strong>。</li>
+  </ul>
+  <p><strong>所有 inode 都存放在一个叫做 inode 表的数组里。一个给定 inode 在这个数组中的索引就是它的 inumber。</strong></p>
+  <p><strong>一个目录被表示为一个文件，其数据由「inumber/文件名」对的列表构成。根目录与某个固定的 inumber 相关联。</strong></p>
+  <p>文件和目录都有路径名。<strong>空路径名 <code>/</code> 对应根目录。</strong>一般地，<strong>给定一个表示目录 d 的路径名 p，路径名 <code>p/n</code> 表示目录 d 中名为 n 的那个文件或目录</strong>。要解析一个路径名，<strong>文件系统从根目录出发，查找该文件路径名的前缀</strong>。这给出一个 inumber，<strong>它接着在 inode 表中查找这个 inumber</strong>。得到的 inode 要么是所要求的文件或目录（<strong>如果路径名没有剩余部分</strong>），要么是<strong>另一个目录，对该目录重复这个过程（作用于路径名的剩余部分）</strong>。</p>
+</div>
+<div class="callout warn">
+  <span class="tag">关键提示：这段描述<strong>故意</strong>包含了与「路径名如何被解析」无关的细节</span>
+  <p><strong>例如，你需要考虑「inode 中地址的顺序是否重要」，如果不重要，那么什么比「序列」更简单的结构就足够了。</strong></p>
+  <p>——这是全书反复强调的一课：<strong>规约里给的描述往往混入了实现细节，建模者的第一件事是识别哪些细节与要分析的性质无关，然后把它们抽象掉。</strong>这里的正确答案是：<strong>用集合 <code>set Block</code> 代替序列</strong>，因为路径解析只关心「哪些块属于这个文件」，不关心顺序。</p>
+</div>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>从构造 inode、inumber 与 block 的基本结构模型开始。忽略间接寻址。</strong>通过编写模拟约束来探索一些样例结构，<strong>并添加任何你发现自己遗漏了的不变式</strong>。</td></tr>
+    <tr><td>(b)</td><td><strong>构造一个路径名模型，把路径名当作一个列表，它由一个 name（第一个元素）和一个 pathname（其余部分）构成。</strong>通过编写模拟约束来探索一些样例路径名，<strong>并添加任何你发现自己遗漏了的不变式</strong>。</td></tr>
+    <tr><td>(c)</td><td><strong>现在你要把模型的两部分组合起来，并定义一个建模 lookup 的函数：给定一个路径名，它返回一个 inode 集合。</strong>你会想<strong>递归地</strong>定义 lookup，<strong>但 Alloy 的函数不能是递归的</strong>。取而代之，<strong>你可以声明一个对应于 lookup 的关系，它由一条「关系名出现在等式两边」的约束来定义</strong>。</td></tr>
+    <tr><td>(d)</td><td><strong>表述并检验两条断言：每个路径名至多解析到一个 inode；以及没有两个不同的路径名解析到同一个 inode。</strong>这两条中你原本期望哪一条成立？<strong>如果你的分析揭示了模型中的缺陷，就修正它们。</strong></td></tr>
+    <tr><td>(e)</td><td><strong>最后，加入间接寻址的概念。试着以模块化的方式来做，对你的名字查找模型的扰动尽可能小。</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · (c) 的「非递归」技巧是本题的核心</span>
+  <p>Alloy 函数不能递归（因为函数只是宏，展开会无限进行）。<strong>解决办法是把 lookup 声明为一个「字段/关系」，然后用一条自指的 fact 来定义它</strong>：</p>
+<pre><code><span class="k">sig</span> <span class="t">PathName</span> { name: <span class="t">Name</span>, rest: <span class="k">lone</span> <span class="t">PathName</span>, resolvesTo: <span class="k">set</span> <span class="t">Inode</span> }
+<span class="k">fact</span> {
+  <span class="k">no</span> p.<span class="o">^</span>rest                                  <span class="c">// 路径名无环</span>
+  <span class="k">all</span> p: <span class="t">PathName</span> {
+    <span class="k">no</span> p.rest =&gt; p.resolvesTo = Root            <span class="c">// 基例：空路径 = 根目录</span>
+    <span class="k">some</span> p.rest =&gt;
+      p.resolvesTo = {i: <span class="t">Inode</span> |
+        <span class="k">some</span> d: p.rest.resolvesTo &amp; <span class="t">Directory</span> |
+          p.name <span class="k">in</span> d.entries.i }               <span class="c">// 递归步</span>
+  }
+}</code></pre>
+  <p><strong>注意 <code>p.rest.resolvesTo</code> 出现在定义 <code>p.resolvesTo</code> 的约束里</strong>——这就是「关系名出现在等式两边」。<strong>Alloy 把它当作一条普通的一阶约束交给 SAT 求解器，于是「递归」被消解成了「联立方程」。</strong>这与 4.2.4 里 <code>*@friends</code> 那种「自引用字段声明」是完全不同的机制（后者是类型层面的，前者是约束层面的）。</p>
+  <p><strong>(d) 的预期答案</strong>：「<strong>每个路径名至多解析到一个 inode</strong>」应当<strong>成立</strong>（前提是目录中不出现重名条目）；「<strong>没有两个不同路径名解析到同一个 inode</strong>」应当<strong>不成立</strong>——因为 <strong>Unix 支持硬链接（hard links）</strong>！<strong>如果你的模型让第二条也成立了，说明你遗漏了「一个 inode 可以有多个文件名」这个事实。</strong>这正是题目说的「如果分析揭示了模型中的缺陷，就修正它们」。</p>
+  <p><strong>(e) 的「模块化」要求</strong>：间接寻址只影响「inode → 数据块」这一层，<strong>不影响「目录 → inumber → inode」的查找链</strong>。所以正确做法是把「inode 拥有哪些块」抽成一个独立的关系或函数，<strong>让 lookup 只依赖「目录条目」而不依赖「块结构」</strong>。这就是<strong>关注点分离</strong>——与 4.7「模块系统」和 6.4「用独立模块做检查」是同一个原则。</p>
+</div>
+
+<h3><span class="kbd">♣</span> A.5.2 Railway Switching · 铁路道岔</h3>
+<div class="callout">
+  <span class="tag">题目背景</span>
+  <p>这道题让你<strong>构造一个简单的铁路道岔系统模型，并检验「某个道岔策略能确保不发生碰撞」</strong>。你会做一些简化假设，例如<strong>一列火车一次只占用一个轨道段</strong>，但<strong>你会学到普遍适用的技术</strong>，特别是：</p>
+  <ul>
+    <li><strong>如何建模一个「允许许多任意行为」的物理环境</strong>（在本例中是火车的移动）；</li>
+    <li><strong>如何把「需求」（不发生碰撞）与「假设」（司机遵守信号）分离开来</strong>。</li>
+  </ul>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 这两点正是第 6 章的方法论内核</span>
+  <p>「建模物理环境」= 6.1 中<strong>「token 池 + 任意选择」建模不可靠通信与并发调度</strong>；「需求与假设分离」= 6.2 中<strong>把 <code>NoIntervening</code> 写成 fact，而把 <code>NoBadEntry</code> 写成 assert</strong>。<strong>这道题实际上是要你独立复现第 6 章的整套方法论。</strong></p>
+</div>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>把轨道布局建模为一个轨道段集合 <code>Segment</code>，带一个从 Segment 到 Segment 的关系 <code>next</code>。</strong>轨道段在物理上是不相交的，<strong>只在端点处相互接触</strong>，并且是<strong>有方向的</strong>，假定火车从一个端点行驶到另一个端点。<strong>不过端点并没有被显式表示出来</strong>；取而代之，<strong>我们用 <code>next</code> 把 s1 映射到 s2 来表示「s1 的出口端连接到 s2 的入口端」</strong>。生成一些样例布局，并用 Alloy Analyzer 获得一些漂亮的可视化。</td></tr>
+    <tr><td>(b)</td><td>要建模碰撞的可能性，我们本可以简单地说「两列火车只有在同一段轨道上时才可能相撞」。<strong>为了一个更一般的概念</strong>——它允许「位于例如<strong>彼此平行的轨道段</strong>上的火车之间也可能相撞」——我们可以声明一个关系 <code>overlaps</code>，它<strong>非常抽象地</strong>表示轨道的物理布局：<strong>当一列火车在 s1 上、另一列在 s2 上会造成危险时，它把 s1 映射到 s2</strong>。<strong>你会期望这个关系具有哪些性质：它是自反的、对称的、传递的吗？</strong>把这个关系加进你的模型，<strong>外加一条记录你认为应当成立的性质的 fact</strong>。</td></tr>
+    <tr><td>(c)</td><td><strong>现在你要引入随时间变化的状态。</strong>声明一个 signature <code>Train</code> 表示一组火车，和一个 signature <code>TrainState</code>，带一个从 Train 到 Segment 的关系 <code>on</code> 表示它们的位置（<strong>记住每列火车只能占用一个段</strong>）。<strong>定义 TrainState 中一个额外的字段 <code>occupied</code>，它持有被火车占用的那些段的集合。</strong>生成并可视化一些样例状态；<strong>你大概会想用着色来标示被占用的段</strong>。</td></tr>
+    <tr><td>(d)</td><td>为了描述<strong>所有物理上可能的火车移动</strong>，引入一个作用于 TrainState 的操作，<strong>它取两个火车状态（表示前置与后置状态）以及一组移动的火车作为参数</strong>，并约束这些火车状态，使得<strong>在这一步中，每列移动的火车都从一个段行进到它在 <code>next</code> 关系下的某个后继</strong>。生成并可视化这个操作的一些样例执行。</td></tr>
+    <tr><td>(e)</td><td>为了建模信号系统，<strong>引入一个 signature <code>GateState</code>，带一个字段 <code>closed</code>，其值是一个段的集合，表示「火车不应越过的那些段」</strong>。<strong>注意没有必要把闸门或信号灯引入为显式的原子。</strong>写一个刻画<strong>合法移动</strong>的谓词，它的参数是一个 GateState、一个 TrainState 和一组移动的 Train。</td></tr>
+    <tr><td>(f)</td><td><strong>在 TrainState 上写一个安全条件，说火车绝不占用相互重叠的段</strong>，并生成一些满足与违反该条件的样例状态。</td></tr>
+    <tr><td>(g)</td><td><strong>最难的部分是设计那个机制——决定「闸门何时应当关闭」的策略。</strong>我们不想精确规定何时、哪些闸门应当关闭，而是<strong>想写一个施加某些「最小条件」的约束。这样，我们实际上是在检验「一整族可能的机制」</strong>。把这个策略写成一个谓词，参数是一个 GateState 和一个 TrainState。<strong>它可以说，例如：如果若干个被占用的段共享同一个后继，那么其中至多一个可以有一个打开的闸门。</strong></td></tr>
+    <tr><td>(h)</td><td><strong>最后，把所有部分组装起来</strong>：写一个断言，说<strong>当火车移动时，如果机制遵守闸门策略、且火车的移动是合法的，那么碰撞就不会发生</strong>（即系统不会从一个安全状态迁移到一个不安全状态）。<strong>检验这个断言，如果你找到了反例，仔细研究它们，并调整你的模型。最有可能出问题的是你的闸门策略。</strong></td></tr>
+    <tr><td>(i)</td><td><strong>当你满意闸门策略按预期工作（防止碰撞）之后，通过生成并可视化一些有趣的火车移动，来确保你没有把模型过度约束。</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨</span>
+  <ul>
+    <li><strong>(b) 的性质答案</strong>：<code>overlaps</code> <strong>应当是自反的</strong>（一段与自己重叠——同一轨道上两列车必然相撞）、<strong>对称的</strong>（若 s1 与 s2 危险，则 s2 与 s1 也危险）、<strong>但不应是传递的</strong>（平行段 A、B 重叠，B、C 重叠，不代表 A、C 重叠）。<strong>把「传递性」误加进去是这道题最典型的错误</strong>，它会让整个模型退化成「所有段都互相重叠」。</li>
+    <li><strong>(c) 的 <code>occupied</code> 为什么是「额外字段」？</strong>因为它<strong>可以从 <code>on</code> 推导出来</strong>（<code>occupied = Train.on</code> 的值域）。<strong>把它显式声明出来是一种冗余</strong>——但题目要你这么做，是为了练习「<strong>冗余字段需要一条一致性 fact</strong>」这一课：<code>fact { all ts: TrainState | ts.occupied = ts.on.univ }</code>。<strong>忘了加这条 fact，模型就会有无穷多「不一致的」实例。</strong>这正是 4.2.4 里「依赖声明」想解决的问题。</li>
+    <li><strong>(e) 「不必引入闸门原子」是关键洞见</strong>：<strong>一个「状态」不必由「实体」表示</strong>。<code>closed: set Segment</code> 这一行就够了。这与 6.1.1 中「进程原子本身就是标识符，不需要单独的 ID 概念」是同一思路——<strong>Alloy 让你只为「需要被区分的实体」造原子</strong>。</li>
+    <li><strong>(g) 「检验一整族机制」是本题最深刻的一点</strong>：<strong>策略谓词应当是「机制必须满足的最小条件」，而不是「某个具体机制的定义」</strong>。这样 (h) 的断言一旦成立，就同时为<strong>所有</strong>满足该策略的机制提供了保证。<strong>这正是「underspecification（欠规约）」作为优点的典范</strong>——回想 5.4 的准则「宁可欠约束」。</li>
+    <li><strong>(h) 断言的形状</strong>（把三层条件叠起来）：
+<pre><code><span class="k">assert</span> NoCollision {
+  <span class="k">all</span> ts, ts': <span class="t">TrainState</span>, gs: <span class="t">GateState</span>, moved: <span class="k">set</span> <span class="t">Train</span> |
+    policy (gs, ts) <span class="k">and</span> legalMovement (gs, ts, moved) <span class="k">and</span> move (ts, ts', moved)
+    <span class="k">and</span> safe (ts) =&gt; safe (ts')
+}
+<span class="k">check</span> NoCollision <span class="k">for</span> 4</code></pre></li>
+    <li><strong>(i) 与 A.2.2(f) 是同一个教训</strong>：<strong>证明「安全」之后，必须证明「模型仍然能做事」</strong>，否则你可能只是把系统约束到永不移动。</li>
+  </ul>
+</div>
+
+<h3><span class="kbd">♣</span> A.5.3 Hotel Locking · 酒店门锁</h3>
+<div class="callout">
+  <span class="tag">题目设定（US Patent 4511946）</span>
+  <p>这道题让你<strong>构造一个与 6.2 节所述类似的酒店门锁方案的模型</strong>。在这个方案中：</p>
+  <ul>
+    <li><strong>每张钥匙卡持有两个独立的、充当钥匙的号码。每把锁同样有两个钥匙。</strong></li>
+    <li><strong>当卡上的第一个钥匙与锁中的第一个钥匙匹配，且卡上的第二个钥匙与锁中的第二个钥匙匹配时，锁打开。</strong></li>
+    <li><strong>当卡上的第一个钥匙与锁中的<em>第二个</em>钥匙匹配时，门也会打开，但锁会被重新编码，使其第一个和第二个钥匙分别匹配卡的第一个和第二个钥匙。</strong></li>
+    <li><strong>前台持有「每个房间最后发出的钥匙」的记录，此外还持有一个「已发出过的钥匙」的集合。</strong></li>
+    <li><strong>一张新卡的形成方式是：用「最后发出的钥匙」作为第一个钥匙，用一个新鲜的钥匙作为第二个钥匙。</strong></li>
+  </ul>
+</div>
+<table>
+  <thead><tr><th>#</th><th>任务</th></tr></thead>
+  <tbody>
+    <tr><td>(a)</td><td><strong>构造这个方案的一个模型，带有入住、退房、进入房间的操作，并用 Alloy Analyzer 生成一些场景。</strong></td></tr>
+    <tr><td>(b)</td><td><strong>表述一个捕获该方案目的——拒绝入侵者进入——的安全条件，并拿模型对照这个条件进行检验，报告你找到的任何反例。</strong></td></tr>
+    <tr><td>(c)</td><td><strong>这个分析很可能揭示你的模型或安全条件中的错误。修正它们，检验安全条件得到满足；并且——为了确保你没有不小心把模型过度约束——重新生成你最初的那些场景（至少是那些仍然有效的）。</strong></td></tr>
+    <tr><td>(d)</td><td><strong>假设酒店客人可以用「合法获得的卡上的钥匙」来制作新卡。</strong>相应地修改 entry 操作，并检验安全条件仍然成立。</td></tr>
+    <tr><td>(e)</td><td><strong>假设方案被改成「当卡上的第一个钥匙与锁中的第一个钥匙匹配时门就解锁（这种情况下忽略第二个钥匙）」。</strong>证明在这种情况下，<strong>该方案易受「一个制作新卡的不诚实客人」的攻击</strong>。</td></tr>
+  </tbody>
+</table>
+<div class="callout idea">
+  <span class="tag">点拨 · 与 6.2 的对照</span>
+  <table>
+    <thead><tr><th></th><th>6.2 的方案</th><th>A.5.3 的专利方案</th></tr></thead>
+    <tbody>
+      <tr><td>钥匙数量</td><td>锁持<strong>一个</strong>当前组合</td><td>锁持<strong>两个</strong>钥匙；卡也持<strong>两个</strong></td></tr>
+      <tr><td>开锁条件</td><td>当前组合<strong>或</strong>其后继</td><td>「<strong>两个都匹配</strong>」<strong>或</strong>「<strong>卡的第一个 = 锁的第二个</strong>」（此时重编码）</td></tr>
+      <tr><td>前台记录</td><td><code>lastKey: Room -&gt; lone Key</code></td><td><code>lastKey</code> <strong>加上</strong> <code>issued: set Key</code>（已发出钥匙的集合）</td></tr>
+      <tr><td>新钥匙的产生</td><td><code>nextKey(lastKey[r], r.keys)</code> —— 伪随机序列的后继</td><td><strong>「上一个钥匙 + 一个新鲜钥匙」的组合</strong> —— 不依赖伪随机生成器</td></tr>
+    </tbody>
+  </table>
+  <p><strong>(d) 是全题最有意思的一步</strong>：它把<strong>「客人能自己造卡」</strong>这个更强的攻击者能力加进来。<strong>安全条件仍然成立，是因为「卡的第一钥匙必须是前台记录的最后钥匙」这一约束——客人无法凭空猜出它。</strong>但如果你把「新鲜钥匙」的选择也交给客人（即 <code>some fresh: Key - issued</code>），那么<strong>攻击者可以造出「下一张卡的钥匙」</strong>，安全条件就会失效。</p>
+  <p><strong>(e) 的漏洞</strong>：改成「第一钥匙匹配即开门、忽略第二钥匙」后，<strong>锁的第二钥匙就不再参与验证</strong>，于是<strong>一张旧卡（其第一钥匙曾在某个时刻是锁的第一钥匙）可以反复开门</strong>——因为重编码只在「第一=锁的第二」这条分支发生。<strong>这与 6.2 那个「锁要等新客人插卡才重编码」的漏洞是同构的：都是「验证条件弱于状态更新条件」。</strong></p>
+  <p><strong>建议做法</strong>：<strong>直接以 6.2 的 <code>examples/hotel</code> 模块为起点改造</strong>，把 <code>Room.currentKey</code> 换成 <code>Room.firstKey, secondKey</code>，把 <code>Guest.keys: Key -&gt; Time</code> 换成 <code>Guest.cards: Card -&gt; Time</code> 加 <code>Card.k1, k2: Key</code>。<strong>迹约束与 <code>NoBadEntry</code> 断言几乎可以原样复用</strong>——这正是模块化建模的回报。</p>
+</div>
+
+<h2 id="sa6"><span class="num">A.6</span>Open-Ended Case Studies · 开放式案例研究</h2>
+<div class="callout key">
+  <span class="tag">本节定位</span>
+  <p>这里是一些<strong>建模与分析的小型案例研究的想法</strong>。<strong>它们大致按难度排序，最容易的在前</strong>，<strong>每一个可能需要几小时到几天的工作</strong>，取决于研究的深度与所考虑特性的复杂度。</p>
+</div>
+
+<h3>(a) Organizational Structure · 组织结构</h3>
+<p><strong>建模你所在组织的结构，并生成该结构的样例实例。</strong>考虑<strong>针对不同类型的职能，可能存在不同的、横切的（cross-cutting）结构</strong>，并探索<strong>这些结构之间是如何相互关联的</strong>。</p>
+<div class="callout idea"><span class="tag">点拨</span>这正是 6.3「catalogs that crosscut the directory structure」的组织学版本。<strong>难点在于：同一个人可以同时属于多个汇报线（实线/虚线）</strong>，所以 <code>reportsTo</code> 不能是 <code>lone</code> 而应是 <code>set</code>，且需要区分<strong>职能维度</strong>（<code>sig Function</code>）。<strong>「横切结构之间的关系」通常表现为一条约束：某个职能线的主管必须在行政线上位于其下属之上</strong>——这条约束是否成立，正是值得用 Analyzer 检验的问题。</div>
+
+<h3>(b) Folders in an Email Client · 邮件客户端中的文件夹</h3>
+<p><strong>建模一个邮件客户端的文件夹结构</strong>：邮箱（mailboxes）包含邮件（messages），文件夹（folders）包含邮箱，<strong>外加「在四处移动邮件」和「改变文件夹层次」的操作</strong>。<strong>仔细考虑如何处理特殊邮箱</strong>，例如<strong>接收来信的收件箱（inbox）、待发送与已发送邮件的箱子、草稿箱、已删除邮件箱</strong>。<strong>这些特殊箱子与常规箱子、以及它们彼此之间共享哪些性质？它们通常有额外的性质吗？</strong></p>
+<div class="callout idea"><span class="tag">点拨</span>核心问题是<strong>「特殊邮箱是子签名还是字段？」</strong>推荐用 <code>abstract sig Mailbox</code> 加 <code>one sig Inbox, Outbox, Sent, Drafts, Trash extends Mailbox {}</code>——这样<strong>每个特殊箱子的独有约束可以写成 signature fact</strong>（如 <code>fact { no Drafts.messages.sent }</code>）。<strong>「共享的性质」写成 Mailbox 上的 fact，「独有的性质」写在子签名里</strong>，这正是 4.2.3 子签名与 signature facts 的教科书用法。<strong>最有意思的断言是代数性质的</strong>：<code>move(m, Inbox, Trash)</code> 后再 <code>restore(m)</code> 是否回到原状？<strong>这与 6.3.3 的 <code>CutPaste</code>/<code>PasteCut</code> 是同构问题。</strong></div>
+
+<h3>(c) Conference Calling · 电话会议</h3>
+<p><strong>把一个电话系统看作「一组端点（endpoints）」加上「一个维护「哪些端点相互连接」信息的中心化数据库」。</strong>建模这个数据库的结构，<strong>外加那些在建立一次电话会议、添加与移除端点等情形下修改它的操作</strong>。模拟一些有趣的场景，并<strong>表述和检验一些断言</strong>。</p>
+<div class="callout idea"><span class="tag">点拨</span>这是 A.2.1 电话交换的升级版——<strong>从「一对一连接」到「多方连接」</strong>。核心表示是 <code>sig Conference {members: set Endpoint}</code>，而不是 <code>connects: Phone</code>。<strong>值得检验的断言</strong>：① <strong>对称性</strong>：若 A 与 B 在同一会议中，则 B 与 A 也在（平凡，但验证你的表示没有方向性错误）；② <strong>无孤立端点</strong>：一个端点不能同时属于两个会议；③ <strong>操作的原子性</strong>：<code>add</code> 与 <code>drop</code> 互逆。<strong>「有趣的场景」= 两人同时把对方加入自己的会议</strong>——这会暴露并发问题，正是 6.1.3「隐式并发」的动机。</div>
+
+<h3>(d) Do/Undo/Redo · 执行/撤销/重做</h3>
+<p><strong>建模一个应用中撤销与重做动作的标准机制，并拿它对照一些「被表述为断言的基本性质」进行分析。</strong></p>
+<div class="callout idea"><span class="tag">点拨</span><strong>这是 6.3.4 第三条洞见（「paste 让粘贴的资产保持选中，从而提供某种程度的撤销」）的正题化。</strong>标准机制是一个<strong>双栈（undo stack + redo stack）</strong>。<strong>基本性质</strong>：<code>undo(do(s, a)) = s</code>（撤销紧跟执行等于不变）；<code>redo(undo(s)) = s</code>；<strong><code>do(s, a)</code> 之后 redo 栈必须被清空</strong>（这条最容易被漏掉，也是真实软件 bug 的高发地）。<strong>用 Alloy 建模时，栈可以用 <code>seq[Action]</code> 或用 <code>util/ordering</code> 自己搭</strong>；后者能让你练习「迹 idiom」。</div>
+
+<h3>(e) Trash · 废纸篓</h3>
+<p><strong>建模一个操作系统的「废纸篓（trash）」或「已删除项目（deleted items）」文件夹</strong>，被删除的项目被移到那里，并且可以从那里被恢复（reinstated）。<strong>你可能想比较不同系统中的设计。</strong>在 Mac OSX 中，这个概念相当简单：<strong>项目可以被移出废纸篓，但没有「把一个文件或文件夹恢复到它原来的位置」的功能</strong>。相比之下，<strong>Windows 提供了更精细的功能</strong>。<strong>你能把「丢进废纸篓」的本质刻画为一组「以代数方式关联基本操作（例如创建、删除、取消删除等）」的断言吗？</strong></p>
+<div class="callout idea"><span class="tag">点拨</span>问题的实质是<strong>「恢复原位置」需要记住什么</strong>。Mac OSX 不记 ⇒ 只能「移出到用户指定的位置」；Windows 记 ⇒ 可以「还原」。在 Alloy 里这体现为 <code>TrashItem</code> 是否有一个 <code>originalParent: Folder</code> 字段。<strong>「以代数方式刻画本质」的断言集合</strong>：<code>undelete(delete(x)) = x</code>（Windows 版）vs 仅 <code>contents(undelete(delete(x))) = contents(x)</code>（Mac 版，内容相同但位置可能不同）；<code>delete(delete(x))</code> 应当无意义或幂等；<strong>清空废纸篓之后 <code>undelete</code> 必须不可用</strong>（前置条件）。<strong>这正是 6.3.3「代数性质」那一类分析的完美练习题。</strong></div>
+
+<h3>(f) Domain Name System · 域名系统</h3>
+<p><strong>建模并分析标准域名系统中主机名的结构、DNS 数据库的结构，以及解析名字的机制。DNS 提供哪些种类的保证？</strong></p>
+<div class="callout idea"><span class="tag">点拨</span>三层结构：<strong>① 名字 = 标签的序列</strong>（<code>sig Label {}</code> + <code>seq[Label]</code> 或用 rest 链，像 A.5.1(b)）；<strong>② 数据库 = 分层授权的区（zone）树</strong>，每个区包含记录（<code>sig Record {name, type, value}</code>），并有<strong>委派（delegation, NS 记录）</strong>把子区交给别的服务器；<strong>③ 解析 = 从根出发沿委派链向下查询</strong>。<strong>值得检验的保证</strong>：解析<strong>终止</strong>（委派图无环——现实中这确实出过问题）、解析<strong>确定</strong>（每个名字至多一个权威区）、<strong>CNAME 链不产生环</strong>。<strong>「递归定义关系 + 无环 fact」的手法与 A.5.1(c) 完全相同。</strong></div>
+
+<h3>(g) Elevator Control · 电梯控制</h3>
+<p><strong>考虑一组服务于若干楼层的电梯。你能构造一个「纯粹用声明式规则来描述电梯如何响应请求」的模型吗？</strong>例如一条规则可能是：<strong>如果存在一个「来自电梯内部按钮按下」的、要求在某楼层停靠的请求，那么电梯不能在不停靠的情况下经过该楼层。</strong></p>
+<div class="callout idea"><span class="tag">点拨</span>「纯粹用声明式规则」是本题的挑战所在——<strong>不要写状态机，要写约束</strong>。核心表示：<code>sig Request {floor: Floor, source: Source, served: set Time}</code>，<code>one sig Inside, Hall extends Source {}</code>。<strong>规则的形式</strong>：<code>all t: Time, e: Elevator, r: Request | r in unserved.t and r.source = Inside and r.floor between e.at.t and e.at.(next t) implies e.stops.t</code>。<strong>「声明式」的判据是：你不描述「电梯如何决策」，只描述「什么样的行为是可接受的」</strong>——然后让 Analyzer 找出满足所有规则的行为（或证明不存在）。<strong>这与 6.1.2 用 fact 定义 <code>elected</code> 而不是用操作维护它，是同一种思维。</strong>值得检验的性质：<strong>每个请求最终被服务（活性，需要 progress 前件，参照 6.1.4）</strong>、<strong>电梯不会来回抖动（可加一条「方向一致性」规则）</strong>。</div>
+
+<h3>(h) Version Control · 版本控制</h3>
+<p><strong>建模一个版本控制系统（例如 CVS 或 Subversion）背后的抽象视图，以及它所使用的机制。表述一些关键性质并检验它们。</strong></p>
+<div class="callout idea"><span class="tag">点拨</span>抽象视图的核心是<strong>「有向无环的修订图（revision graph）」</strong>：<code>sig Revision {parents: set Revision, contents: File -> set Content}</code> 加 <code>fact { no r: Revision | r in r.^parents }</code>。<strong>分支 = 有多个子节点的修订；合并 = 有多个父节点的修订。</strong>机制包括 <strong>checkout、commit、update、merge</strong>。<strong>关键性质</strong>：① <strong>commit 之后工作副本与仓库一致</strong>；② <strong>merge 是「对称差」的处理</strong>——两边都改了的文件产生冲突，只有一边改了的自动合并；③ <strong>update 保持本地未提交的修改</strong>（这条最难，也最接近 6.3 那种「特性交互」的分析）。<strong>②的形式化最能体现 Alloy 的价值</strong>：<code>merge(a, b) = {f: File | a.contents[f] = b.contents[f] or ...}</code>，然后用断言检验「合并结果在两个父节点的公共祖先之上同时包含两边的修改」。</div>
+
+<h3>(i) Layers in Photoshop · Photoshop 中的图层</h3>
+<p><strong>构造一个 Adobe Photoshop 图层功能的抽象模型</strong>，其中<strong>一幅图像可以由一叠图层构成，每个图层要么由一个像素矩阵构成，要么由一个「应用于其下方图层的结果的变换函数」构成</strong>。</p>
+<div class="callout idea"><span class="tag">点拨</span>本题的难点是<strong>「变换函数」这个概念在一阶关系逻辑中如何表示</strong>。Alloy <strong>没有高阶函数</strong>，所以你不能真的写 <code>f: Layer -&gt; Layer</code> 并应用它。<strong>可行的抽象办法有两种</strong>：① 把变换建模为<strong>「一个作用于图层栈的关系」</strong>：<code>sig Transform {appliesTo: set LayerKind, effect: Layer -> Layer}</code>——但 <code>effect</code> 本身就是一个函数关系，所以「应用」退化成 join；② <strong>只建模结构与顺序，不建模像素语义</strong>：<code>sig Layer {above: lone Layer, kind: Kind, visible: Bool}</code>，然后分析<strong>「图层顺序改变会如何改变结果」</strong>这类性质。<strong>推荐走第二条路</strong>——它符合「抽象模型只保留与要分析的性质相关的细节」这一原则（A.5.1 的那句提示）。<strong>值得检验的性质</strong>：可见性切换与顺序交换是否可交换（一般<strong>不</strong>可交换，这正是 Photoshop 用户的常见困惑源）；<strong>「调整图层」只影响其下方图层</strong>这一约束是否被正确建模。</div>
+
+<h2 id="sum">附录 A 小结</h2>
+<div class="card">
+<ol>
+  <li><strong>六个节构成一条清晰的能力阶梯</strong>：A.1 纯逻辑表达式 → A.2 在给定骨架上补全 → A.3 把自然语言谜题形式化 → A.4 为「模型本身」建模 → A.5 自主设计小型案例 → A.6 完全开放的研究项目。<strong>难度标记 ♥（容易）与 ♣（挑战）帮助你安排练习节奏。</strong></li>
+  <li><strong>A.1 只需第 3 章背景，但作者强烈建议边做边用 Analyzer</strong>，并为此提供了模板——<strong>模板的作用是「让你在不掌握完整语言的情况下就能获得具体反馈」</strong>。除 A.5.3（引用第 6 章）外，其余各节读完第 3、4 章即可尝试。</li>
+  <li><strong>A.1.1 的八条关系性质是第 3 章的浓缩复习</strong>；核心洞察是「<strong>反自反 + 对称 + 传递 ⇒ 只能是空关系</strong>」，所以消掉「非空」即可让全部性质共存。<strong>A.1.2 要求把每条改写成谓词演算并用 <code>iff</code> 断言机器验证</strong>——「双向等价」才能证明是改写而非弱化。</li>
+  <li><strong>A.1.4 的分配律：join 只对「并」分配，对「差」和「交」都不分配</strong>。理由是 join 是逐元取像，像集合会混合来自两个关系的贡献。<strong>发现性质不成立时，应缩小作用域以获得最小反例。</strong></li>
+  <li><strong>A.1.9「传递闭包不可公理化」是一个深刻的逻辑事实</strong>：一阶逻辑无法表达「最小」，因为那需要对所有子关系做全称量化。<strong>UML 1.0 的官方定义就栽在这里。</strong>Alloy 通过把关系当一阶对象部分绕过了这个限制，但代价是宇宙有限——<strong>而不可公理化恰恰是关于无限结构的定理</strong>。</li>
+  <li><strong>A.1.10 的真正用意</strong>：让你体会「<strong>绝大多数看似需要集合理解式的需求，都能用交、差、域/值域限制的组合来表达</strong>」。例如「空的组」= <code>Group - Group.address.univ</code>，「只要直接地址」= <code>address &amp; (univ -&gt; Addr)</code>。</li>
+  <li><strong>A.1.11 伦敦地铁</strong>：核心告诫是<strong>「不要作弊——不要直接录入实例」</strong>，因为那样得到的模型<strong>无法容纳额外的中间车站</strong>，而且<strong>你会错过用 Analyzer 发现通用约束中错误的机会</strong>。第 (h) 问「登上 L 线列车最终会到达 S2」在有分支的线上<strong>为假</strong>——这与 6.1.4 中活性断言需要 <code>progress()</code> 前件是同一个教训。</li>
+  <li><strong>A.2.2 是「不变式保持」分析的标准练习</strong>，也是 6.3.3 的原型：写 <code>inv(b) and op(b,b') =&gt; inv(b')</code>，找反例，强化前置条件，<strong>然后必须回头重跑模拟确认没有过度约束</strong>——一个让操作永不发生的模型是<strong>空洞地正确</strong>的。</li>
+  <li><strong>A.2.3 的「safe vs happy」教你识别「未分类元素」</strong>：安全分配不蕴含快乐分配，<strong>反例来自「不属于任何帮派的囚犯」</strong>。修复办法是加 <code>all i: Inmate | one i.~members</code>。<strong>通用教训：当断言意外失败，先怀疑「模型允许了现实中不该存在的状态」。</strong></li>
+  <li><strong>A.3 的共同主题是「形式化暴露歧义」</strong>：Doris Day 那句歌词的严格读法确实推出「我就是我的宝贝」，而加上「除了我之外」就解除了；<strong>理发师悖论的三种解法（承认女性 / 允许无理发师 / 允许多个理发师）恰好对应修模型的三把扳手：扩大论域、放松重数、打破单指</strong>。</li>
+  <li><strong>A.3.4 握手问题的关键计数</strong>：10 人中每人握手数范围是 0–8（不含自己与伴侣），恰好 9 个值；「除 Alice 外 9 人答案互不相同」⇒ 取遍 0…8 ⇒ <strong>握 8 次者与握 0 次者是一对，握 7 与握 1 是一对，握 6 与握 2 是一对，握 5 与握 3 是一对，剩下握 4 次者必是 Alice 的配偶 Bob</strong>。<strong>答案是 4 次。</strong>第 (c) 问的「重构」建议是把候选答案参数化为 <code>pred solution(k: Int)</code>。</li>
+  <li><strong>A.3.5 山羊白菜狼是 6.1 迹 idiom 的最小可运行版本</strong>：<code>open util/ordering[State]</code> + init + step + Traces fact + run。<strong>用「左岸集合」单一字段表示状态可让状态数减半</strong>；标准解需要 7 步，所以 State 作用域至少 8。<strong>A.3.6 外科医生手套（♣）则要求你自己发明状态表示</strong>——4 个需覆盖的表面 vs 4 个手套表面，解法包含「翻转手套」这一动作。</li>
+  <li><strong>A.4 的核心观念：元模型不必具备它所捕获的模型的品质</strong>——<strong>状态机的元模型自己不必是动态的，因为一个状态机只是「一个可被赋予动态解释的结构」</strong>。这是 Alloy 能用静态一阶关系逻辑描述动态系统的哲学根据，也是第 6 章迹 idiom 的理论基础。</li>
+  <li><strong>A.4.2 的模拟/双模拟直接呼应 6.4.4 的迹包含</strong>：单向模拟只保证「M1 的迹集 ⊆ M2 的迹集」，<strong>不保证相同</strong>；<strong>双模拟（<code>~r</code> 也是模拟）才保证迹集相同</strong>。而 6.4.4 也指出迹包含不保证「做好事」——<strong>空迹集的机器符合任何抽象机器</strong>。两处是同一观察的两面。</li>
+  <li><strong>A.4.3「Alloy 的元模型」要求自描述</strong>：用存在量词挑出实例中代表 <code>Sig</code>/<code>Field</code>/<code>Mult</code> 的原子，断言它们之间的关系与模型声明一致。<strong>A.4.4 Java 元模型的「良类型」两条本质</strong>：对象只能持有「自己类型或其超类型所声明的字段」的值；该值的对象的运行时类型必须是字段声明类型的子类型——<strong>后者的 <code>*super</code> 与 <code>*extendsI</code> 复合正是 Alloy 自己 <code>extends</code> 语义的镜像</strong>。</li>
+  <li><strong>A.5.1 Unix 文件系统最重要的提示是「描述故意包含了无关细节」</strong>：inode 中十个地址的<strong>顺序对路径解析无关紧要</strong>，所以应当用<strong>集合而非序列</strong>。<strong>(c) 的「非递归」技巧是全题核心</strong>：Alloy 函数不能递归，但可以<strong>声明一个关系并用一条「关系名出现在等式两边」的 fact 来定义它</strong>——递归被消解成联立方程交给 SAT 求解器。<strong>(d) 中「没有两个不同路径名解析到同一 inode」应当不成立，因为 Unix 支持硬链接</strong>。</li>
+  <li><strong>A.5.2 铁路道岔要求你独立复现第 6 章的整套方法论</strong>：<code>overlaps</code> <strong>自反、对称、但不传递</strong>（误加传递性会让模型退化成「所有段都互相重叠」）；<strong>「不必引入闸门原子」体现了「一个状态不必由实体表示」</strong>；<strong>(g)「检验一整族机制」是本题最深刻的一点——策略谓词应当是「机制必须满足的最小条件」而非「某个具体机制的定义」，这是欠规约作为优点的典范</strong>；(i) 与 A.2.2(f) 同样要求「证明安全之后再证明模型仍能做事」。</li>
+  <li><strong>A.5.3 与 6.2 的方案同构但更强</strong>：双钥匙 + 双记录（lastKey 与 issued）。<strong>(e) 揭示的漏洞与 6.2 的漏洞同源——「验证条件弱于状态更新条件」</strong>：改成「第一钥匙匹配即开门」后，重编码只在另一条分支发生，于是旧卡可反复开门。建议直接以 <code>examples/hotel</code> 模块为起点改造，<strong>迹约束与 <code>NoBadEntry</code> 断言几乎可原样复用</strong>。</li>
+  <li><strong>A.6 的九个开放题目按难度递增，每个需数小时到数天</strong>。它们共同的方法论是：<strong>先决定「哪些细节与要分析的性质相关」，把其余抽象掉</strong>（A.5.1 的提示在这里同样适用）。特别地，<strong>(i) Photoshop 图层揭示了一个语言边界：Alloy 没有高阶函数，所以「变换函数」只能通过关系或「只建模结构与顺序」来近似</strong>——<strong>认清工具的表达边界，本身就是建模能力的一部分。</strong></li>
+</ol>
+</div>
+
+<div class="pager">
+  <a href="ch6.html"><div class="d">← 上一章</div><div class="n">6 · Examples 案例</div></a>
+  <a href="appB.html" class="next"><div class="d">下一章</div><div class="n">附录 B · Language Reference 语言参考 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 附录 A</div>
+
+</div>
+</body>
+</html>
