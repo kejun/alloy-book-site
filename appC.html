@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>附录 C · Kernel Semantics 内核语义 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">附录 C · 内核语义</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html" class="on">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">C</span>Kernel Semantics · 内核语义</h1>
+<p class="sub">原书 p. 291–293 · 用「常规集合论的运算符」给出 Alloy 底层逻辑的简洁定义。这是全书最短的附录，也是唯一给出<strong>形式语义（formal semantics）</strong>的地方。</p>
+
+<div class="callout key">
+  <span class="tag">这个附录在讲什么</span>
+  <p><strong>本附录用常规集合论运算符给出底层逻辑的简洁定义。</strong></p>
+  <p><strong>一个 Alloy 模型在本质上包含：一组「关系的声明」（即 signature 及其字段），以及一组「有名字的公式」。模型的含义是「一个实例集合」—— 对每一个有名字的公式各有一组实例，每个实例给每个被声明的关系赋予一个关系值。</strong></p>
+  <p>这里考虑一个<strong>只由简单公式构成的简化语言</strong>，并把「公式的含义」定义为「<strong>从实例到布尔值的函数</strong>」；所描述的实例集合则隐式地是「使该函数求值为真的那些实例」。</p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">为什么可以放心用这个小子语言</span>
+    <p><strong>「尽管这个语言远小于完整的 Alloy 语言，它却捕获了 Alloy 的语义本质，而且把完整语言的构造翻译到这个语言是相当直接的。」</strong>换句话说：Alloy 的全部复杂性都在<strong>表层语法与类型检查</strong>（附录 B），而<strong>语义核心只有 5 个公式构造 + 8 个表达式构造</strong>。</p>
+  </div>
+</div>
+
+<div class="toc">
+  <div class="t">本附录地图</div>
+  <ol>
+    <li><a href="#sc1">C.1 Alloy 内核的语义</a> — 语法、解释函数、公式与表达式的逐条定义</li>
+    <li><a href="#sc2">C.2 整数表达式与公式的语义</a> — <code>#</code> / <code>sum</code> / <code>int</code> / <code>Int</code> 与关系 <code>I2i</code></li>
+    <li><a href="#sum">附录 C 小结</a></li>
+  </ol>
+</div>
+
+<h2 id="sc1"><span class="num">C.1</span>Semantics of the Alloy Kernel · Alloy 内核的语义</h2>
+
+<h3>公式的语法</h3>
+<pre><code>formula     ::= elemFormula | compFormula | quantFormula
+elemFormula ::= expr <span class="k">in</span> expr | expr = expr
+compFormula ::= <span class="k">not</span> formula | formula <span class="k">and</span> formula
+quantFormula::= <span class="k">all</span> var : expr | formula</code></pre>
+
+<h3>表达式的语法</h3>
+<pre><code>expr  ::= rel | var | <span class="k">none</span> | expr binop expr | unop expr
+binop ::= + | &amp; | - | . | -&gt;
+unop  ::= ~ | ^</code></pre>
+
+<div class="callout key">
+  <span class="tag">两个句法类别的区分</span>
+  <ul>
+    <li><strong><code>rel</code> 代表「自由关系变量」（即 signature 与字段）</strong>；</li>
+    <li><strong><code>var</code> 代表「被量词绑定的变量」。</strong></li>
+    <li><strong>常量 <code>iden</code> 与 <code>univ</code> 不在这里定义</strong>，因为它们<strong>依赖于模型声明的上下文</strong>：<ul>
+      <li><code>univ</code> = <strong>各顶层 signature 的并</strong>；</li>
+      <li><code>iden</code> = <strong>该并集上的恒等关系</strong>。</li>
+    </ul></li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">这条「不定义」解释了附录 B 的那个陷阱</span>
+    <p>附录 B.7.6 提醒：<code>iden in r</code> 除非 <code>r : univ -&gt; univ</code> 否则不可满足。<strong>此处的语义给出了根本理由 —— iden 的定义域是「所有顶层 signature 的并」，它不是某个局部类型上的自反闭包。</strong>「自反」必须写成 <code>t &lt;: iden in r</code>，正是把 iden 限制到 t 上。</p>
+  </div>
+</div>
+
+<div class="callout key">
+  <span class="tag">注意内核里<em>没有</em>的东西</span>
+  <table style="margin-top:.5em">
+    <thead><tr><th>内核里有</th><th>内核里没有（都在表层，可直译）</th></tr></thead>
+    <tbody>
+      <tr><td><code>in</code>、<code>=</code>、<code>not</code>、<code>and</code>、<code>all</code></td><td><code>or</code>、<code>implies</code>、<code>iff</code>、<code>else</code>（都可由 not/and 表达）</td></tr>
+      <tr><td><code>none</code></td><td><code>univ</code>、<code>iden</code>（依赖声明上下文）</td></tr>
+      <tr><td><code>+ &amp; - . -&gt;</code>、<code>~ ^</code></td><td><code>&lt;: :&gt;</code>（域限制 <code>e2 &lt;: e1</code> 即 <code>(e2 -&gt; univ) &amp; e1</code>）、<code>++</code>（覆盖）、<code>*e</code>（自反-传递闭包，附录 B 定义为「包含 e 的最小既传递又自反的关系」，即 <code>iden + ^e</code> 在 e 所在类型上的限制）、<code>[ ]</code>（就是 <code>.</code>，只是优先级不同）</td></tr>
+      <tr><td>只有 <code>all</code> 一个量词</td><td><code>no/some/lone/one e</code>（都是「关于 e 中元组个数」的基数谓词，可用 <code>all</code> + 等式重写）；<code>let</code>、<code>if</code>、<code>{}</code>（都是文本层面的简写）</td></tr>
+      <tr><td>只有 <code>rel</code>/<code>var</code> 两种原子</td><td>函数与谓词（附录 B 已明说「调用 = 文本内联」）；signature 层级与类型检查（纯静态）</td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:.5em"><strong>这就是「Alloy 是一阶逻辑的保守扩展」这一全书论断的形式依据：语义核心比 Tarski 关系代数还小。</strong></p>
+</div>
+
+<h3>两个解释函数</h3>
+<div class="callout key">
+  <span class="tag">标准指称风格（standard denotational style）</span>
+  <p>定义函数 <strong>M</strong> 解释公式、函数 <strong>E</strong> 解释表达式，二者都在「某个实例的上下文」中求值：</p>
+<pre><code>M: Formula, Instance → Boolean
+E: Expression, Instance → RelationValue</code></pre>
+  <ul>
+    <li><strong>一个实例（instance）是「从关系变量到关系值的一个函数」。</strong></li>
+    <li><strong>一个关系值（relation value）是「原子的一个元组集合」</strong>，并且可以假定「某个特定关系值中的所有元组含有相同数目的元素」。</li>
+    <li><strong>原文特意注明：「尽管实际上这个（等元数）约束是不必要的 [14]。」</strong></li>
+  </ul>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读</span>
+    <p>「实例是函数」这句话把附录 B.5.1「实例是把值绑定到变量」形式化了：<strong>i 就是一个查找表 <code>i(r)</code></strong>。而引文 [14] 指的是<strong>关系代数在允许「不齐次元组（ragged tuples）」时同样完备</strong> —— 与第 3 章「关系即元组集合」的定义一致，等元数只是<strong>工程上的便利</strong>，不是逻辑上的必须。</p>
+  </div>
+</div>
+
+<h3>公式运算符的定义</h3>
+<div class="callout key">
+  <span class="tag">五条，逐条</span>
+<pre><code>M[<span class="k">not</span> f]i        = ¬ M[f]i
+M[f <span class="k">and</span> g]i      = M[f]i ∧ M[g]i
+M[<span class="k">all</span> x: e | f]i = ∧{ M[f] (i ⊕ x↦v) | v ⊆ E[e]i ∧ #v = 1 }
+M[p <span class="k">in</span> q]i       = E[p]i ⊆ E[q]i
+M[p = q]i        = (E[p]i = E[q]i)</code></pre>
+  <ul>
+    <li><strong>全称量化公式对实例 i 为真，当且仅当：其体对「i 被扩展后的每一个实例」都为真</strong> —— 扩展即「把量化变量 x 指派为『约束表达式 e 之值的某个<strong>单例</strong>子集』」。</li>
+    <li><strong>这里假定约束表达式是一元的，因此这些子集代表标量。</strong></li>
+    <li><code>i ⊕ x↦v</code> 读作「把实例 i 用『x 映射到 v』这个绑定扩展（override）」。这正是附录 B.7.3「<code>x: X</code> 默认是标量」的语义来源：<strong>#v = 1</strong>。</li>
+  </ul>
+</div>
+<div class="callout key">
+  <span class="tag"><code>in</code> 的双重身份（原文解释得很透）</span>
+  <p><strong><code>in</code> 运算符就是常规的「子集（subset）」；它之所以被赋予一个含糊的名字 “in”，是为了让它能自然地充当两种角色：</strong></p>
+  <ul>
+    <li><strong>成员运算符</strong>：把「一个元素」关联到「一个集合」，或把「一个元组」关联到「一个关系」；</li>
+    <li><strong>子集运算符</strong>：把「一个集合或关系」关联到「另一个集合或关系」。</li>
+  </ul>
+  <p><strong>等式就是「双向的子集」；这里列出它只是为了表明：等式就是「集合或关系相等的这个简单常规概念」，不含对象导向语言中常做的「同一性（identity）与内容（contents）」之分。</strong></p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">这一句是全书本体论的收口</span>
+    <p>第 2.2.3（Alloy 中关系即值，无「变量与值」之分）、第 4.1（原子无内部结构）、附录 B.7.8（「关系相等是外延的：两个关系含有相同元组时它们相等」）以及第 6.4.3 的「两个内存实现是否相同」全都归结为这句话：<strong>在 Alloy 里，「相同」只有「含相同元组」这一种意义。</strong>所以 A.1.9 中「不能区分两个内容相同的 Memory」不是缺陷而是设计。</p>
+  </div>
+</div>
+
+<h3>表达式运算符的定义</h3>
+<div class="callout key">
+  <span class="tag">逐条（用集合论符号给出精确含义）</span>
+<pre><code>E[none]i  = ∅
+E[p + q]i = E[p]i ∪ E[q]i
+E[p &amp; q]i = E[p]i ∩ E[q]i
+E[p - q]i = E[p]i ∖ E[q]i
+
+E[p . q]i = {(p1,..,pn-1, q2,..,qm) |
+              (p1,..,pn) ∈ E[p]i ∧ (q1,..,qm) ∈ E[q]i ∧ pn = q1}
+
+E[p -&gt; q]i = {(p1,..,pn, q1,..,qm) |
+              (p1,..,pn) ∈ E[p]i ∧ (q1,..,qm) ∈ E[q]i}
+
+E[~p]i = {(p2, p1) | (p1, p2) ∈ E[p]i}
+
+E[^p]i = {(x, y) | ∃p1,…pn |
+              (x,p1), (p1,p2), … (pn,y) ∈ E[p]i}</code></pre>
+  <ul>
+    <li><strong><code>+</code>、<code>&amp;</code>、<code>-</code> 是标准的集合运算符</strong> —— 并、交、差。</li>
+    <li><strong><code>~</code> 与 <code>^</code> 是「在二元关系上定义」的标准关系运算符</strong>：转置与传递闭包。</li>
+    <li><strong>点（dot）是「广义的关系复合（即 join）」，箭头（arrow）是「笛卡尔积」。</strong></li>
+    <li>join 的定义精确说明了「省略匹配元素」：<strong>p 的最后一个分量 pn 与 q 的第一个分量 q1 相等，结果元组只保留一次。</strong></li>
+  </ul>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">全函数性 —— 一条极重要的性质</span>
+    <p><strong>「注意所有这些运算符都是<em>全的（total）</em>，因此在 Alloy 中没有『未定义的表达式』。」</strong></p>
+    <p>这解释了附录 B.5.2 的核心设计选择：<strong>正因为每个表达式在任何实例下都有值（哪怕值是空集），Alloy 才不需要函数应用运算符，也不需要处理偏函数的语义。</strong>「<code>x.f</code> 在 x 不在定义域时等于 <code>none</code>」不是妥协，而是「运算符全是全的」这一事实的直接推论。</p>
+  </div>
+</div>
+
+<h3>关系名的值，以及重载</h3>
+<div class="callout key">
+  <span class="tag">最后两条</span>
+<pre><code>E[r]i = i(r)</code></pre>
+  <p><strong>「只含一个关系名的表达式，其值就是该关系被实例所指派的价值。」</strong></p>
+  <p><strong>「若关系名有歧义（因为不同 signature 的字段同名），其含义就是『该名字可能指向的每一个关系，被实例所指派的价值之<strong>并</strong>』。」</strong></p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 语义对重载的处理与类型检查器的处理是两回事</span>
+    <p>附录 B.6.2 说「重载的字段引用会被自动解析，若有歧义则<strong>被拒绝</strong>」；此处则给出「万一有歧义，语义本身是什么」：<strong>取并</strong>。也就是说，<strong>歧义不是一个「语义上未定义」的状态，而是一个「被静态检查拦下的、语义上仍有含义（并集）」的状态。</strong>这也印证了 B.6 开头那句「类型系统只是为了不多报假警报，而不是为了赋予含义」。</p>
+  </div>
+</div>
+
+<h2 id="sc2"><span class="num">C.2</span>Semantics of Integer Expressions and Formulas · 整数表达式与公式的语义</h2>
+<div class="callout key">
+  <span class="tag">定位</span>
+  <p><strong>Alloy 对整数提供有限度（to a limited degree）的支持。语言扩展的元素可由下列产生式总结：</strong></p>
+<pre><code>intExpr    ::= number | '#' expr | <span class="k">sum</span> expr | <span class="k">int</span> expr
+             | intExpr intOp intExpr
+intFormula ::= intExpr intCompOp intExpr
+intCompOp  ::= &lt; | &gt; | = | =&lt; | &gt;=
+intOp      ::= + | -
+number     = 0 | 1 | ..
+expr       ::= .. | <span class="k">Int</span> intExpr</code></pre>
+  <p><strong><code>intExpr</code> 是「其值为一个整数的表达式」；涉及这类表达式的公式的语义是完全标准的。</strong></p>
+  <p><strong>这样的表达式有三种取得方式：① 由一个整数字面量；② 通过组合其他此类表达式；③ 把 <code>#</code>、<code>sum</code>、<code>int</code> 三个运算符之一应用于 Alloy 的关系表达式。</strong></p>
+</div>
+
+<div class="callout key">
+  <span class="tag"><code>#</code></span>
+  <p><strong>运算符 <code>#</code> 是基数运算符；<code># e</code> 的含义就是「e 中元组的个数」。</strong></p>
+  <p>注意是<strong>元组数</strong>而非原子数：<code>#(A -&gt; B)</code> = |A|·|B|。与附录 B.7.7 完全一致。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag"><code>int e</code> 与 <code>sum e</code> —— 靠一个自由关系 <code>I2i</code> 定义</span>
+  <ul>
+    <li><strong>对表达式 <code>int e</code> 与 <code>sum e</code>，类型检查确保「关系表达式 e 表示一个一元的（即集合的）关系，其原子来自一个特殊的预定义类型 <code>Int</code>」。</strong></li>
+    <li><strong><code>Int</code> 中的每个原子由一个关系 <code>I2i</code> 与一个整数值相关联。</strong></li>
+    <li><strong><code>I2i</code> 被视为一个自由变量，就像显式声明的关系一样，并且同样由实例赋予一个值。</strong></li>
+    <li><strong>两个表达式 <code>int e</code> 与 <code>sum e</code> 实际上具有相同的含义：它们的值是「集合 e 中的原子经由 <code>I2i</code> 所关联的整数值之和」。</strong></li>
+    <li><strong>但当使用 <code>int</code> 时，假定关系表达式表示一个标量；当使用 <code>sum</code> 时，假定它表示一个可能含多个 <code>Int</code> 原子的集合。「然而目前 Alloy Analyzer 并不检查这一点。」</strong></li>
+  </ul>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">原文自己承认的实现缺口</span>
+    <p>这是本附录中最坦率的一句话：<strong><code>int</code> 与 <code>sum</code> 的区别只是「书写者的意图」，工具不做校验。</strong>因此 <code>int e</code> 若真的返回多元素集合，会静默地把它们求和而不是报错 —— 这正是第 6 章中「凡涉及计数就检查是否是单例」的实践理由，也与附录 B.7.7「用 <code>sum</code> 来表明预期非单例」的措辞（"the intent is that…"）严格对应。</p>
+  </div>
+</div>
+
+<div class="callout key">
+  <span class="tag"><code>Int</code>：从值回到对象</span>
+  <p><strong>「一个关系值可以通过应用运算符 <code>Int</code> 从一个整数值取得。<code>Int ie</code> 的含义是 <code>Int</code> 中那些『其值经关系 <code>I2i</code> 被映射到 ie 的整数值』的原子的集合。」</strong></p>
+  <ul>
+    <li><strong>由于 <code>I2i</code> 被约束为一个<em>单射函数</em>，这个集合至多含一个元素。</strong></li>
+    <li><strong>因此在 Alloy 术语中，<code>Int ie</code> 是一个「可选项（option）」，它表示一个标量（当存在相应的 Int 原子时）……</strong></li>
+    <li>……或者（当 <code>Int</code> 的作用域不足以包含该值时）表示<strong>空集</strong>。这一半在附录 B.7.7 中明说，此处用「至多一个」暗示。</li>
+  </ul>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">整条整数机制的完整图景</span>
+    <p>把 <code>I2i</code> 建模为一个<strong>自由的、由实例赋值的单射关系</strong>，意味着：</p>
+    <ol>
+      <li>「整数对象 ↔ 原始值」的对应<strong>不是内建的魔法，而是模型的一部分</strong> —— 因此它可以被断言、被反例检验（附录 B.7.7 的 <code>IntegersCanonical</code> 正是「I2i 单射」的对象语言版本）；</li>
+      <li>「单射」只由 <strong><code>Int</code> 的作用域 + 隐含约束</strong>保证，而非由逻辑保证；</li>
+      <li><strong>这也解释了为什么 <code>Int</code> 与 <code>int</code> 是两个界</strong>：前者决定 <code>I2i</code> 的定义域大小（有几个对象），后者决定 <code>I2i</code> 的值域大小（有哪些原始值）。</li>
+    </ol>
+  </div>
+</div>
+
+<div class="callout warn">
+  <span class="tag">本节最重要的一段：整数定界的代价（原文完整）</span>
+  <p><strong>「在一次分析中，作用域设置<em>分别</em>为『集合 <code>Int</code> 的大小』与『最大正整数与最大负整数的位宽』设定界限。这使得如下情形得以处理：关系中存储的整数个数远小于最大整数值的大小。」</strong></p>
+  <p><strong>「限制整数的范围使得<em>穷尽的</em>分析成为可能，但代价是：<em>标准整数语义无法被保持</em>。」</strong></p>
+  <p><strong>特别地，「生成公理（generation axioms，例如『每个整数都有一个后继』）不再成立</strong>：公式</p>
+<pre><code><span class="k">all</span> i: Int | <span class="k">some</span> j: Int | int j = int i + 1</code></pre>
+  <p><strong>不是有效的（is not valid）。因此，涉及整数的分析可能产生<em>虚假实例（spurious instances）</em>。」</strong></p>
+  <p><strong>「每当某个 signature 被期望表示一个集合、而对它来说『生成公理』是可取的、却无法在不消灭所有有限实例的情况下表达出来时，同样的问题就会出现（参见 [44] 与第 5.3 节）。」</strong></p>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">解读 · 这就是「界必须够大」的深层理由，也是「有限模型查找」的根本局限</span>
+    <p>原文在这里把三件事串成了一条线：</p>
+    <ol>
+      <li><strong>整数上「必然存在下一个」这类公理不可表达</strong> —— 因为任何有限实例集都会让「最大元素有后继」为假，所以一旦写出生成公理，<strong>模型就没有任何有限实例，分析器立刻不可满足</strong>。</li>
+      <li>因此工具只能<strong>静默地放弃标准语义</strong>，代价是 <strong>spurious instance</strong>：一个「反例」可能仅仅因为「整数刚好用完」而出现，而非模型真的有问题。</li>
+      <li><strong>这与第 5.3 节的「界造成的假反例 / 假无解」是同一个问题的两种表现</strong>，也正是第 6.1.4 中「用 <code>util/ordering[Time]</code> 而不是用整数下标来表达时间」的实践理由：<strong>ordering 库用 signature + <code>first</code>/<code>next</code> 关系来表达线性序，其「每个时刻都有下一个」同样无法作为公理强制，但它至少不会引入整数域上的额外虚假。</strong></li>
+    </ol>
+    <p>注意引文 [44] 指向的是第 5.3 节的讨论 —— 本附录<strong>没有提出新问题，而是把第 5.3 节的「有界分析的固有代价」下沉到语义层给出证明</strong>。</p>
+  </div>
+</div>
+
+<h2 id="sum">附录 C 小结</h2><div class="card">
+<ol>
+  <li><strong>模型 = 一组关系声明（signature 与字段）+ 一组具名公式；模型的含义 = 对每个具名公式的一组实例，每个实例给每个声明关系一个关系值。</strong></li>
+  <li><strong>内核只把公式含义定义为「实例 → 布尔值」的函数</strong>；「公式所描述的实例集合」隐式地就是「使该函数为真的那些实例」。</li>
+  <li><strong>内核语法极小</strong>：公式只有 <code>in</code> / <code>=</code> / <code>not</code> / <code>and</code> / <code>all</code>；表达式只有 <code>rel</code> / <code>var</code> / <code>none</code> / <code>+ &amp; - . -&gt;</code> / <code>~ ^</code>。</li>
+  <li><strong><code>rel</code> 是自由关系变量（sig 与字段），<code>var</code> 是量词绑定变量</strong> —— 正好对应附录 B.5.1「核心实例」与「谓词/函数实例」两类变量。</li>
+  <li><strong><code>univ</code> 与 <code>iden</code> 不在内核中定义</strong>，因为它们依赖声明上下文：<code>univ</code> = 各顶层 sig 之并，<code>iden</code> = 该并上的恒等关系。</li>
+  <li><strong>两个解释函数 M（公式→布尔）与 E（表达式→关系值），都以实例为第二个参数</strong> —— 标准指称风格。</li>
+  <li><strong>实例是「关系变量 → 关系值」的函数</strong>；关系值是原子的元组集合；等元数只是便利假设，实际上不必要（引文 [14]）。</li>
+  <li><strong><code>all x: e | f</code> 的定义</strong>：对「i 把 x 指派为 E[e]i 的某个<strong>单例</strong>子集」的每一个扩展实例，体都为真 —— <code>#v = 1</code> 就是「声明默认是标量」的语义根据，且要求 e 是一元的。</li>
+  <li><strong><code>in</code> 就是子集</strong>；命名为 “in” 是为了同时胜任「成员」与「子集」两种角色。</li>
+  <li><strong><code>=</code> 是双向子集，是纯粹外延的集合/关系相等，不含 OO 语言中「同一性 vs 内容」的区分</strong> —— 全书本体论的收口。</li>
+  <li><strong>并/交/差是标准集合运算符；转置与传递闭包定义在二元关系上；点是广义关系复合（join），箭头是笛卡尔积。</strong></li>
+  <li><strong>join 的定义精确到「p 的末元 = q 的首元，结果中省略匹配元素」</strong>；product 是「全部串接，不省略」。</li>
+  <li><strong>所有运算符都是<em>全的</em> ⇒ Alloy 中没有未定义的表达式</strong> —— 这正是「不需要函数应用运算符、不需要处理偏函数」的逻辑基础。</li>
+  <li><strong><code>E[r]i = i(r)</code></strong>；<strong>名字有歧义时，其含义是「该名字可能指向的各关系之值<strong>的并</strong>」</strong> —— 歧义在语义上有定义，但被静态检查拒绝。</li>
+  <li><strong>整数是「有限度支持」</strong>：新增 <code>intExpr</code> / <code>intFormula</code> 两个句法类别，其公式语义「完全标准」。</li>
+  <li><strong><code>#e</code> = e 中元组的个数。</strong></li>
+  <li><strong><code>int e</code> 与 <code>sum e</code> 语义相同</strong>：都是「e 中各 <code>Int</code> 原子经 <code>I2i</code> 关联值之和」；差别只是书写意图（单例 vs 集合），<strong>且 Analyzer 目前不检查这个意图</strong>。</li>
+  <li><strong><code>I2i</code> 是一个自由关系，由实例赋值，就像显式声明的关系一样</strong> —— 整数机制被还原成「模型里一个额外的、被约束为单射的关系」。</li>
+  <li><strong><code>Int ie</code> 至多含一个原子，因此它是一个「可选项（option）」</strong>；作用域不足时为空集。</li>
+  <li><strong>整个附录证明了一件事：Alloy 的全部「新奇」（无集合/标量/元组之分、无函数应用、无运行时错误、无 cast、支持重载）都来自同一个选择 —— 把一切都看成关系，将一切运算符都定义为全函数。</strong></li>
+</ol>
+</div>
+
+<div class="pager">
+  <a href="appB.html"><div class="d">← 上一章</div><div class="n">附录 B · 语言参考</div></a>
+  <a href="appD.html" class="next"><div class="d">下一章</div><div class="n">附录 D · 图形记法 →</div></a>
+</div>
+
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 附录 C</div>
+</div>
+</body>
+</html>
