@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第 4 章 · Language 语言 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">第 4 章 · 语言</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html" class="on">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">4</span>Language · 语言</h1>
+<p class="sub">原书 p. 83–137 · 从逻辑到语言：signature、字段、模型图、类型系统、fact/pred/fun/assert、命令与作用域、模块与多态、整数。这一章把第 3 章的关系逻辑包装成一个<strong>可写、可复用、可与分析器对话</strong>的工程化语言。</p>
+
+<div class="callout key">
+  <span class="tag">为什么「逻辑」还不够</span>
+  <p>一种描述软件抽象的语言，<strong>不仅仅是逻辑</strong>。你还需要：组织模型的方式、把小模型组装成大模型的方式、抽取可复用组件的方式，以及一些<strong>让语言在实践中真正好用的小语法细节</strong>（比如声明的简写）。最后，还需要一种<strong>与分析器沟通</strong>的机制——指出要执行哪些分析。</p>
+  <p style="margin-top:.7em">Alloy 是一门<strong>很小的语言</strong>。它独有的特性只有两个：<strong>signature（签名）</strong>与<strong>作用域（scope）</strong>的概念。其余——模块、多态、参数化函数等——都是主流编程/建模语言的标准配置，并被刻意设计得<strong>尽可能符合惯例</strong>。</p>
+</div>
+
+<div class="toc">
+  <div class="t">本章地图</div>
+  <ol>
+    <li><a href="#s41">4.1 一个例子：Self-Grandpas（自己当自己的爷爷）</a></li>
+    <li><a href="#s42">4.2 Signature 与字段</a></li>
+    <li><a href="#s43">4.3 模型图（Model Diagrams）</a></li>
+    <li><a href="#s44">4.4 类型与类型检查</a></li>
+    <li><a href="#s45">4.5 fact / pred / fun / assert</a></li>
+    <li><a href="#s46">4.6 命令与作用域</a></li>
+    <li><a href="#s47">4.7 模块与多态</a></li>
+    <li><a href="#s48">4.8 整数与算术</a></li>
+    <li><a href="#sum">第 4 章小结</a></li>
+  </ol>
+</div>
+
+<h2 id="s41"><span class="num">4.1</span>An Example: Self-Grandpas · 一个例子</h2>
+
+<p>有一首流行歌曲叫 <em>「I'm My Own Grandpa」</em>（我是我自己的爷爷）。作者用 Alloy 来探究：<strong>这到底怎么可能是真的？</strong>这个例子的价值在于，它把一整章要讲的语言构件（module / sig / fact / fun / pred / assert / run / check / for）在一个 26 行的模型里全部用了一遍。</p>
+
+<h3>模型的宏观结构（gross structure）</h3>
+<dl class="term">
+  <dt>module 头</dt><dd>给模块命名（第 1 行）。命名方式与 Java 相同：模块全名对应文件系统里的路径与文件名。默认扩展名 <code>.als</code>，所以这个模块存在 <code>language/grandpa1.als</code>。</dd>
+  <dt><code>sig</code> 声明</dt><dd>每个 signature 代表<strong>一个原子集合</strong>，并可以引入若干<strong>字段</strong>，每个字段代表一个关系。</dd>
+  <dt>约束段落</dt><dd>由 <code>fact</code> / <code>fun</code> / <code>pred</code> 标记，记录各种形式的约束与表达式。</dd>
+  <dt>断言</dt><dd>由 <code>assert</code> 标记，记录<strong>期望成立</strong>的性质。</dd>
+  <dt>命令</dt><dd>由 <code>run</code> / <code>check</code> 标记，指示分析器执行特定分析。</dd>
+</dl>
+
+<div class="fig">
+<pre><code><span class="c">1</span>  <span class="k">module</span> language/grandpa1
+<span class="c">2</span>  <span class="k">abstract sig</span> <span class="t">Person</span> {
+<span class="c">3</span>    father: <span class="k">lone</span> <span class="t">Man</span>,
+<span class="c">4</span>    mother: <span class="k">lone</span> <span class="t">Woman</span>
+<span class="c">5</span>  }
+<span class="c">6</span>  <span class="k">sig</span> <span class="t">Man</span> <span class="k">extends</span> <span class="t">Person</span> {
+<span class="c">7</span>    wife: <span class="k">lone</span> <span class="t">Woman</span>
+<span class="c">8</span>  }
+<span class="c">9</span>  <span class="k">sig</span> <span class="t">Woman</span> <span class="k">extends</span> <span class="t">Person</span> {
+<span class="c">10</span>   husband: <span class="k">lone</span> <span class="t">Man</span>
+<span class="c">11</span> }
+<span class="c">12</span> <span class="k">fact</span> {
+<span class="c">13</span>   <span class="k">no</span> p: <span class="t">Person</span> | p <span class="k">in</span> p.<span class="o">^</span>(mother + father)   <span class="c">// 你不是你自己的祖先</span>
+<span class="c">14</span>   wife = <span class="o">~</span>husband                             <span class="c">// 夫妻关系互为转置</span>
+<span class="c">15</span> }
+<span class="c">16</span> <span class="k">assert</span> NoSelfFather {
+<span class="c">17</span>   <span class="k">no</span> m: <span class="t">Man</span> | m = m.father
+<span class="c">18</span> }
+<span class="c">19</span> <span class="k">check</span> NoSelfFather
+<span class="c">20</span> <span class="k">fun</span> grandpas (p: <span class="t">Person</span>): <span class="k">set</span> <span class="t">Person</span> {
+<span class="c">21</span>   p.(mother + father).father
+<span class="c">22</span> }
+<span class="c">23</span> <span class="k">pred</span> ownGrandpa (p: <span class="t">Person</span>) {
+<span class="c">24</span>   p <span class="k">in</span> grandpas (p)
+<span class="c">25</span> }
+<span class="c">26</span> <span class="k">run</span> ownGrandpa <span class="k">for</span> 4 <span class="t">Person</span></code></pre>
+<div class="cap">fig. 4.1 第一个完整 Alloy 模型：你能成为自己的爷爷吗？</div>
+</div>
+
+<h3>逐段解读</h3>
+<table>
+  <thead><tr><th>构件</th><th>这里做了什么</th><th>背后的语言规则</th></tr></thead>
+  <tbody>
+    <tr><td><code>abstract sig Person</code><br><code>sig Man extends Person</code><br><code>sig Woman extends Person</code></td>
+        <td>建立<strong>分类层级</strong>：男人和女人是 Person 的<strong>互不相交</strong>的子集。</td>
+        <td><code>extends</code> ⇒ 子集互不相交；<code>abstract</code> ⇒ 父集<strong>没有不属于任何扩展的元素</strong>。若省略 <code>abstract</code>，就会允许「既不是男人也不是女人」的人。</td></tr>
+    <tr><td><code>father: lone Man</code></td><td>每人<strong>至多一个</strong>父亲。</td><td>字段的<strong>定义域被限制在所属 signature 内</strong>，所以 <code>father</code> 关联的是 Person → Man。</td></tr>
+    <tr><td><code>fact { … }</code></td><td>两条<strong>永远成立的假设</strong>。</td><td>第 13 行用 <code>p in p.^(mother+father)</code> 表达「不能是自己的祖先」；第 14 行用转置表达夫妻对称。</td></tr>
+    <tr><td><code>assert NoSelfFather</code> + <code>check</code></td><td>断言「没人是自己的父亲」；<code>check</code> 让分析器<strong>找反例</strong>。</td><td>此断言有效，找不到反例。省略 <code>for</code> 时使用<strong>默认作用域 3</strong>。</td></tr>
+    <tr><td><code>fun grandpas</code></td><td>定义可复用<strong>表达式</strong>。</td><td>之后可以用 <code>grandpas(p)</code> 代替笨拙的 <code>p.(mother+father).father</code>。</td></tr>
+    <tr><td><code>pred ownGrandpa</code></td><td>定义可复用<strong>约束</strong>。</td><td><code>ownGrandpa(p)</code> 代替 <code>p in grandpas(p)</code>。</td></tr>
+    <tr><td><code>run ownGrandpa for 4 Person</code></td><td>让分析器<strong>找一个满足该谓词的实例</strong>。</td><td><code>for 4</code> 把搜索限制在「每个顶层集合最多 4 个元素」的宇宙内。</td></tr>
+  </tbody>
+</table>
+
+<h3>剧情：从「找不到」到「 socially acceptable 的解」</h3>
+<div class="callout warn">
+  <span class="tag">第一次尝试：什么也没发生</span>
+  <p>分析器在作用域 4 内<strong>找不到解</strong>。这可能意味着更大的作用域里有解，于是把 4 换成 10 再试——<strong>仍然没有</strong>。继续放大作用域，很快就会到达分析器<strong>无法在合理时间内穷尽可能性空间</strong>的地步。</p>
+</div>
+
+<p>于是换一种提法：把谓词改写成断言。</p>
+<pre><code><span class="k">assert</span> NoSelfGrandpa {
+  <span class="k">no</span> p: <span class="t">Person</span> | p <span class="k">in</span> grandpas (p)
+}
+<span class="k">check</span> NoSelfGrandpa <span class="k">for</span> 4 <span class="t">Person</span></code></pre>
+<p>当分析器<strong>找不到断言的反例</strong>时，它报告 <code>success</code>（与「谓词找不到实例」时的 failure 相反）。两者在分析机制上是同一件事，但<strong>报告的方向不同</strong>——这一点在 4.1 的 Discussion 与 4.6 里都有强调。</p>
+
+<div class="callout idea">
+  <span class="tag">解读 · 这一步的方法论含义</span>
+  <p>「run 找不到解」和「check 找不到反例」都<strong>不等于命题被证明</strong>，只是「在作用域内穷尽了」。作者的巧妙之处是：当正面搜索失败时，<strong>不要立刻下结论说「不可能」</strong>，而是怀疑自己的<strong>定义</strong>。这里真正该被质疑的是 <code>grandpas</code> 的定义——它只考虑了生物学爷爷，没考虑<strong>婚姻带来的爷爷</strong>。</p>
+</div>
+
+<h3>修正定义：把继父母算进「parent」</h3>
+<pre><code><span class="k">fun</span> grandpas (p: <span class="t">Person</span>): <span class="k">set</span> <span class="t">Person</span> {
+  <span class="k">let</span> parent = mother + father + father.wife + mother.husband |
+    p.parent.parent &amp; <span class="t">Man</span>
+}</code></pre>
+<p><code>let</code> 把 <code>parent</code> 绑定到「母亲 + 父亲 + 父亲的妻子 + 母亲的丈夫」这个关系上。整体含义：<strong>你的爷爷 = 任何一个「是你父母的父母」的男人</strong>，其中「父母」现在包含继父母。</p>
+
+<p>再跑 <code>ownGrandpa</code>，<strong>这次有解了</strong>（fig. 4.2）：只有两个人，<code>Woman_0</code> 和 <code>Man_0</code>，他们既是母子，又是夫妻。作者评了一句：<strong>「这不是一个适合写进流行歌曲的解。」</strong></p>
+
+<p>于是再加一条事实来排除乱伦：</p>
+<pre><code><span class="k">no</span> (wife + husband) &amp; <span class="o">^</span>(mother + father)</code></pre>
+<div class="callout key">
+  <span class="tag">关系式思维的示范</span>
+  <p><code>mother + father</code> 关联「孩子 → 父母」；它的<strong>闭包</strong>关联「人 → 祖先」；<code>wife + husband</code> 关联「人 → 配偶」。
+  <code>no p &amp; q</code> 表示两个关系<strong>不共享任何元组</strong>。整句：<strong>没有任何人的配偶同时是他的祖先。</strong></p>
+</div>
+
+<p>再跑一次，得到一个<strong>更符合社会规范的解</strong>（fig. 4.3）：有两对夫妻，每对的妻子都是另一对丈夫的母亲。那个「自己当自己爷爷」的人 <code>p</code>，是通过<strong>让他的继子娶了他自己的母亲</strong>做到的。</p>
+
+<div class="fig">
+<pre><code><span class="k">module</span> language/grandpa2
+<span class="k">abstract sig</span> <span class="t">Person</span> { father: <span class="k">lone</span> <span class="t">Man</span>, mother: <span class="k">lone</span> <span class="t">Woman</span> }
+<span class="k">sig</span> <span class="t">Man</span> <span class="k">extends</span> <span class="t">Person</span> { wife: <span class="k">lone</span> <span class="t">Woman</span> }
+<span class="k">sig</span> <span class="t">Woman</span> <span class="k">extends</span> <span class="t">Person</span> { husband: <span class="k">lone</span> <span class="t">Man</span> }
+
+<span class="k">fact</span> Biology          { <span class="k">no</span> p: <span class="t">Person</span> | p <span class="k">in</span> p.<span class="o">^</span>(mother + father) }
+<span class="k">fact</span> Terminology      { wife = <span class="o">~</span>husband }
+<span class="k">fact</span> SocialConvention { <span class="k">no</span> (wife + husband) &amp; <span class="o">^</span>(mother + father) }
+
+<span class="k">assert</span> NoSelfFather { <span class="k">no</span> m: <span class="t">Man</span> | m = m.father }
+<span class="k">check</span> NoSelfFather
+
+<span class="k">fun</span> grandpas (p: <span class="t">Person</span>): <span class="k">set</span> <span class="t">Person</span> {
+  <span class="k">let</span> parent = mother + father + father.wife + mother.husband |
+    p.parent.parent &amp; <span class="t">Man</span>
+}
+<span class="k">pred</span> ownGrandpa (p: <span class="t">Man</span>) { p <span class="k">in</span> grandpas (p) }
+<span class="k">run</span> ownGrandpa <span class="k">for</span> 4 <span class="t">Person</span></code></pre>
+<div class="cap">fig. 4.4 Self-grandpas 最终版。作者把事实<strong>拆成多个段落并起了有提示性的名字</strong>（Biology / Terminology / SocialConvention），以示范「按角色或来源分组约束」是好习惯。</div>
+</div>
+
+<h3>4.1 Discussion · 原文问答</h3>
+
+<div class="qa">
+  <div class="q">Q：歌曲「I'm My Own Grandpa」从哪来？</div>
+  <div class="a">最初是 Dwight Latham 和 Moe Jaffe 在 1930 年代广播节目里的一个短剧；Latham 把创意归功于一本马克·吐温的轶事集。后来扩写成歌，1948 年由「Lonzo and Oscar」（Ken Marvin 与 Rollin Sullivan）录制并走红。
+  <strong>顺便一提，歌里的情形和 Alloy 找到的解并不相同</strong>：歌中是「让继女嫁给自己的父亲」，而不是「让继子娶自己的母亲」。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：怎样构造关系式公式？</div>
+  <div class="a"><p>对新手来说关系式风格很难把握，但熟练后会非常自然。作者的建议是：<strong>想着「箭头的集合」，而不是「原子及其关系」</strong>。</p>
+  <p>以 <code>no (wife + husband) &amp; ^(mother + father)</code> 为例，作者的思路链条是：</p>
+  <ol>
+    <li>要表达的约束是「没人可以娶/嫁自己的父母、祖父母等等」——这是在<strong>禁止某些关系</strong>，即<strong>某些箭头不该存在</strong> ⇒ 形式必为 <code>no e</code>。</li>
+    <li>被禁止的关系是「既是配偶，又是父母/祖父母/…」——这是个<strong>合取</strong> ⇒ 取两个关系的<strong>交集</strong>：不该有一支箭头同时属于两者。</li>
+    <li>「是配偶」= 是妻子或丈夫 ⇒ <code>wife + husband</code>（<strong>并集</strong>）。</li>
+    <li>「父母、祖父母，等等」中的「等等」⇒ 对 parent 关系取<strong>传递闭包</strong>；而「父母」= 母亲或父亲 ⇒ 再一次<strong>并集</strong>。</li>
+  </ol>
+  <p>拼起来就得到目标公式。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：如何确认约束真的是我想要的含义？</div>
+  <div class="a"><p>可以<strong>写一个断言，检验它与另一种表述等价</strong>。例如把关系式版本与导航式版本对照：</p>
+<pre><code><span class="k">pred</span> SocialConvention () {
+  <span class="k">no</span> (wife + husband) &amp; <span class="o">^</span>(mother + father)
+}
+<span class="k">pred</span> SocialConvention' () {
+  <span class="k">let</span> parent = mother + father {
+    <span class="k">no</span> m: <span class="t">Man</span> | <span class="k">some</span> m.wife <span class="k">and</span> m.wife <span class="k">in</span> m.*parent.mother
+    <span class="k">no</span> w: <span class="t">Woman</span> |
+      <span class="k">some</span> w.husband <span class="k">and</span> w.husband <span class="k">in</span> w.*parent.father
+  }
+}
+<span class="k">assert</span> Same { SocialConvention () <span class="k">iff</span> SocialConvention'() }
+<span class="k">check</span> Same</code></pre>
+<p>如果两种表述在作用域内不等价，分析器会生成一个反例，展示一个「满足其一却不满足另一个」的家庭。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：run 一个谓词和 check 一个断言，真的有区别吗？</div>
+  <div class="a"><p><strong>从分析角度看没有本质区别</strong>：run 谓词是搜索其约束的实例；check 断言是搜索其约束<strong>否定</strong>的实例。所以「check 约束 C 的断言」等价于「run 约束 not C 的谓词」。</p>
+  <p><strong>但这模糊了一个至关重要的方法论区分。</strong>在设计 Alloy 时，作者认为必须能把「被猜想可由其余部分推出的性质」单独抽出来。<strong>在模型中显式记录这些冗余、并标明它们是冗余</strong>——这个想法来自 John Guttag 与 Jim Horning，是 Larch 语言的一部分。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：如果分析器找不到断言的反例，是否说明该断言有效？</div>
+  <div class="a"><strong>不一定。</strong>更大的作用域里可能存在反例。但在实践中，<strong>随着作用域增大，仍存在反例的概率确实会下降</strong>。所以你获得了一些保证，但<strong>不是绝对意义上的保证</strong>。</div>
+</div>
+
+<h2 id="s42"><span class="num">4.2</span>Signatures and Fields · 签名与字段</h2>
+
+<h3>4.2.1 Signatures</h3>
+<p>一个 signature 引入<strong>一个原子集合</strong>。<code>sig A {}</code> 引入名为 <code>A</code> 的集合。严格说 signature 不只是一个集合（它还能包含关系声明、还会隐式引入一个新类型），但书中宽松地把这个词同时用于「更大的结构」和「与之关联的集合」，比如说「signature 的元素」指集合里的原子。</p>
+
+<table>
+  <thead><tr><th>声明形式</th><th>含义</th><th>隐含约束</th></tr></thead>
+  <tbody>
+    <tr><td><code>sig A {}</code></td><td><strong>顶层 signature</strong>（独立声明，不依附他人）</td><td>所有顶层 signature <strong>互不相交</strong></td></tr>
+    <tr><td><code>sig A1 extends A {}</code></td><td>A1 是 A 的<strong>扩展 / 子签名</strong>，即子集</td><td>同一父签名的各扩展<strong>互不相交</strong>；但<strong>不能</strong>推出 <code>A = A1 + A2</code></td></tr>
+    <tr><td><code>abstract sig A {}</code></td><td>A <strong>没有不属于其扩展的元素</strong></td><td>加上 <code>A1/A2 extends A</code> ⇒ <code>A in A1+A2</code>，于是 <code>A = A1 + A2</code>，<strong>A1、A2 划分了 A</strong></td></tr>
+    <tr><td><code>sig A3 in A {}</code></td><td><strong>子集 signature</strong>，用于表达<strong>正交的</strong>另一套分类</td><td>子集 signature <strong>不要求互不相交</strong>；再写 <code>sig A4 in A {}</code>，A3 与 A4 <strong>可以相交</strong>，除非另加约束</td></tr>
+    <tr><td><code>sig C in A + B {}</code></td><td>C 的每个元素属于 A 或 B</td><td>并集表达式可以列任意多个集合，但<strong>并集是唯一允许出现在这种位置的算子</strong></td></tr>
+    <tr><td><code>m sig A {}</code></td><td>前置<strong>重数关键字</strong>约束集合元素个数</td><td>例如 <code>abstract sig T {}</code> + <code>one sig A, B, C extends T {}</code> ⇒ T 恰好有三个元素 A、B、C，即一个<strong>枚举</strong></td></tr>
+  </tbody>
+</table>
+
+<div class="callout key">
+  <span class="tag">分类层级树 · 类型系统的来源</span>
+  <p>一组 signature 声明（部分顶层、部分扩展）的效果是引入一个<strong>分类层级（classification hierarchy）</strong>。
+  再加上常量 <code>univ</code>（全集，可视为一个<strong>隐式的抽象签名，所有顶层签名都扩展它</strong>），这个层级就形成一棵<strong>树</strong>：根是 <code>univ</code>，往下一层是顶层签名，再往下是它们的扩展，依此类推。
+  <strong>这棵树给所有原子提供了一个「主分类」，并被类型系统所利用</strong>（见 4.4）。需要其他<strong>正交分类</strong>时，就用子集 signature（<code>in</code>）。</p>
+</div>
+
+<h4>六个典型分类例子</h4>
+<div class="grid c2">
+<div class="card"><h4>地址簿的目标</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Target</span> {}
+<span class="k">abstract sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> {}</code></pre></div>
+<div class="card"><h4>像素颜色</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Pixel</span> {}
+<span class="k">sig</span> <span class="t">Red</span>, <span class="t">Green</span>, <span class="t">Blue</span> <span class="k">extends</span> <span class="t">Pixel</span> {}</code></pre></div>
+<div class="card"><h4>交通灯颜色（枚举）</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Yellow</span>, <span class="t">Green</span>
+  <span class="k">extends</span> <span class="t">Color</span> {}</code></pre></div>
+<div class="card"><h4>文件系统（两套正交分类）</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">File</span>, <span class="t">Dir</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Alias</span> <span class="k">extends</span> <span class="t">File</span> {}
+<span class="k">sig</span> <span class="t">Temp</span> <span class="k">in</span> <span class="t">Object</span> {}   <span class="c">// 正交：可能是文件或目录</span></code></pre></div>
+<div class="card"><h4>同上，但不显式声明 Object</h4>
+<pre><code><span class="k">sig</span> <span class="t">File</span> {}
+<span class="k">sig</span> <span class="t">Dir</span> {}
+<span class="k">one sig</span> <span class="t">Root</span> <span class="k">extends</span> <span class="t">Dir</span> {}
+<span class="k">sig</span> <span class="t">Alias</span> <span class="k">extends</span> <span class="t">File</span> {}
+<span class="k">sig</span> <span class="t">Temp</span> <span class="k">in</span> <span class="t">File</span> + <span class="t">Dir</span> {}</code></pre></div>
+<div class="card"><h4>茶叶（两层 + 交叉分类）</h4>
+<pre><code><span class="k">sig</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">IndiaTea</span>, <span class="t">ChinaTea</span> <span class="k">extends</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">Assam</span>, <span class="t">Darjeeling</span> <span class="k">extends</span> <span class="t">IndiaTea</span> {}
+<span class="k">sig</span> <span class="t">Keemun</span>, <span class="t">Lapsang</span> <span class="k">extends</span> <span class="t">ChinaTea</span> {}
+<span class="c">// 伯爵茶可能是中国茶也可能是印度茶：</span>
+<span class="k">sig</span> <span class="t">EarlGrey</span> <span class="k">in</span> <span class="t">ChinaTea</span> + <span class="t">IndiaTea</span> {}</code></pre></div>
+</div>
+
+<h4>4.2.1 Discussion</h4>
+<div class="qa">
+  <div class="q">Q：Alloy 支持多重继承吗？</div>
+  <div class="a"><p><strong>支持，但不能完全靠声明</strong>——需要一些显式 fact。例如想说「茉莉花茶既是加味茶又是中国茶」，两个关系中必须有一个写成 fact：</p>
+<pre><code><span class="k">sig</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">ChinaTea</span> <span class="k">extends</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">FlavoredTea</span> <span class="k">in</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">JasmineTea</span> <span class="k">extends</span> <span class="t">ChinaTea</span> {}
+<span class="k">fact</span> { <span class="t">JasmineTea</span> <span class="k">in</span> <span class="t">FlavoredTea</span> }</code></pre>
+<p><strong>不要把声明里的并集误认为多重继承。</strong><code>sig EarlGrey in ChinaTea + IndiaTea {}</code> 说的是「Earl Grey 是中国茶<strong>或</strong>印度茶」，它<strong>并不表达对伯爵茶原产国的不确定性</strong>。signature 代表的是一个集合——所有伯爵茶的集合——所以这句话是说：<strong>该集合的每个成员，要么是中国茶，要么是印度茶。</strong></p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：单例 signature（<code>one sig</code>）对应原子吗？</div>
+  <div class="a"><p>单例 signature 代表<strong>单例集合</strong>——只含一个元素的集合。在某个实例中，这样的集合确实对应单个原子。<strong>但把单例看作与其他集合根本不同，是个错误。</strong></p>
+  <p>某些建模记法把含单例的模型看成「模型/实例的混合体」，这是不必要的。<strong>模型与实例的区别在于：模型代表一组实例。</strong>所以在模型里，单例集合<strong>并不绑定到某个特定原子</strong>，在不同实例中它可以代表不同的原子。</p>
+  <p>例如文件系统模型里为根目录声明一个单例，它描述的是<strong>所有可能文件系统的集合</strong>，每个文件系统有自己的根，不同文件系统的根可以是<strong>不同的原子</strong>。当我们在这个模型里使用 <code>Root</code> 时，指的是「当前所描述的那个文件系统的根」，<strong>它可以随文件系统而变</strong>。</p></div>
+</div>
+
+<h3>4.2.2 Basic Field Declarations · 基本字段声明</h3>
+<p>关系以<strong>字段</strong>的形式声明在 signature 内。<code>sig A {f: e}</code> 引入一个关系 <code>f</code>，<strong>定义域是 A</strong>，值域由表达式 <code>e</code> 给出，效果等同于在 fact 里写了声明约束：</p>
+<pre><code>f: A -&gt; e</code></pre>
+<p>它也可以等价地写成：</p>
+<pre><code><span class="k">all</span> <span class="k">this</span>: A | <span class="k">this</span>.f : e</code></pre>
+<div class="callout key">
+  <span class="tag">为什么第二种写法是「更好的理解方式」</span>
+  <p>因为它在<strong>加上重数符号后仍然给出正确含义</strong>（见 3.6）。对集合 <code>e</code>，声明 <code>sig A {f: m e}</code> 添加的约束是
+  <code>all this: A | this.f : m e</code>，意思是：<strong>对 A 中任意 this，<code>this.f</code> 拥有 m 个取自集合 e 的元素。</strong></p>
+</div>
+
+<table>
+  <thead><tr><th>声明</th><th>含义（对任意 <code>this: A</code>）</th></tr></thead>
+  <tbody>
+    <tr><td><code>sig A {f: one e}</code></td><td><code>this.f</code> 有 <strong>1 个</strong> e 中元素</td></tr>
+    <tr><td><code>sig A {f: some e}</code></td><td><strong>至少 1 个</strong></td></tr>
+    <tr><td><code>sig A {f: lone e}</code></td><td><strong>至多 1 个</strong></td></tr>
+    <tr><td><code>sig A {f: set e}</code></td><td><strong>任意个</strong></td></tr>
+    <tr><td><code>sig A {f: e}</code></td><td><strong>默认省略的关键字是 <code>one</code></strong>，故与 <code>sig A {f: one e}</code> 等价 ⇒ <code>this.f</code> 是<strong>标量</strong></td></tr>
+    <tr><td><code>sig A {f: e1 m -&gt; n e2}</code></td><td>若 e 本身是关系（arity ≥ 2），其中可以含重数关键字，规则相同：<code>all this: A | this.f : e1 m -&gt; n e2</code></td></tr>
+  </tbody>
+</table>
+
+<h4>六个字段声明例子</h4>
+<div class="grid c2">
+<div class="card"><h4>茶与其唯一原产国</h4>
+<pre><code><span class="k">sig</span> <span class="t">Tea</span> {origin: <span class="t">Country</span>}
+<span class="k">sig</span> <span class="t">Country</span> {}</code></pre></div>
+<div class="card"><h4>文件系统：目录含任意对象，别名指向恰好一个对象</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Object</span>}
+<span class="k">one sig</span> <span class="t">Root</span> <span class="k">extends</span> <span class="t">Directory</span> {}
+<span class="k">sig</span> <span class="t">File</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Alias</span> <span class="k">extends</span> <span class="t">File</span> {to: <span class="t">Object</span>}</code></pre></div>
+<div class="card"><h4>天气预报：每城恰好一种天气</h4>
+<pre><code><span class="k">sig</span> <span class="t">Forecast</span> {weather: <span class="t">City</span> -&gt; <span class="k">one</span> <span class="t">Weather</span>}
+<span class="k">sig</span> <span class="t">City</span>, <span class="t">Weather</span> {}
+<span class="k">one sig</span> <span class="t">Rainy</span>, <span class="t">Sunny</span>, <span class="t">Cloudy</span> <span class="k">extends</span> <span class="t">Weather</span> {}</code></pre></div>
+<div class="card"><h4>地址簿：名字至多对应一个地址或名字</h4>
+<pre><code><span class="k">sig</span> <span class="t">Name</span> {address: <span class="k">lone</span> <span class="t">Addr</span> + <span class="t">Name</span>}
+<span class="k">sig</span> <span class="t">Addr</span> {}</code></pre></div>
+<div class="card"><h4>Book 持有「名字 → 地址/名字」的偏函数</h4>
+<pre><code><span class="k">sig</span> <span class="t">Book</span> { addr: <span class="t">Name</span> -&gt; <span class="k">lone</span> (<span class="t">Addr</span> + <span class="t">Name</span>) }
+<span class="k">sig</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> {}</code></pre></div>
+<div class="card"><h4>交通灯：在给定时刻显示某种颜色组合</h4>
+<pre><code><span class="k">sig</span> <span class="t">TrafficLight</span> { color: <span class="t">Color</span> <span class="k">some</span> -&gt; <span class="t">Time</span> }
+<span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Green</span>, <span class="t">Yellow</span> <span class="k">extends</span> <span class="t">Color</span> {}
+<span class="k">sig</span> <span class="t">Time</span></code></pre></div>
+</div>
+
+<div class="callout idea">
+  <span class="tag">行文约定</span>
+  <p>作者说：把 signature S 描述成「S 的元素的一个集合」太啰嗦了，所以从此以后<strong>用单数指代 signature 的元素——「一个 S」</strong>。只要记住：<strong>一个 signature 潜在地代表任意多个元素。</strong></p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：所有关系都必须声明为字段吗？</div>
+  <div class="a"><p><strong>是的：Alloy 没有顶层关系声明。</strong>如果你想声明一些不属于任何现有 signature 的关系，就把它们声明为<strong>一个单例 signature 的字段</strong>。例如文件系统模型中，一个「名字 → 对象」的 lookup 结果关系可以这样声明：</p>
+<pre><code><span class="k">one sig</span> <span class="t">Globals</span> { lookup: <span class="t">Name</span> -&gt; <span class="t">Object</span> }</code></pre>
+<p>然后用 <code>Globals.lookup</code> 引用。这是一个非常常用的「全局关系容器」惯用法。</p></div>
+</div>
+
+<h3>4.2.3 Grouping Fields · 字段分组</h3>
+<p>字段可以分组以共享声明表达式。关键字 <code>disj</code> 与 <code>part</code> 表示这组字段<strong>互不相交</strong>，或<strong>构成一个划分</strong>：</p>
+<table>
+  <thead><tr><th>写法</th><th>隐含约束</th></tr></thead>
+  <tbody>
+    <tr><td><code>sig A {disj f, g: e}</code></td><td><code>all this: A | no this.f &amp; this.g</code></td></tr>
+    <tr><td><code>sig A {part f, g: e}</code></td><td>同上，<strong>外加</strong> <code>all this: A | e in this.f + this.g</code>（覆盖 e 的全部）</td></tr>
+  </tbody>
+</table>
+<div class="grid c3">
+<div class="card"><h4>猫有三个名字</h4>
+<pre><code><span class="k">sig</span> <span class="t">Cat</span> {
+  <span class="k">disj</span> daily, peculiar,
+       ineffable: <span class="t">Name</span>
+}
+<span class="k">sig</span> <span class="t">Name</span> {}</code></pre>
+<p>对任意猫 c，<code>c.daily</code>、<code>c.peculiar</code>、<code>c.ineffable</code> 是三个<strong>不同</strong>的名字。</p></div>
+<div class="card"><h4>非友即敌</h4>
+<pre><code><span class="k">sig</span> <span class="t">Cat</span> {
+  <span class="k">part</span> friends, enemies:
+       <span class="k">set</span> <span class="t">Cat</span>
+}</code></pre>
+<p>猫把所有<strong>不是朋友的猫</strong>都视为敌人——<code>part</code> 保证两者合起来覆盖全集。</p></div>
+<div class="card"><h4>路口的灯</h4>
+<pre><code><span class="k">sig</span> <span class="t">Junction</span> {
+  northSouth, eastWest:
+    <span class="t">LightState</span>
+}
+<span class="k">sig</span> <span class="t">LightState</span> {
+  color: <span class="t">Light</span> -&gt; <span class="k">one</span> <span class="t">Color</span>
+}
+<span class="k">sig</span> <span class="t">Color</span>, <span class="t">Light</span> {}</code></pre>
+<p>路口在（概念上）每个方向有一盏灯，在给定状态下被赋予单一颜色。</p></div>
+</div>
+
+<h3>4.2.4 Dependent Declarations · 依赖式声明</h3>
+<div class="callout warn">
+  <span class="tag">唯一的限制</span>
+  <p>字段声明的界定表达式可以是<strong>任意 Alloy 表达式</strong>，只有一个限制：如果该表达式出现在 signature X 的字段声明中，<strong>它只能提及 X 自身中先前声明的字段，或 X 的某个父类型 signature 中的字段</strong>。</p>
+</div>
+
+<div class="grid c2">
+<div class="card"><h4>用另一种方式让猫的三个名字互异</h4>
+<pre><code><span class="k">sig</span> <span class="t">Cat</span> {
+  daily: <span class="t">Name</span>,
+  peculiar: <span class="t">Name</span> - daily,
+  ineffable: <span class="t">Name</span> - (daily + peculiar)
+}
+<span class="k">sig</span> <span class="t">Name</span> {}</code></pre></div>
+<div class="card"><h4>三个映射：家、公司、默认</h4>
+<pre><code><span class="k">sig</span> <span class="t">Book</span> {
+  homeAddress, workAddress:
+    <span class="t">Name</span> -&gt; <span class="k">lone</span> <span class="t">Addr</span>,
+  address: homeAddress + workAddress
+}
+<span class="k">sig</span> <span class="t">Name</span>, <span class="t">Addr</span> {}</code></pre>
+<p><code>address</code> 的声明<strong>允许它把一个名字同时映射到家庭地址和工作地址</strong>；若要限制为一个，需要额外约束（例如写进 signature fact，见 4.5.1）。</p></div>
+<div class="card"><h4>电台拥有多个频率</h4>
+<pre><code><span class="k">sig</span> <span class="t">RadioStation</span> {
+  owns: <span class="k">set</span> <span class="t">Freq</span>,
+  freq: <span class="t">Location</span> -&gt; <span class="k">one</span> owns
+}</code></pre></div>
+<div class="card"><h4>变焦镜头的最大光圈</h4>
+<pre><code><span class="k">sig</span> <span class="t">Lens</span> {apertures: <span class="k">set</span> <span class="t">FStop</span>}
+<span class="k">sig</span> <span class="t">ZoomLens</span> <span class="k">extends</span> <span class="t">Lens</span> {
+  maxTeleAperture: apertures
+}
+<span class="k">sig</span> <span class="t">FStop</span> {}</code></pre></div>
+</div>
+
+<h4>依赖式声明的展开规则</h4>
+<p>依赖式声明隐含的约束，比「界定表达式里只出现 signature」的简单声明要<strong>稍复杂一些</strong>。对 <code>sig A {f: e}</code>，约束是：</p>
+<pre><code><span class="k">all</span> <span class="k">this</span>: A | <span class="k">this</span>.f <span class="k">in</span> e'</code></pre>
+<p>其中 <code>e'</code> 与 <code>e</code> 完全相同，只是<strong>把每个字段引用都展开</strong>：出现在 e 中的每个字段都被视为对 <code>this</code> 的解引用，所以字段 <code>g</code> 的每次出现都被替换成 <code>this.g</code>。</p>
+<div class="card">
+<pre><code><span class="c">// 由镜头例子产生的约束是：</span>
+<span class="k">all</span> <span class="k">this</span>: <span class="t">ZoomLens</span> | <span class="k">this</span>.maxTeleAperture <span class="k">in</span> <span class="k">this</span>.apertures</code></pre>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么依赖式声明不能提及任意字段？</div>
+  <div class="a"><p>这个限制让模型<strong>更容易做类型检查</strong>，也许也更容易阅读。它确实排除了一些有用的情形，例如想描述「某电台的频率是它所属类别所允许的频率之一」：</p>
+<pre><code><span class="k">sig</span> <span class="t">RadioStation</span> {class: <span class="t">StationClass</span>, freq: class.band}   <span class="c">// 非法</span>
+<span class="k">sig</span> <span class="t">StationClass</span> {band: <span class="k">set</span> <span class="t">Freq</span>}</code></pre>
+<p><strong>如果允许相互依赖，就可能出现没有唯一类型的字段。</strong>例如「某人的姓是其父母之一的姓」：</p>
+<pre><code><span class="k">sig</span> <span class="t">Person</span> {surname: parents.surname, parents: <span class="k">set</span> <span class="t">Person</span>}   <span class="c">// surname 的类型无法确定</span></code></pre>
+<p>不过这些情形都可以在声明<strong>之后</strong>补上约束（见 4.5.1）：</p>
+<pre><code><span class="k">sig</span> <span class="t">RadioStation</span> {class: <span class="t">StationClass</span>, freq: <span class="t">Freq</span>}
+  {freq <span class="k">in</span> class.band}
+
+<span class="k">sig</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Person</span> {surname: <span class="t">Name</span>, parents: <span class="k">set</span> <span class="t">Person</span>}
+  {surname <span class="k">in</span> parents.surname}</code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：依赖式声明会不会把人搞糊涂？</div>
+  <div class="a"><p><strong>会。</strong>一个常见错误出现在<strong>闭包</strong>上。假设要描述一个 P2P 网络，每个 peer 有一组直连朋友，以及一个可从朋友到达的「社区」。这样的声明尝试：</p>
+<pre><code><span class="k">sig</span> <span class="t">Peer</span> { friends: <span class="k">set</span> <span class="t">Peer</span>, community: <span class="k">set</span> *friends }   <span class="c">// 被拒绝</span></code></pre>
+<p>会被拒绝，因为 <code>community</code> 声明中对 <code>friends</code> 的提及被展开成 <code>this.friends</code>，那是一个<strong>集合</strong>而不是二元关系。</p>
+<p>你可能想用特殊符号 <code>@</code> 阻止展开：</p>
+<pre><code><span class="k">sig</span> <span class="t">Peer</span> { friends: <span class="k">set</span> <span class="t">Peer</span>, community: *@friends }   <span class="c">// 能通过，但含义不对！</span></code></pre>
+<p>这会被接受，但<strong>不是你以为的意思</strong>：<code>*@friends</code> 表示一个<strong>二元关系</strong>，所以 <code>community</code> 会变成一个<strong>三元关系</strong>！正确做法是用保留字 <code>this</code> 指代那个特定的 peer：</p>
+<pre><code><span class="k">sig</span> <span class="t">Peer</span> {
+  friends: <span class="k">set</span> <span class="t">Peer</span>,
+  community: <span class="k">set</span> <span class="k">this</span>.*@friends
+}
+<span class="c">// 隐含约束： all this: Peer | this.community in this.*friends</span></code></pre></div>
+</div>
+
+<div class="callout pit">
+  <span class="tag">这一节的教训</span>
+  <p><strong>不要那么拼命地把所有约束都塞进声明里</strong>，写一个显式约束更好：</p>
+  <pre><code><span class="k">sig</span> <span class="t">Peer</span> {friends, community: <span class="k">set</span> <span class="t">Peer</span>}
+<span class="k">fact</span> {community <span class="k">in</span> *friends}</code></pre>
+</div>
+
+<h2 id="s43"><span class="num">4.3</span>Model Diagrams · 模型图</h2>
+<p>模型图声明一些集合与二元关系，并对它们施加一些基本约束。图是<strong>传达模型轮廓</strong>的好方式，但<strong>图的表达力不足以包含详细约束</strong>。有人喜欢先画图再写文本，有人偏好先写文本、把图当插图。Alloy Analyzer 可以<strong>从文本模型生成模型图</strong>——你可以用它帮助理解大型模型，或者看着模型随新 signature 的增加而生长。图记法见附录 D。</p>
+
+<h3>4.3.1 重数符号</h3>
+<table>
+  <thead><tr><th>符号</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>*</code></td><td>任意个（<strong>默认值</strong>）</td></tr>
+    <tr><td><code>!</code></td><td>恰好一个</td></tr>
+    <tr><td><code>?</code></td><td>零或一个</td></tr>
+    <tr><td><code>+</code></td><td>一个或更多</td></tr>
+  </tbody>
+</table>
+<p>图中<strong>默认重数永远是 <code>*</code></strong>，所以如果不写任何重数符号，就没有隐含的重数约束。重数可以附在集合上（作为框标签的后缀），也可以附在关系上（作为箭头标签的前缀和后缀）。</p>
+
+<h3>4.3.2 Boxes and Arrows · 框与箭头</h3>
+<div class="grid c2">
+<div class="card"><h4>粗箭头（fat arrow）</h4><p>箭头是<strong>大的、空心的三角形</strong>，表示<strong>子集关系</strong>，用于表达分类层级。</p></div>
+<div class="card"><h4>细箭头（thin arrow）</h4><p>箭头是<strong>小的、实心的三角形</strong>，表示<strong>关系</strong>。</p></div>
+</div>
+<table>
+  <thead><tr><th>图形元素</th><th>对应的 Alloy 文本</th></tr></thead>
+  <tbody>
+    <tr><td>没有出向粗箭头的框</td><td>顶层 signature：<code>sig A {}</code></td></tr>
+    <tr><td>框 A1 用粗箭头连到框 A</td><td>扩展：<code>sig A1 extends A {}</code>（也可显式标注 <code>extends</code>）</td></tr>
+    <tr><td>粗箭头上标注 <code>in</code></td><td>子集 signature：<code>sig A1 in A {}</code></td></tr>
+    <tr><td>框内写 <code>abstract</code>，或把名字<strong>斜体</strong>化</td><td><code>abstract sig A {}</code>——除扩展所含元素外没有自己的元素</td></tr>
+    <tr><td>框标签后跟重数符号</td><td>约束集合元素个数，如同在 signature 声明前写了对应关键字。<code>lone sig A {}</code>、<code>some sig A {}</code></td></tr>
+    <tr><td>约定：重数为 <code>!</code> 或 <code>?</code> 的集合画成<strong>椭圆</strong>而非矩形</td><td>视觉上一眼区分「单例/至多一个」</td></tr>
+    <tr><td>从 A 到 B 的细箭头，标签 <code>m R n</code></td><td>定义域含于 A、值域含于 B 的关系，等同于 <code>R: A m -&gt; n B</code>（关键字替换符号）</td></tr>
+  </tbody>
+</table>
+<p>一条弧可以有<strong>多个标签</strong>。这也是为什么把重数符号做成标签的一部分、而不是写在弧的两端更方便：<strong>两个定义域与值域相同但重数不同的关系可以共享同一条弧。</strong></p>
+
+<h3>4.3.3 Expressions and Higher-Arity Relations</h3>
+<p>任何<strong>表示集合或二元关系的表达式</strong>都可以出现在模型图里——把表达式当作框或箭头的标签即可，而不必是集合名或关系名。</p>
+<div class="callout key">
+  <span class="tag">高 arity 关系怎么画</span>
+  <p>arity 大于 2 的关系<strong>无法直接展示</strong>。但通常你可以通过创建一条或多条弧、并给它们打上合适的表达式标签，把需要说的都说出来。假设有关系 <code>R: A -&gt; B -&gt; C</code>：</p>
+  <ul>
+    <li>画一条从 <strong>B 到 C</strong> 的弧，标签 <code>A.R</code>；</li>
+    <li>或画一条从 <strong>A 到 B</strong> 的弧，标签 <code>R.C</code>。</li>
+  </ul>
+  <p>但要展示 R 这样的关系的<strong>重数</strong>，你真正想展示的往往是一个<strong>原型表达式（archetypal expression）</strong>，比如 <code>a.R</code>，其中 a 是集合 A 中的一个标量。</p>
+</div>
+<p>给关系弧打标签 <code>all v: be | e</code>，意思是：该弧因源集合、目标集合和重数而隐含的约束，对表达式 e 成立，其中 v 遍历 be 给出的集合。例如从 B 到 C 的弧上标 <code>all a: A | a.R  !</code>，是说 <strong><code>a.R</code> 是一个把每个 B 映射到一个 C 的函数，对每个 a 都如此</strong>，等同于文本中的：</p>
+<pre><code><span class="k">all</span> a: A | a.R : B -&gt; <span class="k">one</span> C</code></pre>
+<div class="callout idea">
+  <span class="tag">便捷简写 <code>&lt;S&gt;</code></span>
+  <p>实践中，界几乎总是遍历一个具名集合，而这种记法有点笨拙。所以有个方便的简写：<strong>遍历集合 S 的变量直接写成 <code>&lt;S&gt;</code></strong>。上例的标签就写成 <code>&lt;A&gt;.R</code>。fig. 4.7 的地址簿图里出现的 <code>&lt;Book&gt;.addr?</code> 与交通灯图里的 <code>color.&lt;Time&gt;+</code> 就是这个记法。</p>
+</div>
+
+<div class="fig">
+  <div class="cap" style="margin-bottom:.6em">fig. 4.7 文本模型与对应模型图（三例）</div>
+  <div class="grid c3">
+    <div class="card">
+<pre><code><span class="k">abstract sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {
+  contents: <span class="k">set</span> <span class="t">Object</span>
+}
+<span class="k">one sig</span> <span class="t">Root</span> <span class="k">extends</span> <span class="t">Directory</span> {}
+<span class="k">sig</span> <span class="t">File</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Alias</span> <span class="k">extends</span> <span class="t">File</span> {to: <span class="t">Object</span>}</code></pre>
+      <div class="rel"><span class="atom b">Object</span>（abstract）<br>├ <span class="atom c">Directory</span> ── contents <span class="arw">→</span> * Object<br>│&nbsp;&nbsp;└ <span class="atom d">Root !</span>（椭圆）<br>└ <span class="atom c">File</span><br>&nbsp;&nbsp;&nbsp;└ <span class="atom d">Alias</span> ── to <span class="arw">→</span> ! Object</div>
+    </div>
+    <div class="card">
+<pre><code><span class="k">abstract sig</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">abstract sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {
+  addr: <span class="t">Name</span> -&gt; <span class="k">lone</span> <span class="t">Target</span>
+}</code></pre>
+      <div class="rel"><span class="atom b">Target</span>（abstract）<br>├ <span class="atom c">Addr</span>&nbsp;&nbsp;├ <span class="atom c">Name</span>（abstract）<br>│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├ <span class="atom d">Alias</span>&nbsp;├ <span class="atom d">Group</span><br><span class="atom b">Book</span> ── <span class="tuple">&lt;Book&gt;.addr ?</span> <span class="arw">→</span> Target</div>
+    </div>
+    <div class="card">
+<pre><code><span class="k">sig</span> <span class="t">TrafficLight</span> {
+  color: <span class="t">Color</span> <span class="k">some</span> -&gt; <span class="t">Time</span>
+}
+<span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Yellow</span>, <span class="t">Green</span>
+  <span class="k">extends</span> <span class="t">Color</span> {}</code></pre>
+      <div class="rel"><span class="atom b">Color</span>（abstract）<br>├ <span class="atom d">Red !</span> <span class="atom d">Yellow !</span> <span class="atom d">Green !</span><br><span class="atom c">TrafficLight</span> ── <span class="tuple">color.&lt;Time&gt; +</span> <span class="arw">→</span> <span class="atom c">Time</span></div>
+    </div>
+  </div>
+</div>
+
+<h3>4.3 Discussion · 原文问答</h3>
+<div class="qa">
+  <div class="q">Q：为什么图记法不更直接地对应文本记法？</div>
+  <div class="a"><p><strong>Alloy 的文本形式与图形形式之间存在根本差异。</strong>图记法是<strong>平坦的</strong>：一个关系<strong>并不更属于它的源而非它的目标</strong>，所以在两端都标重数是合理的。而文本记法把关系<strong>打包进 signature</strong>，鼓励把关系看作对象的字段，并且<strong>语法不允许你为 signature 自身的元素给出重数</strong>。</p>
+  <p>例如 <code>sig S {r: lone T}</code> 说 r 是一个偏函数（把每个 S 映射到至多一个 T），但它<strong>没有说有多少个 S 映射到每个 T</strong>。你可以加一条显式声明公式 <code>fact {r : S lone -&gt; lone T}</code>，让 r 的转置也成为函数，但<strong>你无法在声明本身中表达这一点</strong>。图形形式不受这种不对称之苦。</p>
+  <p>文本与图形形式的精确对应曾是<strong>早期版本 Alloy 的设计目标</strong>，但在引入 signature 之后失去了。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么不用 UML 的图语法？</div>
+  <div class="a"><p>UML 语法的优势是很多人熟悉。但 Alloy 自己的语法<strong>与文本语言有更直接的映射</strong>，而且<strong>不需要专用工具就更容易画</strong>（只用标准形状，不要求一条弧在不同位置携带标签）。</p>
+  <p>一个常见约定是：为互不相交的子集画一个<strong>共享的粗箭头头</strong>，为每一套正交分类画单独的箭头。只在纸上作画时这没问题，但<strong>如果想把这样的图转成 Alloy 文本，你必须指定其中一套分类为「主分类」</strong>，这样表达式才能有唯一类型。次级分类必须用标注 <code>in</code> 的子集箭头表达，其不相交性质必须<strong>显式写成 fact</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么图中 <code>set</code>（<code>*</code>）是默认重数？</div>
+  <div class="a"><p><strong>图形记法应当是单调的（monotonic）：随着你不断修饰它，你是在添加而非移除约束。</strong>否则，如果你在中途停下，手上的图就是<strong>错误的</strong>，因为它说了你并不想说的话。</p>
+  <p>写文本模型时很少会省略所有重数，但画图时<strong>先勾勒宏观结构、再填充细节</strong>是很常见的。有些图形记法违反了这个原则，例如用普通线端表示「恰好一个」、用更复杂的线端表示更弱的重数。</p></div>
+</div>
+
+<h2 id="s44"><span class="num">4.4</span>Types and Type Checking · 类型与类型检查</h2>
+<div class="callout key">
+  <span class="tag">类型系统的两个功能</span>
+  <ol>
+    <li><strong>在任何严肃分析开始之前捕获错误。</strong>核心思想是：<em>一个表达式如果有错，是因为仅凭类型就能证明它是<strong>冗余的</strong></em>。这个错误概念虽然不合常规，但在实践中与直觉相当吻合——它接受和拒绝表达式的方式正如你所期望。</li>
+    <li><strong>解析重载（overloading）。</strong>当不同 signature 有同名字段时，用表达式的类型来决定指的是哪一个字段。</li>
+  </ol>
+</div>
+
+<h3>4.4.1 Basic Types · 基本类型</h3>
+<ul>
+  <li>类型<strong>隐式地</strong>与 signature 关联。每个<strong>顶层 signature</strong> 和每个<strong>扩展 signature</strong> 都引入一个<strong>基本类型</strong>。</li>
+  <li>当 A1 扩展 A 时，A1 关联的类型是 A 关联类型的<strong>子类型</strong>。</li>
+  <li><strong>子集 signature 没有自己的类型</strong>，它继承父类型；若声明为多个 signature 并集的子集，其类型是这些父类型的<strong>并</strong>。</li>
+  <li>两个基本类型<strong>重叠（overlap）</strong>，当且仅当其中一个是另一个的子类型。</li>
+</ul>
+<div class="fig">
+<pre><code><span class="c">// fig. 4.8 茶叶的类型层级</span>
+<span class="k">sig</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">IndiaTea</span>, <span class="t">ChinaTea</span> <span class="k">extends</span> <span class="t">Tea</span> {}
+<span class="k">sig</span> <span class="t">Assam</span>, <span class="t">Darjeeling</span> <span class="k">extends</span> <span class="t">IndiaTea</span> {}
+<span class="k">sig</span> <span class="t">Keemun</span>, <span class="t">Lapsang</span> <span class="k">extends</span> <span class="t">ChinaTea</span> {}
+<span class="c">//  ⇒  Tea ← IndiaTea ← {Assam, Darjeeling}；Tea ← ChinaTea ← {Keemun, Lapsang}</span>
+
+<span class="c">// fig. 4.9 文件系统的类型层级</span>
+<span class="k">sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">File</span>, <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Temp</span> <span class="k">in</span> <span class="t">Object</span> {}
+<span class="c">//  ⇒  Object ← {File, Directory}；Temp --in--&gt; Object（不引入新类型）</span></code></pre>
+<div class="cap"><code>Temp</code> 这个集合<strong>没有自己的类型</strong>，其元素属于类型 Object。类型 File 与 Object <strong>重叠</strong>（因为有原子既是文件又是对象），但类型 File 与 Directory <strong>不重叠</strong>。</div>
+</div>
+
+<h3>4.4.2 Relational Types · 关系类型</h3>
+<p>每个表达式都有一个<strong>关系类型</strong>，由若干「积的并」构成：</p>
+<pre><code>A1 -&gt; B1 -&gt; …  +  A2 -&gt; B2 -&gt; …  +  …</code></pre>
+<p>其中每个 Ai、Bi 等都是<strong>基本类型</strong>。每个积项必须含有与该关系 arity 相同数量的基本类型。二元关系的类型形如 <code>A1 -&gt; B1 + A2 -&gt; B2 + …</code>，集合的类型形如 <code>A1 + A2 + …</code>。</p>
+<div class="callout key">
+  <span class="tag">类型本身就是一个 Alloy 表达式</span>
+  <p>类型是<strong>自动推断</strong>的，使得<strong>类型的值总是包含表达式的值</strong>——即它是一个<strong>过近似（overapproximation）</strong>。
+  这意味着：<strong>如果两个类型的交集为空，那么它们所来自的两个表达式的交集也必为空。</strong>这正是类型检查<strong>可靠（sound）</strong>的原因。</p>
+</div>
+
+<h4>类型是如何确定的（三步）</h4>
+<dl class="term">
+  <dt>第一步 · 基本类型层级</dt>
+  <dd>从 signature 声明得到。例：<code>abstract sig Object</code> / <code>Directory extends Object</code> / <code>one sig Root extends Directory</code> / <code>File extends Object</code> / <code>Alias extends File</code> / <code>Temp in Object</code> ⇒ 基本类型为 Object、File、Alias、Directory、Root；File 与 Directory 是 Object 的子类型，Alias 是 File 的子类型，Root 是 Directory 的子类型；<strong>signature Temp 被赋予类型 Object</strong>。</dd>
+  <dt>第二步 · 字段类型</dt>
+  <dd>给每个字段一个类型，方法是对声明右侧的界定表达式定类型。例：<code>sig Directory extends Object {contents: set Object}</code> 与 <code>sig Alias extends File {to: Object}</code> 中的字段分别得到 <code>Directory -&gt; Object</code> 与 <code>Alias -&gt; Object</code>。</dd>
+  <dt>第三步 · 检查模型约束</dt>
+  <dd>用 signature、字段的类型，以及<strong>量化变量的类型</strong>（其推断方式与字段完全相同）为每个表达式推断类型。例：在 <code>all d: Directory - Root | some d.~contents</code> 中，量化变量 d 得到类型 Directory，然后 <code>d.~contents</code> 也得到类型 Directory。</dd>
+</dl>
+<p>确定表达式类型是直截了当的：<strong>每个关系算子都有一条对应的规则</strong>。例如点连接的规则是：</p>
+<div class="card">
+<pre><code>若 p 的类型包含积 P1 -&gt; … -&gt; Pn，
+且 q 的类型包含积 Q1 -&gt; Q2 -&gt; … -&gt; Qm，
+且基本类型 Pn 与 Q1 <span class="k">重叠</span>，
+则 p.q 的类型包含积 P1 -&gt; … -&gt; Pn-1 -&gt; Q2 -&gt; … -&gt; Qm</code></pre>
+<p style="margin-top:.6em">注意这条规则与 <strong>join 本身的语义规则形式相同</strong>。这不奇怪，因为<strong>类型只是值的近似，用同样的方式计算，只是更粗糙</strong>。</p>
+</div>
+
+<h3>4.4.3 Type Errors · 类型错误</h3>
+<div class="grid c2">
+<div class="card"><h4>第一类：混合 arity</h4>
+<p>因为逻辑假定所有关系有<strong>固定 arity</strong>，构造出混合 arity 关系的表达式是非法的。</p>
+<pre><code><span class="k">sig</span> <span class="t">Tea</span> {origin: <span class="t">Country</span>}
+<span class="k">sig</span> <span class="t">Country</span> {}
+<span class="c">// origin + Country 非法：</span>
+<span class="c">// origin 是 arity 2，Country 是 arity 1</span></code></pre></div>
+<div class="card"><h4>第二类：可证冗余</h4>
+<p>如果一个表达式<strong>仅凭声明</strong>就能被证明是冗余的，或包含冗余子表达式，则非法。最简单常见的情形是<strong>表达式等于空关系</strong>。</p>
+<pre><code><span class="c">// 文件系统语境下，以下均类型错误：</span>
+<span class="t">Directory</span> &amp; <span class="t">Alias</span>   <span class="c">// 必为空：两个 signature 不相交</span>
+<span class="t">Alias</span>.contents     <span class="c">// 必为空：contents 只映射目录，</span>
+                     <span class="c">// 而没有目录是别名</span></code></pre></div>
+</div>
+
+<div class="callout warn">
+  <span class="tag">类型检查器只推理类型</span>
+  <p>它<strong>不把 signature 本身与同类型的其他表达式区分开</strong>。例如 <code>Alias - Object</code>（不是对象的别名）确实表示空集，<strong>但类型检查器不会拒绝它</strong>，因为形如 <code>A - O</code> 的表达式，当 A 的类型是 Alias、O 的类型是 Object 时，<strong>可能</strong>非空。</p>
+</div>
+
+<h4>点连接的四种情形</h4>
+<div class="callout key">
+  <span class="tag">只有一种被拒绝</span>
+  <p>在这个类型系统里，子类型层级<strong>主要用于判断类型是否不相交</strong>。熟悉编程语言子类型的人所期待的那种<strong>不对称性并不存在</strong>。特别地，形如 <code>s.r</code>（s 是集合、r 是关系）的表达式的定类型，<strong>只要求 s 与 r 的定义域重叠</strong>。</p>
+</div>
+<table>
+  <thead><tr><th>集合与关系的组合</th><th>例子</th><th>是否合法</th></tr></thead>
+  <tbody>
+    <tr><td>精确匹配</td><td><code>Directory.contents</code></td><td>✅ 合法</td></tr>
+    <tr><td>子类型</td><td><code>Root.contents</code></td><td>✅ 合法</td></tr>
+    <tr><td>父类型</td><td><code>Object.contents</code></td><td>✅ 合法</td></tr>
+    <tr><td><strong>不相交</strong></td><td><code>File.contents</code></td><td>❌ <strong>非法</strong>——这是唯一<strong>总是</strong>产生空集的情形</td></tr>
+  </tbody>
+</table>
+<p>注意其他三种组合<strong>也可能</strong>产生空集，所以区分它们没什么意义。</p>
+
+<div class="callout pit">
+  <span class="tag">子表达式不相交 ≠ 冗余</span>
+  <p><strong>并集</strong>的参数当然可以——而且经常——是不相交的。虽然 <code>File &amp; Directory</code> 类型错误，<code>File + Directory</code> 却是合法的。它可以用在这样一个文件系统版本里：不为「所有对象的集合」声明 signature。</p>
+<pre><code><span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">File</span> + <span class="t">Directory</span>}
+<span class="k">sig</span> <span class="t">File</span> {}
+<span class="k">sig</span> <span class="t">Alias</span> {to: <span class="t">File</span> + <span class="t">Directory</span>}</code></pre>
+</div>
+
+<p>还有一类<strong>更微妙的冗余型类型错误</strong>：表达式<strong>不等于</strong>空关系，但可以用空关系替换它而<strong>不影响外层表达式的含义</strong>。</p>
+<div class="grid c2">
+<div class="card"><pre><code>(<span class="t">Directory</span> + <span class="t">Alias</span>).contents</code></pre><p>类型错误——别名没有 contents，<strong>提及 Alias 是冗余的</strong>，该表达式本可等价地写成 <code>Directory.contents</code>。</p></div>
+<div class="card"><pre><code><span class="t">Directory</span> - <span class="t">Alias</span>
+<span class="t">Directory</span> <span class="k">in</span> <span class="t">Alias</span></code></pre><p>都类型错误——没有目录是别名，所以提及 Alias 冗余。后者本可等价地写成 <code>no Directory</code>。</p></div>
+</div>
+
+<h3>4.4.3 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：类型检查器会误报吗？</div>
+  <div class="a"><p><strong>不会。</strong>每当你得到类型错误，你的模型里就<strong>确实存在某种冗余</strong>，而你几乎一定会想消除它。</p>
+  <p>如前所述，类型只是特定形式的关系表达式；对任意表达式 e，其类型表达式 Te <strong>总是表示一个更大的关系</strong>（至少含相同元组，可能更多）。<strong>这正是类型检查可靠的原因</strong>：检查一个交集表达式时，如果结果类型为空，该表达式所表示的关系必为空——因此是错误。</p>
+  <p>另一方面，<strong>类型检查器不提供任何保证</strong>。编程语言的传统类型系统恰恰相反：它们保证运行时不会出现类型错误，但会对<strong>其实永远不会出错的程序</strong>抱怨。在建模中<strong>没有「运行时失败」的类比物</strong>，所以不清楚什么样的保证才有用。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么 Alloy 允许把字段应用于父类型？</div>
+  <div class="a"><p>把一个声明在子类型里的字段应用于「只知属于父类型」的表达式，结果<strong>可能</strong>为空。但由于结果<strong>并不总是</strong>为空，Alloy 类型检查器不禁止它，也不要求某种强制转换（cast）。理由是：<strong>即使应用于子类型自身，结果也可能为空</strong>，所以背上 cast 的负担并不能带来额外收益。</p>
+  <p>在面向对象编程语言里情况完全不同：如果已知一个表达式求值为某类的对象，那么该类中声明的任何方法都能被成功调用，类型系统因此<strong>能做出保证</strong>。但在 Alloy 这样的建模语言里，问题是<strong>在关系上导航，而不是调用方法</strong>；因为关系可以是<strong>偏的</strong>，所以永远无法保证结果非空。而且<strong>空结果不一定是错误</strong>——这就是为什么 Alloy 类型系统只排除「总是为空」的表达式，而不排除「有时为空」的。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：哪里能了解更多类型系统细节？</div>
+  <div class="a">Alloy 的类型系统在研究论文 [14] 中有详细描述与设计论证。Alloy 语言的一个重要性质是：<strong>理解一个模型的含义并不需要类型</strong>；该论文解释了如何通过对语义做一个简单扩展来做到这点——允许混合 arity 的关系，并把未解析的字段视为其所有可能解析结果的<strong>并</strong>。</div>
+</div>
+
+<h3>4.4.4 Field Overloading · 字段重载</h3>
+<div class="callout key">
+  <span class="tag">规则</span>
+  <p>一个 signature 为其声明定义了一个<strong>局部命名空间</strong>，所以你可以在不同 signature 中使用<strong>相同的字段名</strong>，每次出现指代不同的字段。唯一的限制是：<strong>如果两个 signature 共享一个字段名，它们就不能重叠</strong>（即不能因为一个是另一个的子类型而潜在地共享元素）。</p>
+  <p>字段引用<strong>自动解析</strong>：当一个字段名可能指代多个字段时，用<strong>候选字段的类型</strong>决定指的是哪个。如果仍有可能多于一个，就报错。</p>
+</div>
+
+<div class="grid c2">
+<div class="card"><h4>例：File 也有 contents</h4>
+<pre><code><span class="k">sig</span> <span class="t">Object</span>, <span class="t">Block</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Object</span>}
+<span class="k">sig</span> <span class="t">File</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Block</span>}
+
+<span class="c">// 平凡解析：若指 Directory 的字段，f.contents 会是空</span>
+<span class="k">all</span> f: <span class="t">File</span> | <span class="k">some</span> f.contents      <span class="c">// ✅</span>
+
+<span class="c">// 无法解析 ⇒ 约束被拒绝</span>
+<span class="k">all</span> o: <span class="t">Object</span> | <span class="k">some</span> o.contents   <span class="c">// ❌</span></code></pre></div>
+<div class="card"><h4>例：歌手和电台都有 band</h4>
+<pre><code><span class="k">sig</span> <span class="t">Singer</span> {band: <span class="t">Band</span>}
+<span class="k">sig</span> <span class="t">RadioStation</span> {band: <span class="k">set</span> <span class="t">Freq</span>}
+<span class="k">sig</span> <span class="t">Band</span>, <span class="t">Freq</span> {}
+
+<span class="c">// 电台的频段不重叠：</span>
+<span class="k">no disj</span> s, s': <span class="t">RadioStation</span> | <span class="k">some</span> s.band &amp; s'.band
+<span class="c">// 每个（歌唱）乐队至少有一个歌手：</span>
+<span class="k">all</span> b: <span class="t">Band</span> | <span class="k">some</span> b.<span class="o">~</span>band</code></pre>
+<p>注意：第一条约束里字段是用<strong>关系的第一列</strong>解析的，第二条是用<strong>第二列</strong>解析的。</p></div>
+</div>
+
+<p><strong>重载解析利用了字段引用出现的整个上下文</strong>，对字段必须以何种语法形式出现<strong>没有任何限制</strong>。上例最后一条约束可以写成以下任意形式：</p>
+<pre><code><span class="k">all</span> b: <span class="t">Band</span> | <span class="k">some</span> b.<span class="o">~</span>band
+<span class="k">all</span> b: <span class="t">Band</span> | <span class="k">some</span> band.b
+<span class="k">all</span> b: <span class="t">Band</span> | <span class="k">some</span> s: <span class="t">Singer</span> | s-&gt;b <span class="k">in</span> band</code></pre>
+
+<div class="card">
+<h4>更微妙的例子</h4>
+<pre><code><span class="k">sig</span> <span class="t">Object</span>, <span class="t">Block</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Object</span>}
+<span class="k">sig</span> <span class="t">File</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Block</span>}
+
+<span class="k">no</span> o: <span class="t">Object</span> | o <span class="k">in</span> o.contents</code></pre>
+<p>这里的 <code>contents</code> 被解析为 <strong>Directory 的字段</strong>。假如它指的是 File 里的字段，<code>o.contents</code> 的类型会是 Block；而 o 的类型是 Object，Object 与 Block 不相交，于是约束 <code>o in o.contents</code> 会<strong>空洞地为假</strong>。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">消歧的万能招：域限制 <code>S &lt;: f</code></span>
+  <p>偶尔一个重载字段名无法被解析，这时你需要<strong>通过细化它所在的表达式（而不改变含义）来消歧</strong>。一个总是有效的简单办法是使用<strong>域限制算子</strong>：想要 signature S 中的字段 f，就写 <code>S &lt;: f</code>。</p>
+</div>
+<div class="card">
+<h4>例：节点环 + 同名的 next</h4>
+<pre><code><span class="k">sig</span> <span class="t">Node</span> {next: <span class="t">Node</span>, value: <span class="t">Value</span> <span class="k">one</span> -&gt; <span class="t">Time</span>}
+<span class="k">sig</span> <span class="t">Time</span> {next: <span class="t">Time</span>}
+<span class="k">sig</span> <span class="t">Value</span> {}
+
+<span class="c">// 节点构成一个环：</span>
+<span class="k">fact</span> {<span class="k">all</span> n: <span class="t">Node</span> | <span class="t">Node</span> <span class="k">in</span> n.<span class="o">^</span>next}
+
+<span class="c">// 时间步也用 next 排序。想说它无环：</span>
+<span class="k">fact</span> {<span class="k">no</span> <span class="o">^</span>next &amp; iden}          <span class="c">// ❌ 被拒绝：next 有歧义</span>
+<span class="k">no</span> <span class="o">^</span>(<span class="t">Time</span> &lt;: next) &amp; iden      <span class="c">// ✅ 修正</span></code></pre>
+<p>（实践中，时间步排序是一个常见惯用法，你会改用<strong>库模块</strong>，即 <code>util/ordering</code>。）</p>
+</div>
+
+<h3>4.4.4 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：字段可以声明在子集 signature 里吗？</div>
+  <div class="a"><p><strong>可以。</strong>但要记住：用 <code>in</code> 扩展一个 signature 时，这些扩展<strong>不是子类型，也不必不相交</strong>。根据「不重叠」规则，它们<strong>因此不能共享字段名</strong>。即使你碰巧知道它们事实上不相交（因为你写了某条 fact），<strong>类型检查器并不知道，仍会拒绝你的模型</strong>：</p>
+<pre><code><span class="k">sig</span> <span class="t">Name</span>, <span class="t">Thing</span> {}
+<span class="k">sig</span> <span class="t">Man</span> <span class="k">in</span> <span class="t">Thing</span> {name: <span class="t">Name</span>}      <span class="c">// 非法</span>
+<span class="k">sig</span> <span class="t">Island</span> <span class="k">in</span> <span class="t">Thing</span> {name: <span class="t">Name</span>}   <span class="c">// 即使加上 fact {no Man &amp; Island} 也非法</span></code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么重叠的 signature 不能共享字段名？</div>
+  <div class="a">这条规则的结果是：<strong>同名的两个字段，其第一列的类型必定不同</strong>。所以同名字段总是有不同类型，<strong>总存在某个上下文能把它们区分开</strong>。如果允许两个重叠 signature 用同一名字，就需要一条更复杂的规则，而且<strong>用域限制来解析字段引用的标准技巧将不再总是有效</strong>。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Alloy 的重载处理与 Java 有何关系？</div>
+  <div class="a"><p>Java 这类语言用重载解析，让类内的字段名与方法名<strong>可以不顾其他类所选的名字</strong>。但其解析机制通常<strong>简单得多</strong>。</p>
+  <p>在 Java 里，字段引用可以重载，但它们要么是<strong>自引用</strong>（<code>f</code> 是 <code>this.f</code> 的简写），要么<strong>跟在点后面</strong>（如 <code>x.f</code>）。前一种情况默认解析为<strong>它所在类</strong>的字段；后一种用<strong>点前面表达式的类型</strong>解析。而且<strong>没有转置算子——你不能向后导航</strong>。</p>
+  <p>在 Alloy 中，我们希望能把 <code>x.f</code> 写成等价形式 <code>f.~x</code>，把 <code>x.f</code> 和 <code>x.g</code> 写成 <code>x.(f + g)</code>。这要求一个<strong>更灵活的重载方案，不依赖任何特定语法形式</strong>。因此 Alloy 的解析机制不仅依赖字段的类型和 arity，<strong>还依赖它出现的完整上下文</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：域限制算子是一个特殊的「强制转换」算子吗？</div>
+  <div class="a"><p><strong>不是，别被误导。</strong>你完全可以写 <code>(S -&gt; univ) &amp; f</code> 来代替 <code>S &lt;: f</code>（至少就重载而言——虽然这个形式一点也不吸引人！）。</p>
+  <p>这是 Alloy 类型系统设计的一个重要结果：<strong>它是隐式的，不给语言增加任何自己的语法。事实上，Alloy 可以被看作一门无类型语言。</strong>理解一个约束的含义<strong>并不真的需要解析重载</strong>：每个字段名都被当作它可能指代的所有字段的<strong>并</strong>；当名字无歧义时，这个并恰好等价于被解析出的那个字段。</p>
+  <p style="margin-top:.5em"><strong>所以：读 Alloy 模型不需要懂任何类型知识，但写 Alloy 模型需要懂一点。</strong></p></div>
+</div>
+
+<h2 id="s45"><span class="num">4.5</span>Facts, Predicates, Functions, and Assertions</h2>
+<div class="callout">
+  <span class="tag">段落化的约束组织</span>
+  <p>模型的约束被组织成<strong>段落（paragraph）</strong>：<strong>假设</strong>放进 <code>fact</code> 段落；<strong>待检验的蕴含</strong>放进 <code>assert</code>；<strong>需要在不同上下文中使用的约束</strong>打包成 <code>pred</code>；<strong>可复用的表达式</strong>打包成 <code>fun</code>。</p>
+</div>
+
+<h3>4.5.1 Facts · 事实</h3>
+<p>被假定为<strong>永远成立</strong>的约束记录为 fact。一个模型可以有任意多个 fact，每个自成一段，用 <code>fact</code> 标记，由一组约束构成。<strong>fact 出现的顺序、以及一个 fact 内部约束的顺序都无关紧要。</strong>你可以给 fact 起一个唯一的、便于记忆的名字。</p>
+<div class="grid c3">
+<div class="card"><h4>电台频段不重叠</h4>
+<pre><code><span class="k">sig</span> <span class="t">RadioStation</span> {band: <span class="k">set</span> <span class="t">Freq</span>}
+<span class="k">fact</span> NoOverlapping {
+  <span class="k">no disj</span> s, s': <span class="t">RadioStation</span> |
+    <span class="k">some</span> s.band &amp; s'.band
+}</code></pre></div>
+<div class="card"><h4>文件系统三条性质</h4>
+<pre><code><span class="k">fact</span> {
+  <span class="c">// 无目录环</span>
+  <span class="k">no</span> d: <span class="t">Directory</span> | d <span class="k">in</span> d.<span class="o">^</span>contents
+  <span class="c">// 每个对象从根可达</span>
+  <span class="t">Object</span> <span class="k">in</span> <span class="t">Root</span>.*contents
+  <span class="c">// 每个对象至多一个父目录</span>
+  <span class="k">all</span> o: <span class="t">Object</span> | <span class="k">lone</span> o.<span class="o">~</span>contents
+}</code></pre></div>
+<div class="card"><h4>交通灯：每个路口必有红灯</h4>
+<pre><code><span class="k">sig</span> <span class="t">LightState</span> {
+  color: <span class="t">Light</span> -&gt; <span class="k">one</span> <span class="t">Color</span>
+}
+<span class="k">sig</span> <span class="t">Light</span> {}
+<span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Yellow</span>, <span class="t">Green</span>
+  <span class="k">extends</span> <span class="t">Color</span> {}
+<span class="k">sig</span> <span class="t">Junction</span> {lights: <span class="k">set</span> <span class="t">Light</span>}
+<span class="k">fact</span> {
+  <span class="k">all</span> s: <span class="t">LightState</span>, j: <span class="t">Junction</span> |
+    <span class="k">some</span> s.color.<span class="t">Red</span> &amp; j.lights
+}</code></pre>
+<p>模型图见 fig. 4.10：弧标签为 <code>&lt;LightState&gt;.color !Light</code>。</p></div>
+</div>
+
+<h4>Signature facts · 签名事实</h4>
+<div class="callout key">
+  <span class="tag">规则</span>
+  <p>很多 fact 是<strong>对 signature 集合的每个元素都成立</strong>的约束，这些可以更简洁地记录为 <strong>signature fact</strong>：紧跟在 signature 后面的约束<strong>被隐式地对其元素量化</strong>，且<strong>每个字段引用被隐式解引用</strong>，与字段声明中提及字段的处理方式完全相同。</p>
+  <p>即 <code>sig A {…} {F}</code> 等价于：</p>
+<pre><code><span class="k">sig</span> <span class="t">A</span> {…}
+<span class="k">fact</span> {<span class="k">all</span> <span class="k">this</span>: A | F'}</code></pre>
+  <p>其中 F' 与 F 相同，只是把出现在 A 或其父类型中的每个字段 g 替换为 <code>this.g</code>。</p>
+</div>
+<div class="grid c2">
+<div class="card"><h4>没有链路把主机连到自己</h4>
+<pre><code><span class="c">// 冗长版：</span>
+<span class="k">sig</span> <span class="t">Host</span> {}
+<span class="k">sig</span> <span class="t">Link</span> {from, to: <span class="t">Host</span>}
+<span class="k">fact</span> {<span class="k">all</span> x: <span class="t">Link</span> | x.from != x.to}
+
+<span class="c">// 简洁版：</span>
+<span class="k">sig</span> <span class="t">Host</span> {}
+<span class="k">sig</span> <span class="t">Link</span> {from, to: <span class="t">Host</span>} {from != to}</code></pre></div>
+<div class="card"><h4>每条链路都有反向链路（用 <code>@</code> 阻止展开）</h4>
+<pre><code><span class="k">sig</span> <span class="t">Host</span> {}
+<span class="k">sig</span> <span class="t">Link</span> {from, to: <span class="t">Host</span>}
+  {<span class="k">some</span> x: <span class="t">Link</span> | x.@from = to <span class="k">and</span> x.@to = from}</code></pre>
+<p>它等价于：</p>
+<pre><code><span class="k">all</span> <span class="k">this</span>: <span class="t">Link</span> |
+  <span class="k">some</span> x: <span class="t">Link</span> |
+    x.from = <span class="k">this</span>.to <span class="k">and</span> x.to = <span class="k">this</span>.from</code></pre>
+<p><strong>若没有 <code>@</code></strong>，它会等价于（注意 <code>this.from</code> 是个集合，用作下标）：</p>
+<pre><code><span class="k">all</span> <span class="k">this</span>: <span class="t">Link</span> |
+  <span class="k">some</span> x: <span class="t">Link</span> |
+    x.(<span class="k">this</span>.from) = <span class="k">this</span>.to <span class="k">and</span> x.(<span class="k">this</span>.to) = <span class="k">this</span>.from</code></pre>
+<p><strong>这甚至无法通过类型检查。</strong></p></div>
+</div>
+<p>字段声明中隐含的约束，也可以<strong>把声明当作出现在 signature fact 里的一个公式</strong>来理解：</p>
+<pre><code><span class="c">// 这两种写法等价</span>
+<span class="k">sig</span> <span class="t">Book</span> {
+  homeAddress, workAddress: <span class="t">Name</span> -&gt; <span class="t">Addr</span>,
+  address: homeAddress + workAddress
+}
+<span class="k">sig</span> <span class="t">Name</span>, <span class="t">Addr</span> {}
+
+<span class="k">sig</span> <span class="t">Book</span> {
+  homeAddress, workAddress, address: <span class="t">Name</span> -&gt; <span class="t">Addr</span>
+} {
+  address: homeAddress + workAddress
+}
+<span class="k">sig</span> <span class="t">Name</span>, <span class="t">Addr</span> {}</code></pre>
+<p>因此，在声明的界定表达式中也可以使用关键字 <code>this</code> 和符号 <code>@</code>，<strong>尽管这很少有必要</strong>。</p>
+
+<div class="qa">
+  <div class="q">Q：signature fact 类似面向对象语言里的类不变式吗？</div>
+  <div class="a"><p><strong>是的，经常扮演同样的角色</strong>：表达关于集合中个体的约束。但 signature fact <strong>更有表达力</strong>，因为 Alloy 的字段可以<strong>向任意方向导航</strong>（所以你能谈论「指向这个对象的那些对象」），也因为可以<strong>以任意方式量化</strong>。就上面两个链路的例子来说，第一个（「没有链路把主机连到自己」）像类不变式，<strong>第二个（「每条链路都有对应的反向链路」）不是</strong>。</p></div>
+</div>
+
+<div class="callout pit">
+  <span class="tag">最离谱也最令人困惑的例子</span>
+  <p>好的实践是：<strong>把 signature fact 的使用限制在「只适用于该 signature 集合元素」的约束上</strong>。否则 signature fact 中的隐式量化会带来意外后果，<strong>尤其是当你没有提及该 signature 的任何字段时</strong>：</p>
+<pre><code><span class="k">sig</span> <span class="t">A</span> {} {<span class="k">some</span> A}</code></pre>
+  <p>你会惊讶地发现：<strong>这个模型存在 A 没有任何元素的实例</strong>。展开这条 fact 就明白了：</p>
+<pre><code><span class="k">all</span> <span class="k">this</span>: A | <span class="k">some</span> A</code></pre>
+  <p>当 A 为空时它<strong>空洞地为真</strong>，与量化体是什么无关。<strong>教训</strong>：把想要的约束写进一个独立的 fact：</p>
+<pre><code><span class="k">sig</span> <span class="t">A</span> {}
+<span class="k">fact</span> {<span class="k">some</span> A}      <span class="c">// 现在含义正确：A 非空</span>
+<span class="c">// 或者等价地：</span>
+<span class="k">some sig</span> <span class="t">A</span> {}</code></pre>
+</div>
+
+<h3>4.5.2 Functions and Predicates · 函数与谓词</h3>
+<p>常常有些约束你<strong>不想</strong>记录为 fact：你可能想<strong>在包含/不包含某约束两种情况下</strong>分析模型；想<strong>检验某约束是否由其他约束推出</strong>；或者想声明一个<strong>可在不同上下文中复用</strong>的约束。<strong>谓词为这些目的打包表达式；函数为复用打包表达式。</strong></p>
+<div class="grid c2">
+<div class="card"><h4>fun = 具名表达式</h4>
+<p>有零或多个参数声明，以及一个结果的声明表达式。使用时必须为每个参数提供一个表达式；其含义就是<strong>函数的表达式，把每个参数替换为其实例化表达式</strong>。</p>
+<pre><code><span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Yellow</span>, <span class="t">Green</span> <span class="k">extends</span> <span class="t">Color</span> {}
+
+<span class="c">// 交通灯允许的颜色变化方式：</span>
+<span class="k">fun</span> colorSequence (): <span class="t">Color</span> -&gt; <span class="t">Color</span> {
+  <span class="t">Color</span> &lt;: iden
+    + <span class="t">Red</span> -&gt; <span class="t">Green</span>
+    + <span class="t">Green</span> -&gt; <span class="t">Yellow</span>
+    + <span class="t">Yellow</span> -&gt; <span class="t">Red</span>
+}</code></pre>
+<p><code>Color &lt;: iden</code> 是「保持不变」，其余三条是红→绿→黄→红的循环。</p></div>
+<div class="card"><h4>pred = 具名约束</h4>
+<p>有零或多个参数声明。使用时必须为每个参数提供表达式；其含义就是<strong>谓词的约束，把每个参数替换为其实例化表达式</strong>。</p>
+<pre><code><span class="k">sig</span> <span class="t">Light</span> {}
+<span class="k">sig</span> <span class="t">LightState</span> {color: <span class="t">Light</span> -&gt; <span class="k">one</span> <span class="t">Color</span>}
+<span class="k">sig</span> <span class="t">Junction</span> {lights: <span class="k">set</span> <span class="t">Light</span>}
+
+<span class="k">fun</span> redLights (s: <span class="t">LightState</span>): <span class="k">set</span> <span class="t">Light</span> {
+  s.color.<span class="t">Red</span>
+}
+<span class="c">// 除至多一盏外，其余都显示红灯</span>
+<span class="k">pred</span> mostlyRed (s: <span class="t">LightState</span>, j: <span class="t">Junction</span>) {
+  <span class="k">lone</span> j.lights - redLights(s)
+}</code></pre></div>
+</div>
+
+<h4>用谓词表示「操作」——非确定性的示范</h4>
+<p>谓词可以用来表示一个<strong>操作（operation）</strong>，它通过约束<strong>前状态与后状态之间的关系</strong>来描述一组状态迁移。</p>
+<div class="fig">
+<pre><code><span class="c">1</span> <span class="k">pred</span> trans (s, s': <span class="t">LightState</span>, j: <span class="t">Junction</span>) {
+<span class="c">2</span>   <span class="k">lone</span> x: j.lights | s.color[x] != s'.color[x]        <span class="c">// 至多一盏灯改变</span>
+<span class="c">3</span>   <span class="k">all</span> x: j.lights |
+<span class="c">4</span>     <span class="k">let</span> step = s.color[x] -&gt; s'.color[x] {
+<span class="c">5</span>       step <span class="k">in</span> colorSequence ()                        <span class="c">// 按序变化</span>
+<span class="c">6</span>       step <span class="k">in</span> <span class="t">Red</span> -&gt; (<span class="t">Color</span> - <span class="t">Red</span>) =&gt; j.lights <span class="k">in</span> redLights(s)
+<span class="c">7</span>     }                                                 <span class="c">// 从红转其他色 ⇒ 之前全红</span>
+<span class="c">8</span> }</code></pre>
+<div class="cap">这个操作展示了<strong>非确定性</strong>：路口的这组灯如何变色被<strong>约束了，但没有被完全决定</strong>。谓词允许所有灯保持同色，也没有说明「当所有灯都是红的时」哪一盏会变。</div>
+</div>
+<div class="callout key">
+  <span class="tag">非确定性正是优点</span>
+  <p><strong>如果能证明这个操作是安全的，我们就知道：任何按照给定约束来解析这些选择的操作也都是安全的。</strong>这正是「用最弱的规范描述操作」的价值——你不需要提前决定实现细节。</p>
+</div>
+
+<h4>Receiver 语法（<code>::</code>）</h4>
+<p>Alloy 有一个类似面向对象语言「接收者（receiver）」约定的简写，用于<strong>第一个参数是标量</strong>的函数或谓词。与其写：</p>
+<pre><code><span class="k">pred</span> f (x: X, y: Y, …) {… x …}</code></pre>
+<p>你可以写：</p>
+<pre><code><span class="k">pred</span> X::f (y: Y, …) {… <span class="k">this</span> …}</code></pre>
+<p>带一个由关键字 <code>this</code> 指代的隐式第一参数（函数同理）。<strong>无论谓词/函数是否以这种方式声明，它都可以用 <code>x::f(y, …)</code> 的形式使用</strong>，其中 x 作为第一个参数、y 作为第二个，依此类推。</p>
+<div class="card">
+<pre><code><span class="c">// 与前面的 redLights / mostlyRed 等价：</span>
+<span class="k">fun</span> <span class="t">LightState</span>::redLights (): <span class="k">set</span> <span class="t">Light</span> {s.color.<span class="t">Red</span>}
+<span class="k">pred</span> <span class="t">LightState</span>::mostlyRed (j: <span class="t">Junction</span>) {
+  <span class="k">lone</span> j.lights - s::redLights()
+}
+<span class="c">// 调用式 s::mostlyRed(j) 与 mostlyRed(s, j) 等价，无论 mostlyRed 如何声明</span></code></pre>
+</div>
+
+<h3>4.5.2 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：如何决定用谓词还是 fact？</div>
+  <div class="a"><p>回忆一下：<strong>谓词只在其被调用时成立；fact 永远成立。</strong>所以一般规则是「永远成立的假设放进 fact，其他约束放进谓词」。但这条规则有点天真：其一，你可以把约束打包成谓词、再把谓词包含进 fact；其二，你甚至可以<strong>完全弃用 fact</strong>，把本该是 fact 的内容作为谓词插入到各处。所以选择更微妙。</p>
+  <p><strong>因为 fact 是全局的，它们非常方便</strong>：写在一处的约束到处适用，在每个谓词和断言中都被假定。缺点是<strong>失去控制</strong>。也许你想在<strong>不带</strong>这条约束的情况下检验某个断言。你当然可以在检验那个特定断言时把它在 fact 段落里注释掉，<strong>但那很笨拙</strong>：如果有两个断言，你想一个带约束、一个不带地检验，就得在分析过程中不断注释/取消注释。</p>
+  <p>因此一种<strong>更啰嗦的风格</strong>很有吸引力：<strong>极少甚至完全没有 fact</strong>，把约束在它适用的每个上下文中重复。通过把重复的约束打包成谓词，你只需重复<strong>谓词的名字</strong>，而不必重复约束本身。</p>
+  <p style="margin-top:.5em"><strong>小模型</strong>用 fact 更方便（让模型更简洁，且容易转成谓词）；<strong>大模型</strong>往往用后一种更成熟的办法效果最好。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：receiver 语法在实践中什么时候用？</div>
+  <div class="a"><p>它的好处在于<strong>表达式涉及一连串函数应用</strong>的时候。那时你不必写嵌套表达式：</p>
+<pre><code>h (g (f (x, arg1), arg2), arg3)   <span class="c">// 函数名以「应用的反序」出现，淹没在括号里</span></code></pre>
+<p>而可以写：</p>
+<pre><code>x::f(arg1)::g(arg2)::h(arg3)</code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：谓词和函数如何做类型检查？</div>
+  <div class="a">方式很直白。检查谓词或函数的<strong>体</strong>时，类型检查器假定形式参数具有所声明的类型。检查一次<strong>调用</strong>时，检查器判断每个实际参数的类型与对应形式参数的类型<strong>是否重叠</strong>；如果它们不相交，就报错。</div>
+</div>
+
+<h3>4.5.3 Assertions · 断言</h3>
+<p>断言是<strong>意图由模型的 fact 推出</strong>的约束。分析器检验断言。如果一个断言并非由 fact 推出，那么要么<strong>暴露了一个设计缺陷</strong>，要么<strong>表述有误</strong>。<strong>即使确实成立的断言也值得记录</strong>：一是因为它们以不同方式表达性质，二是因为它们像<strong>回归测试</strong>——如果后来引入了错误，检验断言可能就检测得到。</p>
+
+<div class="card">
+<h4>文件系统：三个断言，两真一假</h4>
+<pre><code><span class="k">abstract sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Object</span>}
+<span class="k">one sig</span> <span class="t">Root</span> <span class="k">extends</span> <span class="t">Directory</span> {}
+<span class="k">sig</span> <span class="t">File</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">fact</span> { <span class="t">Object</span> <span class="k">in</span> <span class="t">Root</span>.*contents }   <span class="c">// 每个对象都从根可达</span>
+
+<span class="c">// ✅ 有效：除根以外每个对象都在某个目录里</span>
+<span class="k">assert</span> SomeDir  { <span class="k">all</span> o: <span class="t">Object</span> - <span class="t">Root</span> | <span class="k">some</span> contents.o }
+
+<span class="c">// ❌ 无效：没有对象包含根目录（Root 本身是 Directory，含自己即可反证）</span>
+<span class="k">assert</span> RootTop  { <span class="k">no</span> o: <span class="t">Object</span> | <span class="t">Root</span> <span class="k">in</span> o.contents }
+
+<span class="c">// ✅ 有效：每个文件都属于某个目录</span>
+<span class="k">assert</span> FileInDir { <span class="k">all</span> f: <span class="t">File</span> | <span class="k">some</span> contents.f }</code></pre>
+</div>
+
+<div class="callout idea">
+  <span class="tag">自包含的断言 = 逻辑猜想</span>
+  <p>断言可以<strong>完全自包含</strong>，不依赖任何 fact（无论显式还是隐式），甚至可以在<strong>没有任何 signature</strong> 的模型中声明。此时断言是一个<strong>逻辑猜想，意图是一个重言式</strong>。这类断言可用来<strong>检验算子的数学性质</strong>，或<strong>试验一个约束的不同表述方式</strong>。</p>
+<pre><code><span class="c">// ✅ 正确：点对二元关系是结合的</span>
+<span class="k">assert</span> DotAssociative {
+  <span class="k">all</span> p, q, r: univ -&gt; univ | (p.q).r = p.(q.r)
+}
+<span class="c">// ❌ 错误：以为并和差可以像算术里的加减那样操作</span>
+<span class="k">assert</span> BadUnionRule {
+  <span class="k">all</span> p, q, r: univ -&gt; univ | p = q + r  <span class="k">iff</span>  p - q = r
+}</code></pre>
+  <p>这就是书中提到的 <code>language/theorems</code> 模块的用法——<strong>把 Alloy 当成一个可以试验逻辑恒等式的沙盒</strong>。</p>
+</div>
+
+<div class="fig">
+<pre><code><span class="k">module</span> language/lights
+<span class="k">abstract sig</span> <span class="t">Color</span> {}
+<span class="k">one sig</span> <span class="t">Red</span>, <span class="t">Yellow</span>, <span class="t">Green</span> <span class="k">extends</span> <span class="t">Color</span> {}
+
+<span class="k">fun</span> colorSequence (): <span class="t">Color</span> -&gt; <span class="t">Color</span> {
+  <span class="t">Color</span> &lt;: iden + <span class="t">Red</span> -&gt; <span class="t">Green</span> + <span class="t">Green</span> -&gt; <span class="t">Yellow</span> + <span class="t">Yellow</span> -&gt; <span class="t">Red</span>
+}
+<span class="k">sig</span> <span class="t">Light</span> {}
+<span class="k">sig</span> <span class="t">LightState</span> {color: <span class="t">Light</span> -&gt; <span class="k">one</span> <span class="t">Color</span>}
+<span class="k">sig</span> <span class="t">Junction</span> {lights: <span class="k">set</span> <span class="t">Light</span>}
+
+<span class="k">fun</span> redLights (s: <span class="t">LightState</span>): <span class="k">set</span> <span class="t">Light</span> {s.color.<span class="t">Red</span>}
+<span class="k">pred</span> mostlyRed (s: <span class="t">LightState</span>, j: <span class="t">Junction</span>) {
+  <span class="k">lone</span> j.lights - redLights(s)
+}
+<span class="k">pred</span> trans (s, s': <span class="t">LightState</span>, j: <span class="t">Junction</span>) {
+  <span class="k">lone</span> x: j.lights | s.color[x] != s'.color[x]
+  <span class="k">all</span> x: j.lights |
+    <span class="k">let</span> step = s.color[x] -&gt; s'.color[x] {
+      step <span class="k">in</span> colorSequence ()
+      step <span class="k">in</span> <span class="t">Red</span> -&gt; (<span class="t">Color</span> - <span class="t">Red</span>) =&gt; j.lights <span class="k">in</span> redLights(s)
+    }
+}
+<span class="c">// 关键安全性质：迁移前后都保持「除一盏外全红」</span>
+<span class="k">assert</span> Safe {
+  <span class="k">all</span> s, s': <span class="t">LightState</span>, j: <span class="t">Junction</span> |
+    mostlyRed (s, j) <span class="k">and</span> trans (s, s', j) =&gt; mostlyRed (s', j)
+}
+<span class="k">check</span> Safe</code></pre>
+<div class="cap">fig. 4.11 交通灯模型，带安全断言。这是一个「三段式」的典范：<strong>状态表示（LightState）+ 操作（trans）+ 不变式（mostlyRed）</strong>，断言检验不变式被操作保持。这个模式在第 6 章的三个案例中被反复使用。</div>
+</div>
+
+<h3>4.5.3 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：断言在实践中用来做什么？</div>
+  <div class="a"><p>断言通常扮演<strong>两种不同角色</strong>。</p>
+  <p><strong>① 表达本身并不有趣的平凡性质，纯粹用来探测模型缺陷。</strong>令人惊讶的是，<strong>即使只有几条这样的断言，也能极其有效地揭示微妙的缺陷。</strong>以交通灯系统为例：我们可能相信自己已经把系统规范到了「保证确定性（每个状态至多一个后继）」的详细程度。<strong>确定性本身不是一个有趣的性质</strong>，但通过检验它，我们会发现模型里的<strong>洞——细节缺失的地方</strong>。</p>
+  <p><strong>② 表达真正本质的性质，有时比模型的 fact 更根本。</strong>作者说：「我常常发现，<strong>为一个设计找出正确的断言，会给我一个关于它究竟是什么的完全不同的视角，比我开始时的视角清晰、简单得多。</strong>」在交通灯系统里，有些性质是其运行的根本、并激发了整个设计——例如<strong>灯通过「绝不同时显示多于一个绿灯」来正确地守护穿行路口的车辆</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：断言必须有名字吗？</div>
+  <div class="a">和 fact 一样，断言<strong>可以没有名字</strong>。但要检验一个断言，你需要在命令中<strong>引用</strong>它，所以很少让它匿名。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：模型可以只有断言而没有 fact 吗？</div>
+  <div class="a"><strong>可以</strong>（如 <code>language/theorems</code> 所示）。即使没有显式 fact，<strong>通常也存在隐含在 signature 声明里的 fact</strong>。</div>
+</div>
+
+<h2 id="s46"><span class="num">4.6</span>Commands and Scope · 命令与作用域</h2>
+<table>
+  <thead><tr><th>命令</th><th>作用</th><th>找不到时报告</th></tr></thead>
+  <tbody>
+    <tr><td><code>run P</code></td><td>搜索谓词 P 的<strong>一个实例</strong></td><td>failure（没有实例）</td></tr>
+    <tr><td><code>check A</code></td><td>搜索断言 A 的<strong>一个反例</strong></td><td>success（找不到反例）</td></tr>
+  </tbody>
+</table>
+<p>除了谓词/断言的名字，你还可以给出一个<strong>作用域（scope）</strong>，用来限定将被考虑的实例或反例的大小。<strong>省略作用域时，工具使用默认作用域：每个顶层 signature 限制为 3 个元素。</strong></p>
+
+<h3>作用域的写法</h3>
+<p>要显式指定作用域，你可以为<strong>每个对应一个基本类型的 signature</strong> 给出界限。你可以给顶层 signature、扩展 signature，甚至两者的混合设界，<strong>只要每当一个 signature 被给了界限，它的父签名以及同一父签名的任何其他扩展的界限都能被确定</strong>。</p>
+<div class="grid c2">
+<div class="card"><h4>✅ 合法命令</h4>
+<pre><code><span class="k">check</span> A <span class="k">for</span> 5 <span class="t">Object</span>
+<span class="k">check</span> A <span class="k">for</span> 4 <span class="t">Directory</span>, 3 <span class="t">File</span>
+<span class="k">check</span> A <span class="k">for</span> 5 <span class="t">Object</span>, 3 <span class="t">Directory</span>
+<span class="k">check</span> A <span class="k">for</span> 3 <span class="t">Directory</span>, 3 <span class="t">Alias</span>, 5 <span class="t">File</span></code></pre>
+<p>基于这些声明：</p>
+<pre><code><span class="k">abstract sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">File</span> <span class="k">extends</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Alias</span> <span class="k">extends</span> <span class="t">File</span> {}</code></pre></div>
+<div class="card"><h4>❌ 非法命令</h4>
+<pre><code><span class="k">check</span> A <span class="k">for</span> 3 <span class="t">Directory</span>, 3 <span class="t">Alias</span></code></pre>
+<p>因为它<strong>把 File 的界限留成了未指定</strong>：已知 Directory=3、Alias=3，但 File 除 Alias 外还有多少元素无法确定。</p>
+<div class="callout warn" style="margin-top:.6em">
+  <span class="tag">默认 + 覆盖</span>
+  <p>你可以显式设定一个默认作用域，并把它与特定类型的显式界限混合，<strong>后者会覆盖并补充默认作用域</strong>：</p>
+<pre><code><span class="k">check</span> A <span class="k">for</span> 5            <span class="c">// 所有顶层类型界为 5（这里只有 Object）</span>
+<span class="k">check</span> A <span class="k">for</span> 5 <span class="k">but</span> 3 <span class="t">Directory</span>
+<span class="c">// ⇒ Directory 界为 3，File 由推论界为 2</span></code></pre>
+</div></div>
+</div>
+
+<div class="callout key">
+  <span class="tag">两条容易忘记的规则</span>
+  <ol>
+    <li><strong>声明已确定大小的 signature 会隐式覆盖作用域。</strong>给定 fig. 4.11 的声明，<code>check Safe for 2</code> 会把 Junction、Light、LightState 限制为各 2 个原子，但会给 <code>Color</code> 分配<strong>恰好三个</strong>的大小（因为 <code>one sig Red, Yellow, Green extends Color</code>）。</li>
+    <li><strong>作用域声明只给出大小的上界。</strong>若要规定确切大小，用关键字 <code>exactly</code>：
+<pre><code><span class="k">check</span> A <span class="k">for exactly</span> 3 <span class="t">Directory</span>, <span class="k">exactly</span> 3 <span class="t">Alias</span>, 5 <span class="t">File</span>
+<span class="c">// File 至多 5 个；Directory 和 Alias 各恰好 3 个</span></code></pre></li>
+  </ol>
+</div>
+
+<h3>4.6 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：作用域是由实际系统中实例的大小决定的吗？</div>
+  <div class="a"><p><strong>通常不是。</strong>偶尔实际系统中存在一个<strong>资源上限</strong>影响作用域的选择。例如作者们对一个<strong>质子治疗装置</strong>所做的分析中，恰好有三个治疗室，所以把对应集合限制为三个元素是合理的。</p>
+  <p>但更典型的是，<strong>作用域纯粹由分析方面的考虑决定</strong>：估计需要多大的实例才能找到缺陷（同时仍允许可处理的搜索）。例如你可能在作用域 10 下检验一个文件系统，因为你相信这足以捕获几乎所有设计缺陷——任何坏场景<strong>很可能</strong>都能在一个含十个对象的文件系统里演示出来。</p>
+  <p><strong>分析的力量来自于：含十个对象的可能文件系统数量是巨大的，而你的模型会对其中每一个都被检验。</strong>但你当然<strong>不打算让模型本身有这样的限制</strong>——一个只能容纳十个对象的文件系统没什么用。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么作用域必须在每条命令里重复指定？</div>
+  <div class="a"><p><strong>把作用域设置与模型本体分离，是一个重要的语言设计决定。</strong>它<strong>防止模型本身被分析方面的考虑所污染</strong>，并允许<strong>同一个模型在不同作用域下被分析</strong>。</p>
+  <p>作用域的概念并非 Alloy 独有，但在其他工具中往往<strong>处理得更不系统</strong>。许多模型检查器要么把作用域<strong>硬连线</strong>，要么使用全局常量。一个典型的交通灯系统描述会限制路口的灯数，所有分析都在同一限制内进行。<strong>更糟的是，模型往往会硬连线一个特定配置</strong>：一个有两盏灯的模型不会覆盖只有一盏灯的情形。</p></div>
+</div>
+
+<h2 id="s47"><span class="num">4.7</span>Modules and Polymorphism · 模块与多态</h2>
+<p>Alloy 有一个简单的模块系统，让你把模型拆分到若干模块中，并使用预定义的库。<strong>模块与文件一一对应。每次分析应用于单个模块；任何其他含有相关模型片段的模块都必须被显式导入。</strong>每个模块有一个路径名，必须与其文件在文件系统中的路径匹配。路径相对于工具偏好设置中给出的一组<strong>根目录</strong>解释。</p>
+
+<h3>4.7.1 Module Declarations and Imports</h3>
+<pre><code><span class="k">module</span> modulePathName          <span class="c">// 每个模块的第一行</span>
+<span class="k">open</span> modulePathName            <span class="c">// 紧随其后的显式导入（最简形式）</span></code></pre>
+<div class="grid c3">
+<div class="card"><h4>库模块</h4>
+<pre><code><span class="k">module</span> library/graphs
+<span class="k">pred</span> Acyclic (r: univ -&gt; univ) {
+  <span class="k">no</span> <span class="o">^</span>r &amp; iden
+}</code></pre></div>
+<div class="card"><h4>用于家庭模型</h4>
+<pre><code><span class="k">module</span> family
+<span class="k">open</span> library/graphs
+<span class="k">sig</span> <span class="t">Person</span> {parents: <span class="k">set</span> <span class="t">Person</span>}
+<span class="k">fact</span> {Acyclic (parents)}</code></pre></div>
+<div class="card"><h4>用于文件系统模型</h4>
+<pre><code><span class="k">module</span> fileSystem
+<span class="k">open</span> library/graphs
+<span class="k">sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {
+  contents: <span class="k">set</span> <span class="t">Object</span>
+}
+<span class="k">fact</span> {Acyclic (contents)}</code></pre></div>
+</div>
+<p>模块有自己的命名空间。不同模块的组件之间的<strong>名字冲突可以用限定名解决</strong>：路径名为 p 的模块中的 signature、谓词或函数 X，其限定名是 <code>p/X</code>。<strong>即使非限定名本就无歧义，也仍可使用限定名。</strong></p>
+<div class="grid c2">
+<div class="card"><h4>用限定名避免冲突</h4>
+<pre><code><span class="k">module</span> family
+<span class="k">open</span> library/graphs
+<span class="k">sig</span> <span class="t">Person</span> {parents: <span class="k">set</span> <span class="t">Person</span>}
+<span class="k">pred</span> Acyclic () {
+  library/graphs/Acyclic (parents)
+}</code></pre></div>
+<div class="card"><h4>用别名缩短</h4>
+<pre><code><span class="k">module</span> family
+<span class="k">open</span> library/graphs <span class="k">as</span> g
+<span class="k">sig</span> <span class="t">Person</span> {parents: <span class="k">set</span> <span class="t">Person</span>}
+<span class="k">pred</span> Acyclic () {g/Acyclic (parents)}</code></pre></div>
+</div>
+
+<h3>4.7.2 Parametric Modules · 参数化模块</h3>
+<div class="callout key">
+  <span class="tag">纯语法机制</span>
+  <p>模块可以由一个或多个 <strong>signature 参数</strong>参数化，写成模块名后方括号里的标识符列表。任何导入模块都必须<strong>用某个 signature 的名字实例化每个参数</strong>。参数化只是一个语法机制：<strong>实例化一个模块的效果，等同于导入该模块的一份副本，并把参数在整个副本中替换为实例化的 signature 名。</strong></p>
+</div>
+<div class="grid c2">
+<div class="card"><h4>参数化的图论库</h4>
+<pre><code><span class="k">module</span> library/graphs [t]
+<span class="k">pred</span> Acyclic (r: t -&gt; t) {<span class="k">no</span> <span class="o">^</span>r &amp; iden}</code></pre>
+<p>两处使用：</p>
+<pre><code><span class="k">module</span> family
+<span class="k">open</span> library/graphs [<span class="t">Person</span>]
+<span class="k">sig</span> <span class="t">Person</span> {parents: <span class="k">set</span> <span class="t">Person</span>}
+<span class="k">fact</span> {Acyclic (parents)}
+
+<span class="k">module</span> fileSystem
+<span class="k">open</span> library/graphs [<span class="t">Object</span>]
+<span class="k">sig</span> <span class="t">Object</span> {}
+<span class="k">sig</span> <span class="t">Directory</span> <span class="k">extends</span> <span class="t">Object</span> {contents: <span class="k">set</span> <span class="t">Object</span>}
+<span class="k">fact</span> {Acyclic (contents)}</code></pre></div>
+<div class="card"><h4>参数化的 list 模块（泛型数据结构）</h4>
+<pre><code><span class="k">module</span> library/list [t]
+<span class="k">sig</span> <span class="t">List</span> {}
+<span class="k">sig</span> <span class="t">NonEmptyList</span> <span class="k">extends</span> <span class="t">List</span> {
+  next: <span class="t">List</span>, element: t
+}
+<span class="k">fact</span> Canonical {
+  <span class="k">no disj</span> p, p': <span class="t">List</span> |
+    p.next = p'.next <span class="k">and</span> p.element = p'.element
+}
+<span class="k">fun</span> <span class="t">List</span>::first (): t {<span class="k">this</span>.element}
+<span class="k">fun</span> <span class="t">List</span>::rest (): <span class="t">List</span> {<span class="k">this</span>.next}
+<span class="k">fun</span> <span class="t">List</span>::addFront (e: t): <span class="t">List</span> {
+  {p: <span class="t">List</span> | p.next = <span class="k">this</span> <span class="k">and</span> p.element = e}
+}</code></pre>
+<p><strong>参数化模块最常见的用途就是泛型数据结构</strong>：排序、队列、列表、树。类型参数代表数据结构所容纳元素的类型。</p>
+<p>注意 <code>addFront</code> 的返回体是一个<strong>集合理解式</strong>——它不是「构造一个新对象」，而是<strong>描述那个已经存在的、满足条件的 List 原子</strong>。这是 Alloy 与命令式语言的根本差异。</p></div>
+</div>
+<div class="callout warn">
+  <span class="tag">参数 vs univ 的取舍</span>
+  <p>任何带参数声明的模块，<strong>本都可以不带参数、改用 <code>univ</code> 来声明</strong>。参数的<strong>优势是允许更强的类型检查</strong>；<strong>劣势是每次使用都需要一次单独的实例化</strong>。</p>
+</div>
+
+<h3>4.7 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：模块别名什么时候有用？</div>
+  <div class="a"><p>当一个<strong>参数化模块被以不同的参数实例化多次导入</strong>时，别名最有用——这种情况下组件名<strong>总是需要被限定</strong>。例如一个由「资源」和「被分配资源的用户」参数化的资源分配模块：</p>
+<pre><code><span class="k">module</span> general/resourceAllocation [user, resource]
+…
+<span class="k">pred</span> Allocate (…) {…}</code></pre>
+<p>在火车系统模型中两次使用：</p>
+<pre><code><span class="k">module</span> trainSystem
+<span class="k">open</span> general/resourceAllocation [<span class="t">Train</span>, <span class="t">Track</span>] <span class="k">as</span> trainResource
+<span class="k">open</span> general/resourceAllocation [<span class="t">Track</span>, <span class="t">Current</span>] <span class="k">as</span> trackResource</code></pre>
+<p>于是像 <code>general/resourceAllocation[Train, Track]/Allocate</code> 这样长的名字，用别名后就成了 <code>trainResource/Allocate</code>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：signature 扩展能跨越模块边界吗？</div>
+  <div class="a"><p><strong>能。</strong>导入模块可以扩展被导入模块中声明的 signature，反之亦然。下面这个模块给一个 signature 添加 name 字段：</p>
+<pre><code><span class="k">module</span> named [t]
+<span class="k">sig</span> named_t <span class="k">extends</span> t {name: <span class="t">Name</span>}
+<span class="k">fact</span> {<span class="k">all disj</span> a, b: t | a.name != b.name}
+<span class="k">fact</span> {t = named_t}</code></pre>
+<p>现在只要写 <code>open named [S]</code>，对任意 signature S，S 的每个元素 x 都会拥有一个<strong>互不相同</strong>的名字 <code>x.name</code>。</p>
+<p>三条 fact 的分工值得注意：第一条保证<strong>名字互异</strong>；第二条 <code>t = named_t</code> 保证<strong>每个 t 都真的有一个 named_t 包装</strong>（否则 t 中可能有元素不被覆盖）。</p></div>
+</div>
+
+<h2 id="s48"><span class="num">4.8</span>Integers and Arithmetic · 整数与算术</h2>
+<p>3.7 节介绍过整数值表达式：<code>#e</code> 是一个整数，表示关系 e 中的元组数；这类表达式可以做加减、可以比较。</p>
+<div class="card">
+<h4>例：三条同花</h4>
+<pre><code><span class="k">sig</span> <span class="t">Card</span> {suit: <span class="t">Suit</span>}
+<span class="k">sig</span> <span class="t">Suit</span> {}
+<span class="k">pred</span> ThreeOfAKind (hand: <span class="k">set</span> <span class="t">Card</span>) {
+  #hand.suit = 1 <span class="k">and</span> #hand = 3
+}</code></pre>
+<p>「一手牌是三条同花」= 它由三张牌组成（<code>#hand = 3</code>），且花色只有一种（<code>#hand.suit = 1</code>）。</p>
+</div>
+
+<div class="callout key">
+  <span class="tag">Int 与 int：整数值 vs 整数原子</span>
+  <p>你可能会问：整数能作为关系中的原子出现吗？<strong>整数本身不是原子</strong>，但<strong>与每个整数值相关联，存在一个「持有该整数值」的整数原子</strong>，从而让整数实际上可以被包含在关系里。</p>
+  <table style="margin-top:.6em">
+    <thead><tr><th>记号</th><th>含义</th><th>类型</th></tr></thead>
+    <tbody>
+      <tr><td><code>Int e</code></td><td>对整数值表达式 e，表示<strong>持有 e 的整数值的那个整数原子</strong></td><td><code>int -&gt; Int</code></td></tr>
+      <tr><td><code>int e</code></td><td>对表示一组整数原子的表达式 e，表示<strong>这些原子的整数值之和</strong></td><td><code>Int -&gt; int</code></td></tr>
+      <tr><td><code>Int</code></td><td>关键字，表示<strong>所有整数原子的集合</strong></td><td>可当作一个<strong>预定义 signature</strong>，如同 <code>univ</code></td></tr>
+    </tbody>
+  </table>
+  <p style="margin-top:.6em">从类型检查的角度，有一个与整数值表达式关联的类型 <code>int</code>，和一个表示整数原子集合的类型 <code>Int</code>。</p>
+</div>
+<div class="card">
+<h4>例：带权图，自连接权重为零</h4>
+<pre><code><span class="k">sig</span> <span class="t">Node</span> { adj: <span class="t">Node</span> -&gt; <span class="k">lone</span> <span class="t">Int</span> }
+<span class="k">fact</span> {
+  <span class="k">all</span> n: <span class="t">Node</span> |
+    <span class="k">let</span> w = n.adj[n] |
+      <span class="k">some</span> w =&gt; <span class="k">int</span> w = 0
+}</code></pre>
+<p>字段 <code>adj</code> 把每个节点映射到它的相邻节点<strong>及其权重</strong>（权重是整数原子）。注意必须写 <code>some w =&gt; …</code>：因为 <code>adj</code> 是 <code>lone</code>，自连接可能<strong>不存在</strong>。</p>
+</div>
+
+<h3>4.8 Discussion</h3>
+<div class="qa">
+  <div class="q">Q：为什么把整数放到最后讲？</div>
+  <div class="a"><p><strong>整数其实不太有用。如果你觉得自己需要它们，再想想；往往有一个更抽象、更贴合问题的描述。</strong>「整数出现在问题域里」<strong>并不意味着它就应该被如此建模</strong>。</p>
+  <p>要判断整数是否必要，问自己<strong>究竟依赖了哪些性质</strong>。例如一个给消息编号的通信协议，可能只依赖「编号互不相同」；或依赖「编号递增」；甚至可能是「全序」。<strong>这几种情况下都不应该使用整数</strong>（用无解释原子 + <code>util/ordering</code> 更好）。当然，如果是一个<strong>重度数值化</strong>的问题，你很可能需要整数（以及更多），<strong>但那时 Alloy 大概本来就不合适</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Alloy 有乘法算子吗？</div>
+  <div class="a"><strong>没有。</strong>幸运的是，结构模型中很少需要它。需要乘法的那类模型往往<strong>重度数值化，本来就不适合 Alloy</strong>。</div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Alloy 中整数是如何定作用域的？</div>
+  <div class="a"><p>在作用域说明中，<strong><code>Int</code> 的设置限制 Int 原子的个数</strong>，而 <strong><code>int</code> 的设置给出整数的最大位宽</strong>。例如包含作用域</p>
+<pre><code>3 <span class="t">Int</span>, 6 <span class="k">int</span></code></pre>
+<p>的命令，会把搜索限制为至多三个 Int 原子，并涉及 <strong>−31 到 +31</strong> 范围内的整数。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Alloy 的 <code>Int</code> 像 Java 的 <code>Integer</code> 吗？</div>
+  <div class="a"><p><strong>像。</strong>Alloy 中 Int 与 int 的区分，非常类似 Java 中「原始整数值」与「Integer 对象」的区分。<strong>但目的不同</strong>：如果把整数值当作原子处理，我们就需要<strong>为作用域内每一个可能的整数值准备一个原子</strong>，这会让分析<strong>更不可处理</strong>。</p>
+  <p>这个区分本可以在语法上隐藏起来（在 Int 与 int 之间做隐式强制转换），<strong>但那样我们就无法重载 <code>+</code> 和 <code>-</code> 算子了</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：整数对象对它们承载的值是唯一的吗？</div>
+  <div class="a"><strong>是的。</strong>下面的断言是有效的：
+<pre><code><span class="k">assert</span> UniqueInts {<span class="k">all</span> i, j: <span class="t">Int</span> | <span class="k">int</span> i = <span class="k">int</span> j =&gt; i = j}</code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：那布尔值呢？Alloy 没有布尔类型吗？</div>
+  <div class="a"><p><strong>Alloy 没有布尔类型。</strong>乍看之下这非常奇怪，尤其是对一门<strong>基于一阶逻辑</strong>的语言而言。当然，<strong>公式确实有布尔值，但表达式永远没有</strong>。</p>
+  <p>要明白为什么，假设 Alloy 有一个可用于此类声明的布尔类型：</p>
+<pre><code><span class="k">sig</span> <span class="t">Phone</span> {offhook, ringing: boolean}</code></pre>
+<p>这样做的动机是能写出这样的约束：</p>
+<pre><code><span class="k">all</span> p: <span class="t">Phone</span> | p.offhook =&gt; <span class="k">not</span> p.ringing</code></pre>
+<p><strong>但麻烦来了：</strong>像 <code>p.ringing</code> 这样的项一般表示<strong>一个布尔值的集合</strong>。那么当集合含零个或多于一个布尔值时，<code>not p.ringing</code> 的值是什么？<strong>没有好的出路。</strong>也许你可以拒绝这类表达式，只允许不出现它们的约束（如上面那条）？<strong>这不容易做到，因为它涉及对函数定义域的推理。</strong>或者你可以把标准逻辑算子的解释扩展到布尔值的集合上？</p>
+<p><strong>这些问题只是「偏函数及其应用」这一老问题的一个特例</strong>，而 Alloy 通过<strong>只提供关系映像、不提供函数应用</strong>避开了它（见 3.4.3 的讨论）。<strong>引入布尔类型会把所有那些复杂性重新带回来</strong>——因为布尔表达式涉及函数应用——<strong>而收益很小</strong>。</p></div>
+</div>
+
+<div class="callout idea">
+  <span class="tag">如果你真的要布尔值</span>
+  <p>你可以自己定义一个布尔类型：</p>
+<pre><code><span class="k">module</span> booleans
+<span class="k">sig</span> <span class="t">Boolean</span> {}
+<span class="k">one sig</span> <span class="t">True</span>, <span class="t">False</span> <span class="k">extends</span> <span class="t">Boolean</span> {}
+
+<span class="k">module</span> phones
+<span class="k">open</span> booleans
+<span class="k">sig</span> <span class="t">Phone</span> {offhook, ringing: <span class="t">Boolean</span>}
+<span class="k">fact</span> {<span class="k">all</span> p: <span class="t">Phone</span> | p.offhook = <span class="t">True</span> =&gt; <span class="k">not</span> p.ringing = <span class="t">True</span>}</code></pre>
+  <p>「如果你是一个真正的自虐狂」，你甚至可以定义逻辑算子的扩展版本，比如这个「当 e 不是标量时把 Not e 给成 false」的否定：</p>
+<pre><code><span class="k">fun</span> <span class="t">Boolean</span>::Not (): <span class="t">Boolean</span> {<span class="k">if</span> <span class="k">this</span> = <span class="t">False</span> <span class="k">then</span> <span class="t">True</span> <span class="k">else</span> <span class="t">False</span>}
+<span class="c">// 然后可以写： fact {all p: Phone | Implies (p.offhook, Not (p.ringing)}</span></code></pre>
+  <p>事实上 <strong>Alloy 库里就包含这样一个模块</strong>。当布尔值必须被精细建模时它有用，<strong>例如在推理代码时。但对于设计建模，这是错误的做法。</strong></p>
+</div>
+
+<div class="callout key">
+  <span class="tag">本章最重要的建模忠告：用子类型，不要用布尔属性</span>
+  <p><strong>给对象分类的方式，不是用属性把它们与布尔值关联起来，而是声明子类型：</strong></p>
+<pre><code><span class="k">sig</span> <span class="t">Phone</span> {calling: <span class="k">set</span> <span class="t">Phone</span>}
+<span class="k">sig</span> <span class="t">Offhook</span>, <span class="t">Ringing</span> <span class="k">extends</span> <span class="t">Phone</span> {}</code></pre>
+  <p>于是「摘机的电话不在响铃」这条约束<strong>就隐含在声明里了</strong>——你根本不用写。</p>
+  <p>对于<strong>动态分类</strong>，你可以为每个属性关联「它成立的那些时刻的集合」：</p>
+<pre><code><span class="k">sig</span> <span class="t">Phone</span> {
+  calling: <span class="t">Phone</span> -&gt; <span class="t">Time</span>,
+  offhook, ringing: <span class="k">set</span> <span class="t">Time</span>
+}
+<span class="c">// 约束变成：</span>
+<span class="k">all</span> t: <span class="t">Time</span> | <span class="k">no</span> offhook.t &amp; ringing.t</code></pre>
+  <p><strong>使用集合算子，约束比用布尔属性更简洁，而且没有任何那些复杂性。</strong></p>
+</div>
+
+<h2 id="sum">第 4 章小结</h2>
+<div class="card">
+  <ol>
+    <li><strong>模型的宏观结构有五种段落</strong>：<code>module</code> 头 → <code>sig</code> 声明（集合 + 字段）→ <code>fact</code>/<code>fun</code>/<code>pred</code> 约束段 → <code>assert</code> 断言 → <code>run</code>/<code>check</code> 命令。Alloy 独有的只有 <strong>signature</strong> 与 <strong>scope</strong> 两个概念。</li>
+    <li><strong>signature 构成一棵分类树</strong>：<code>univ</code> 是隐式根，顶层签名互不相交，<code>extends</code> 的兄弟互不相交，<code>abstract</code> 表示「父 = 各子之并」。<strong>正交分类用 <code>in</code>（子集签名，不必不相交，不引入新类型）</strong>。前置重数关键字（<code>one sig A, B, C extends T</code>）可构造枚举。</li>
+    <li><strong>没有顶层关系声明</strong>——所有关系都是某个 signature 的字段；不属于任何 signature 的全局关系，用一个 <code>one sig Globals {…}</code> 容器承载。</li>
+    <li><strong>字段声明 <code>sig A {f: m e}</code> 的准确含义是 <code>all this: A | this.f : m e</code></strong>，省略重数关键字时默认为 <code>one</code>（⇒ 标量）。<code>disj</code> 表示互斥，<code>part</code> 表示划分（互斥 + 覆盖）。</li>
+    <li><strong>依赖式声明只能引用「本签名或其父签名中先前声明的字段」</strong>，且引用会被展开为 <code>this.g</code>。用 <code>@</code> 阻止展开；但<strong>不要拼命把约束塞进声明</strong>——闭包类约束写成独立 fact 更安全（<code>*@friends</code> 陷阱：会让字段变成三元关系）。</li>
+    <li><strong>类型是「值的过近似」，类型本身就是 Alloy 表达式</strong>。类型检查的唯一判据是<strong>可证冗余</strong>：混合 arity，或（子）表达式必为空。<code>s.r</code> 的四种组合中<strong>只有「不相交」被拒绝</strong>；把子类型字段用于父类型是<strong>合法的</strong>（结果可能为空，但不总是为空）。<strong>类型检查器从不误报，也不提供任何保证</strong>；Alloy 实际上可视为无类型语言——<strong>读模型不需要懂类型，写模型需要懂一点</strong>。</li>
+    <li><strong>重载解析依赖完整上下文，而非语法形式</strong>（因此 <code>b.~band</code>、<code>band.b</code>、<code>s-&gt;b in band</code> 都能正确解析）。同名字段的 signature <strong>不得重叠</strong>；无法解析时用<strong>域限制 <code>S &lt;: f</code></strong> 消歧——它不是什么特殊的 cast，等价于 <code>(S -&gt; univ) &amp; f</code>。</li>
+    <li><strong>四种约束段落各司其职</strong>：<code>fact</code> 全局永真（方便但失去控制）；<code>pred</code> 按需调用（大模型宜少用 fact、多用 pred）；<code>fun</code> 复用表达式；<code>assert</code> 记录「应由 fact 推出的冗余」，充当<strong>回归测试</strong>。<strong>signature fact</strong>（紧跟 sig 的 <code>{…}</code>）隐式 <code>all this:</code> 量化并展开字段——<strong>危险例子：<code>sig A {} {some A}</code> 在 A 为空时空洞为真</strong>。</li>
+    <li><strong>断言的两种用途</strong>：① 平凡性质（如确定性）用来<strong>探测模型的洞</strong>；② 本质性质常常<strong>比 fact 更根本</strong>，写对断言会让人对设计产生更清晰简单的理解。自包含断言（无 sig 无 fact）可用来<strong>试验逻辑恒等式</strong>（如验证 dot 的结合律、证伪 <code>p = q + r iff p - q = r</code>）。</li>
+    <li><strong>作用域与分析器沟通，与模型本体分离</strong>：默认每个顶层签名 3 个；<code>for 5 but 3 Directory</code>（but 覆盖并补充默认）；<code>for exactly 3 X</code> 规定确切大小；<strong>声明已确定大小的签名（如 <code>one sig</code> 枚举）会隐式覆盖</strong>。作用域通常由「多大实例足以暴露缺陷」决定，而非系统实际规模——<strong>分析的力量在于：十对象的文件系统数量巨大，模型对每一个都被检验</strong>。</li>
+    <li><strong>模块 = 文件</strong>；<code>module</code> / <code>open</code> / <code>open … as 别名</code> / 限定名 <code>p/X</code>。<strong>参数化模块是纯语法机制</strong>（等同于导入一份替换过的副本），用于泛型数据结构（list、ordering、queue、tree）；相比直接用 <code>univ</code>，好处是<strong>更强的类型检查</strong>，代价是每次使用需单独实例化。signature 扩展<strong>可以跨模块</strong>（<code>named [t]</code> 模式）。</li>
+    <li><strong>整数：能力有限，且应尽量不用</strong>。只有 <code>#</code>、加减、比较，<strong>没有乘除</strong>。<code>Int</code>（整数原子集合，像预定义 signature）与 <code>int</code>（整数值）的区分，类比 Java 的 Integer/int，目的是<strong>避免为每个整数值准备原子</strong>并<strong>保留算子重载</strong>。作用域中 <code>3 Int, 6 int</code> ⇒ 至多 3 个整数原子、位宽 6（−31…+31）。</li>
+    <li><strong>Alloy 没有布尔类型，这是深思熟虑的</strong>：布尔表达式必然涉及<strong>函数应用</strong>，而偏函数应用正是 Alloy 通过「只有关系映像」刻意回避的难题。<strong>正确做法是声明子类型</strong>（<code>sig Offhook, Ringing extends Phone {}</code>），静态分类的约束就隐含在声明里；动态分类则为每个属性关联一个 <code>set Time</code>，用集合算子表达——<strong>更简洁，且没有任何复杂性</strong>。</li>
+  </ol>
+</div>
+
+<div class="pager">
+  <a href="ch3.html"><div class="d">← 上一章</div><div class="n">3 · Logic 逻辑</div></a>
+  <a href="ch5.html" class="next"><div class="d">下一章</div><div class="n">5 · Analysis 分析 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 第 4 章</div>
+
+</div>
+</body>
+</html>
