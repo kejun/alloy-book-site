@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第 2 章 · A Whirlwind Tour 速览 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">第 2 章 · 速览</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html" class="on">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">2</span>A Whirlwind Tour · 速览</h1>
+<p class="sub">原书 p. 5–31 · 用一个邮件客户端地址簿，从零开始增量建模到带执行轨迹的完整模型，全程展示「建模—模拟—断言—反例—修复」的闭环</p>
+
+<div class="callout">
+  <span class="tag">本章定位（作者原话）</span>
+  <p>「My intent is to explain just enough to impart the <strong>flavor</strong> of the approach,
+  so don't expect to follow all the details.」——只求传达方法的<em>味道</em>，别指望跟上所有细节。</p>
+</div>
+
+<div class="toc">
+  <div class="t">本章地图</div>
+  <ol>
+    <li><a href="#why">为什么选地址簿</a></li>
+    <li><a href="#s21">2.1 静态：探索状态</a></li>
+    <li><a href="#s22">2.2 动态：加入操作</a></li>
+    <li><a href="#s23">2.3 分类层次</a></li>
+    <li><a href="#s24">2.4 执行轨迹</a></li>
+    <li><a href="#s25">2.5 小结：我们「没做」什么</a></li>
+    <li><a href="#qa">2.5.1 四个问答</a></li>
+    <li><a href="#cheat">语法速查（本章出现的全部记法）</a></li>
+  </ol>
+</div>
+
+<h2 id="why"><span class="num">2.0</span>为什么选地址簿这个例子</h2>
+<p>选它是因为「对大多数读者都熟悉」。但 Jackson 借机说了一段关于<strong>模型规模</strong>的重要论断：</p>
+<div class="callout key">
+  <span class="tag">十行模型 vs 十行程序</span>
+  <p>「A ten-line <strong>program</strong> can't do very much, and has almost nothing in common with a thousand-line program.
+  But a ten-line <strong>model</strong> can be very useful, and doesn't differ that much from a hundred-line model,
+  which is often all that's needed to explore a difficult design issue.」</p>
+  <p style="margin-bottom:0">十行<em>程序</em>做不了什么，跟一千行程序几乎没有共同点；
+  但十行<em>模型</em>可以非常有用，跟一百行模型差别不大——而一百行往往就足以探索一个困难的设计问题。
+  <strong>模型的价值不随规模线性增长，这是轻量级方法可行的根基。</strong></p>
+</div>
+
+<h3>地址簿的领域概念</h3>
+<table>
+  <thead><tr><th>概念</th><th>含义</th><th>关键性质</th></tr></thead>
+  <tbody>
+    <tr><td><strong>address book</strong></td><td>一个小数据库，把邮件地址与更好用的短名字关联起来</td><td>—</td></tr>
+    <tr><td><strong>alias（别名）</strong></td><td>为某个联系人创建的昵称，可代替其地址使用</td><td>地址变了，别名<strong>不必变</strong></td></tr>
+    <tr><td><strong>group（组）</strong></td><td>像别名，但关联<strong>一整个联系人集合</strong>（比如一个家庭）</td><td>一对多</td></tr>
+  </tbody>
+</table>
+<div class="callout warn">
+  <span class="tag">埋下的伏笔：间接引用</span>
+  <p>用户定义 group 时，<strong>常常插入 alias 而不是真实邮件地址</strong>，这样某人邮箱变了只需在一处修改，
+  即使它隐式出现在许多 group 里。——这正是第 1 章说的 <em>indirection</em>，也是后面所有麻烦（和所有价值）的来源。
+  名字可以指向名字，形成<strong>任意长度的命名链</strong>（naming chains）。</p>
+</div>
+
+<h3>本章的四步递进</h3>
+<div class="fig">
+  <div class="rel">
+    <div class="atom">2.1 只有 alias<br><span style="color:var(--ink-dim);font-size:11px">声明状态 + 生成实例</span></div>
+    <span class="tuple"><span class="arw">→</span></span>
+    <div class="atom b">2.2 加操作<br><span style="color:var(--ink-dim);font-size:11px">约束式操作 + 模拟 + 断言</span></div>
+    <span class="tuple"><span class="arw">→</span></span>
+    <div class="atom c">2.3 分类层次<br><span style="color:var(--ink-dim);font-size:11px">Composite 模式 + 命名链</span></div>
+    <span class="tuple"><span class="arw">→</span></span>
+    <div class="atom d">2.4 执行轨迹<br><span style="color:var(--ink-dim);font-size:11px">整条执行而非单步</span></div>
+  </div>
+  <div class="cap">图 2-A　本章的建模递进路线</div>
+</div>
+<p style="color:var(--ink-dim);font-size:14.5px">
+  注意 2.3 用的是设计模式爱好者所称的 <strong>Composite（组合）模式</strong>。
+  作者也说明：2.4 加进来主要是为了展示方法的灵活性（尤其给熟悉模型检查的读者看），
+  <strong>实践中通常一次只分析一个操作就够了</strong>。
+</p>
+
+<hr>
+
+<h2 id="s21"><span class="num">2.1</span>Statics: Exploring States · 静态：探索状态</h2>
+
+<h3>第一个模型：三行声明</h3>
+<pre><code><span class="k">module</span> tour/addressBook1
+
+<span class="k">sig</span> <span class="t">Name</span>, <span class="t">Addr</span> {}
+
+<span class="k">sig</span> <span class="t">Book</span> {
+  addr: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="k">lone</span> <span class="t">Addr</span>
+}</code></pre>
+<p>「That's a complete Alloy model.」——这就是一个完整的 Alloy 模型。它引入了三个 <strong>signature（签名）</strong>：
+<code>Name</code>、<code>Addr</code>、<code>Book</code>，每个代表一个对象集合。<code>Book</code> 有一个字段 <code>addr</code>。</p>
+
+<div class="callout key">
+  <span class="tag">最关键的语义：字段是「多一路」的关系</span>
+  <p><code>addr</code> 事实上是一个<strong>三元映射</strong>（three-way mapping），关联 book、name、address，
+  当「在书 b 中，名字 n 映射到地址 a」时，它包含元组 <code>b -&gt; n -&gt; a</code>。</p>
+  <p style="margin-bottom:0">而表达式 <code>b.addr</code> 表示「书 b 的从名字到地址的映射」。
+  <strong>也就是说：<code>x.f</code> 这个点操作符做的事，是把关系中最左列为 x 的那些元组取出来、并去掉最左列。</strong>
+  这是理解 Alloy 全部导航表达式的唯一钥匙，第 3.4 节会严格化为 join 算子。</p>
+</div>
+
+<div class="fig">
+  <div style="text-align:center;margin-bottom:10px;color:var(--ink-dim);font-size:13px">addr 关系的实际内容（三元组）</div>
+  <div class="rel">
+    <span class="tuple"><span class="atom d">Book0</span><span class="arw">→</span><span class="atom">Name0</span><span class="arw">→</span><span class="atom b">Addr0</span></span>
+  </div>
+  <div style="text-align:center;margin:14px 0 10px;color:var(--ink-dim);font-size:13px">Book0.addr 求值后（二元组）</div>
+  <div class="rel">
+    <span class="tuple"><span class="atom">Name0</span><span class="arw">→</span><span class="atom b">Addr0</span></span>
+  </div>
+  <div class="cap">图 2-B　字段是「隐式带上接收者」的关系（对应原书 fig. 2.1 实例）</div>
+</div>
+
+<h3>重数（multiplicity）：lone</h3>
+<p>声明中的关键字 <code>lone</code> 表示<strong>重数</strong>——这里是「每个名字<strong>至多</strong>映射到一个地址」。
+现在只建模简单别名，group 留到后面。</p>
+<table>
+  <thead><tr><th>重数</th><th>含义</th><th>数量范围</th></tr></thead>
+  <tbody>
+    <tr><td>（缺省）</td><td>恰好一个</td><td>= 1</td></tr>
+    <tr><td><code>lone</code></td><td>至多一个</td><td>0 或 1</td></tr>
+    <tr><td><code>one</code></td><td>恰好一个（显式写出）</td><td>= 1</td></tr>
+    <tr><td><code>some</code></td><td>至少一个</td><td>≥ 1</td></tr>
+    <tr><td><code>set</code></td><td>任意（含空）</td><td>≥ 0</td></tr>
+  </tbody>
+</table>
+
+<h3>没有命令 = 没法分析</h3>
+<div class="callout warn">
+  <span class="tag">要点</span>
+  <p>「This model contains <strong>no commands</strong>, so there's no analysis that can be done
+  (beyond simple static semantic and type checks).」<br>
+  模型只声明结构时，分析器只能做语义与类型检查。<strong>要有分析，必须有 <code>run</code> 或 <code>check</code> 命令。</strong></p>
+</div>
+
+<h3>第一次模拟：空谓词 + run</h3>
+<pre><code><span class="k">pred</span> show () {}
+<span class="k">run</span> show <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">1</span> <span class="t">Book</span></code></pre>
+<ul>
+  <li>谓词体<strong>为空</strong>——后面会往里加约束。</li>
+  <li>命令指定了一个 <strong>scope（作用域）</strong>来限定实例搜索：每个签名至多 3 个对象，
+    <strong>但</strong> <code>Book</code> 限为 1 个，因为现在只想看单个地址簿。</li>
+</ul>
+<div class="callout pit">
+  <span class="tag">极易混淆的一点</span>
+  <p><strong>「The scope is for the purpose of analysis alone; the model doesn't limit the size or number of address books.」</strong><br>
+  scope <em>只服务于分析</em>，模型本身并<strong>不</strong>限制地址簿的大小或数量。
+  换句话说：<code>for 3</code> 不是模型的一部分，它只是「这次搜索请只看 3 个对象以内」的指令。
+  把 scope 误当成模型约束，是初学者最常见的理解错误。</p>
+</div>
+
+<h3>关于「工具选了哪个实例」</h3>
+<p>运行后得到 fig. 2.1 的实例。输出可以是多种文本或图形形式；作者选择图形显示，并让分析器
+<strong>project（投影）</strong>到 <code>Book</code> 上——即为每个 book 对象显示一张单独的图。</p>
+<div class="qa">
+  <div class="q">Q：为什么偏偏选中这个实例？</div>
+  <div class="a">
+    <p>工具对实例的选择是<strong>任意的</strong>（arbitrary），甚至可能因偏好设置不同而在多次运行间变化。</p>
+    <p>但实践中，<strong>第一个生成的实例往往是个小实例</strong>。这很有用，因为<strong>小实例常常是病理性的（pathological），
+    因此更可能暴露微妙的问题</strong>。</p>
+    <p style="margin-bottom:0">你可以要求工具产生一系列不重复的实例，但本章的 tour 里我们总是只用第一个。</p>
+  </div>
+</div>
+
+<h3>用约束「引导」模拟：三次迭代</h3>
+<p>第一次的实例只有一条链接。想看更多链接，就往谓词里加约束。<strong>这个「加约束—跑—看图—再加」的循环就是 Alloy 的日常。</strong></p>
+
+<h4>迭代 ①：要多于一条关联</h4>
+<pre><code><span class="k">pred</span> show (b: <span class="t">Book</span>) {
+  <span class="o">#</span>b.addr <span class="o">&gt;</span> <span class="n">1</span>
+}</code></pre>
+<p>为了能谈论某个特定的书，给谓词加了参数 <code>b: Book</code>。<code>b.addr</code> 是这本书的名字→地址映射，
+<code>#b.addr</code> 是这个映射中<strong>关联的数量</strong>（<code>#</code> 是基数算子）。</p>
+<p>结果（fig. 2.2）：模型允许<strong>两个名字映射到同一个地址</strong>（这个实例里是三个！）。</p>
+
+<h4>迭代 ②：一个名字能映射到两个地址吗？——探测模型边界</h4>
+<pre><code><span class="k">pred</span> show (b: <span class="t">Book</span>) {
+  <span class="o">#</span>b.addr <span class="o">&gt;</span> <span class="n">1</span>
+  <span class="k">some</span> n: <span class="t">Name</span> | <span class="o">#</span>n.(b.addr) <span class="o">&gt;</span> <span class="n">1</span>
+}</code></pre>
+<div class="callout pit">
+  <span class="tag">分析器的回答：inconsistent</span>
+  <p>分析器告诉你谓词 <code>show</code> 现在是<strong>不一致的</strong>——至少在这个 scope 内——没有实例。
+  这不奇怪，因为加的约束与 <code>addr</code> 声明里的重数（<code>lone</code>）<strong>矛盾</strong>。</p>
+  <p style="margin-bottom:0"><strong>这是一种非常有价值的诊断手段</strong>：用 <code>run</code> 去问「模型允不允许 X」，
+  如果回答 inconsistent，就说明你的模型<strong>排除了</strong> X。可能是好事（本来就该禁止），也可能是意外（约束写过头了）。</p>
+</div>
+<p style="color:var(--ink-dim);font-size:14px">
+  注意 <code>n.(b.addr)</code> 的写法：括号是必需的，因为 <code>.</code> 的结合性会让 <code>n.b.addr</code> 被解析成 <code>(n.b).addr</code>。
+  这里的语义是「在书 b 的映射里查名字 n」。
+</p>
+
+<h4>迭代 ③：换成更弱的约束——确保地址簿里能有多个地址</h4>
+<pre><code><span class="k">pred</span> show (b: <span class="t">Book</span>) {
+  <span class="o">#</span>b.addr <span class="o">&gt;</span> <span class="n">1</span>
+  <span class="o">#</span><span class="t">Name</span>.(b.addr) <span class="o">&gt;</span> <span class="n">1</span>
+}</code></pre>
+<div class="callout key">
+  <span class="tag">Alloy 的一个漂亮特性：算子定义得极其一般</span>
+  <p>坏约束用 <code>n.(b.addr)</code> 查<strong>单个</strong>名字 n；好约束用 <code>Name.(b.addr)</code> 查<strong>整个名字集合</strong>。
+  后者表示「所有可能由查找得到的地址的集合」。</p>
+  <p style="margin-bottom:0">原文：<strong>「any operator that can be applied to a scalar can also be applied to a set.」</strong>
+  ——任何能作用于标量的算子，也能作用于集合。这消灭了大量「单值版 / 集合版」的重复 API，
+  是 Alloy 语法「特别简单而统一」的具体体现。同样的道理适用于 <code>#Name.(b.addr)</code>、<code>Alias.(b.addr)</code>、<code>Name -&gt; a</code> 等等。</p>
+</div>
+<p>结果 fig. 2.3。<strong>这类小模拟为什么有用？</strong>作者给了两条理由：</p>
+<ol>
+  <li>以用户极小的代价，<strong>确认模型没有意外地排除掉显而易见的情况</strong>；</li>
+  <li><strong>呈现出一些你可能压根没想过的情况</strong>。</li>
+</ol>
+
+<hr>
+
+<h2 id="s22"><span class="num">2.2</span>Dynamics: Adding Operations · 动态：加入操作</h2>
+
+<h3>用约束表达一个操作</h3>
+<pre><code><span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span>) {
+  b'.addr <span class="o">=</span> b.addr <span class="o">+</span> n <span class="o">-&gt;</span> a
+}</code></pre>
+<p><code>add</code> 和 <code>show</code> 一样，<strong>只是一个约束</strong>。只不过它代表一个<strong>操作</strong>，描述动态行为。
+四个参数：添加前的书 <code>b</code>、添加后的书 <code>b'</code>、名字 <code>n</code>、要映射到的地址 <code>a</code>。
+约束说：新书的地址映射 = 旧书的地址映射 <strong>加上</strong> 一条从名字到地址的链接。</p>
+
+<div class="callout idea">
+  <span class="tag">本章最重要的概念转折：声明式 vs 操作式</span>
+  <p>原文：如果你习惯命令式编程语言、又没见过建模语言，这种写法大概会让你觉得奇怪。</p>
+  <ul style="margin-bottom:8px">
+    <li><strong>这里没有显式的 mutation（状态修改）</strong>。前后两个状态被赋予<strong>不同的名字</strong>（<code>b</code> 和 <code>b'</code>），
+      操作的效果由一个<strong>关联二者的性质</strong>捕捉。</li>
+    <li>程序中的过程是<strong>操作式的（operational）</strong>：描述<em>如何通过修改状态分量来产生状态变化</em>。</li>
+    <li>Alloy 是<strong>声明式的（declarative）</strong>：描述<em>如何检查一个状态变化是否有效</em>，办法是比较前后的值。</li>
+  </ul>
+  <p style="margin-bottom:0">「Even though Alloy is declarative, it can still be executed much like an operational language.」
+  ——虽然是声明式的，它仍然可以像操作式语言那样被「执行」。这正是 SAT 求解带来的能力。</p>
+</div>
+
+<h3>「执行」这个操作</h3>
+<pre><code><span class="k">run</span> add <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">2</span> <span class="t">Book</span></code></pre>
+<p>这次把 Book 限制为 <strong>2</strong> 个（分别对应前值和后值）。结果 fig. 2.4 中，
+<strong>prestate</strong>（操作前的状态）显示在上方，<strong>poststate</strong>（操作后）在下方：
+prestate 里书是空的；poststate 里多了一条从 <code>Name0</code> 到 <code>Addr0</code> 的链接。</p>
+<div class="callout warn">
+  <span class="tag">注意图上的标签：add_n / add_a</span>
+  <p>name 节点被标上 <code>add_n</code>、address 节点被标上 <code>add_a</code>，
+  用以显示哪些对象被绑定到了 <code>add</code> 操作的参数 <code>n</code> 和 <code>a</code> 上。</p>
+  <p style="margin-bottom:0"><strong>这些标签后面会变得更重要——它们会显示断言被违反时的「见证者」（witnesses）。</strong>
+  这是 Alloy 可视化极其实用的一点：反例不只告诉你「有 bug」，还精确指出「是哪几个对象造成的」。</p>
+</div>
+
+<h3>把「操作本身」与「探索用的约束」分开</h3>
+<pre><code><span class="k">pred</span> showAdd (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span>) {
+  add (b, b', n, a)
+  <span class="o">#</span><span class="t">Name</span>.(b'.addr) <span class="o">&gt;</span> <span class="n">1</span>
+}
+<span class="k">run</span> showAdd <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">2</span> <span class="t">Book</span></code></pre>
+<p>新谓词 <code>showAdd</code> <strong>「调用」</strong>了已有谓词 <code>add</code>——效果与直接把 <code>add</code> 的约束内联进来没有区别，
+但<strong>这样更模块化</strong>。加的约束要求：操作后的地址簿有多于一个地址被映射到。</p>
+<div class="callout key">
+  <span class="tag">一个反直觉但极有用的事实</span>
+  <p>「Note that it's just as easy to constrain the state <strong>after</strong> as constraining the state <strong>before</strong>:
+  the analyzer is “executing” this operation <strong>backward</strong>.」</p>
+  <p style="margin-bottom:0">约束后置状态和约束前置状态一样容易——分析器是在<strong>反向「执行」</strong>这个操作。
+  命令式语言里这几乎不可能（你得手写逆操作），而声明式 + SAT 天然支持双向求解。
+  这解释了为什么 Alloy 操作<strong>不需要写成可执行风格</strong>。</p>
+</div>
+
+<h3>删除与查找：pred 与 fun 的区别首次出现</h3>
+<pre><code><span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>) {
+  b'.addr <span class="o">=</span> b.addr <span class="o">-</span> n <span class="o">-&gt;</span> <span class="t">Addr</span>
+}
+
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {
+  n.(b.addr)
+}</code></pre>
+<ul>
+  <li><code>del</code>：后书 = 前书 <strong>去掉</strong>所有从名字 n 到<em>任意</em>地址的链接。
+    注意 <code>n -&gt; Addr</code> 里的 <code>Addr</code> 是<strong>整个地址集合</strong>——又一次体现「算子对集合一视同仁」。</li>
+  <li><code>lookup</code> 写成<strong>函数</strong>而非谓词：<strong>它的体是一个表达式而不是一个约束</strong>，
+    说明查找的结果就是名字 n 在 b 的 addr 映射下所映射到的那组地址。</li>
+</ul>
+<table>
+  <thead><tr><th></th><th><code>pred</code></th><th><code>fun</code></th></tr></thead>
+  <tbody>
+    <tr><td><strong>体的内容</strong></td><td>公式 / 约束（boolean）</td><td>表达式（relation）</td></tr>
+    <tr><td><strong>返回</strong></td><td>真 / 假</td><td>一个关系（值）</td></tr>
+    <tr><td><strong>返回类型声明</strong></td><td>不需要</td><td>需要，如 <code>: set Addr</code></td></tr>
+    <tr><td><strong>用在哪</strong></td><td>作为约束参与合取</td><td>嵌入到表达式中</td></tr>
+  </tbody>
+</table>
+
+<h3>断言：delUndoesAdd 与第一个真 bug</h3>
+<p>接下来作者换了个玩法：不模拟单个操作，而是<strong>写关于操作组合（序列）行为的断言</strong>。第一个断言说「删除是添加的撤销操作」：</p>
+<pre><code><span class="k">assert</span> delUndoesAdd {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    add (b,b',n,a) <span class="k">and</span> del (b',b",n) <span class="k">implies</span> b.addr <span class="o">=</span> b".addr
+}
+<span class="k">check</span> delUndoesAdd <span class="k">for</span> <span class="n">3</span></code></pre>
+<div class="callout">
+  <span class="tag">assert / check 的语义</span>
+  <p><strong>断言</strong>是一个「意在有效」（intended to be valid）的约束——即对所有可能情形都为真。<br>
+  <code>check</code> 命令指示分析器<strong>不去找例子，而是找反例</strong>——一个断言被违反的场景。</p>
+</div>
+<p>它确实找到了（fig. 2.6）。<strong>奇怪的是，这个场景里只有两个不同的状态。</strong>
+如图所示，<code>b</code> 和 <code>b'</code>（第一、第二状态中书的值）<strong>都是 Book0</strong>。原因是：</p>
+<div class="callout pit">
+  <span class="tag">反例的根因</span>
+  <p><strong>要添加的那条 name/address 链接本来就已经存在</strong>，所以 <code>add</code> 的执行没有任何效果（b 和 b' 是同一个对象）。
+  而 <code>del</code> 的执行却把这条链接删掉了，得到空书。</p>
+  <p style="margin-bottom:0">于是「add 再 del」≠「什么都不做」。<strong>这不是模型的 bug，而是断言写得太宽。</strong></p>
+</div>
+<p>Jackson 在这里插入了一句非常诚实、非常值得记住的话：</p>
+<div class="callout warn">
+  <span class="tag">关于「事后显而易见」</span>
+  <p>「At least, it's not surprising <strong>in retrospect</strong>. Many of the issues raised by analysis are like bugs in code—
+  <strong>perfectly obvious once you've already seen them</strong>.」<br>
+  很多分析揭示的问题就像代码里的 bug——<em>一旦你已经看见它们，就完全显而易见</em>。
+  这句话既是对「这些问题不是很 trivial 吗」这类质疑的预防性回答，也点出了自动分析的真正价值：
+  <strong>它把「事后显而易见」提前成了「事前可见」。</strong></p>
+</div>
+
+<h3>修复断言：加上前置条件</h3>
+<pre><code><span class="k">assert</span> delUndoesAdd {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    <span class="k">no</span> n.(b.addr) <span class="k">and</span> add (b,b',n,a) <span class="k">and</span> del (b',b",n)
+      <span class="k">implies</span> b.addr <span class="o">=</span> b".addr
+}</code></pre>
+<p>把断言限定到「名字 n 原本没有条目」的情形（<code>no n.(b.addr)</code>）。现在 <code>check ... for 3</code> 找不到反例了。</p>
+
+<h3>关键反思：找不到反例 ≠ 断言有效</h3>
+<div class="callout pit">
+  <span class="tag">必须内化的一条</span>
+  <p>「The assertion may still be invalid, though.」——断言仍可能是无效的。
+  因为分析器只考虑了<strong>三本书、三个名字、三个地址</strong>的情形，涉及更多的反例是可能存在的。</p>
+</div>
+<p>于是<strong>调大 scope</strong>。三本书以上没意义，但名字和地址各给到 10：</p>
+<pre><code><span class="k">check</span> delUndoesAdd <span class="k">for</span> <span class="n">10</span> <span class="k">but</span> <span class="n">3</span> <span class="t">Book</span></code></pre>
+<p>这次耗时更长（在 2GHz Macintosh G5 上约 <strong>3 秒</strong>）。作者顺手做了一个极有说服力的算术：</p>
+<div class="card">
+  <h4>scope=10 到底有多大？</h4>
+  <ul style="margin-bottom:0">
+    <li>10 个名字和地址，每个名字有 <strong>11 种可能</strong>（映射到 10 个地址之一，或不映射）；</li>
+    <li>所以<strong>仅起始状态</strong>就有 <strong>11<sup>10</sup></strong> 种可能取值；</li>
+    <li>而且因为操作<strong>不必写成可执行风格</strong>，工具必须搜索<em>全部三本书</em>的可能取值——
+      于是共有超过 <strong>10<sup>30</sup></strong> 个案例要考虑。</li>
+  </ul>
+</div>
+<p>「Now you can see why this kind of analysis is more effective than testing.」——现在你能明白为什么这种分析比测试更有效。</p>
+<div class="qa">
+  <div class="q">Q：10<sup>30</sup> 个案例，怎么可能在 3 秒内查完？</div>
+  <div class="a">
+    <p>当然，分析器<strong>不会逐个构造并检查每个案例</strong>。即使每个案例只用一个处理器周期，
+    10<sup>30</sup> 个案例所需的时间也<strong>超过宇宙的年龄</strong>。</p>
+    <p style="margin-bottom:0">它靠的是<strong>剪枝可能性之树</strong>（pruning the tree of possibilities）——
+    能够<strong>排除大片子空间而无需完整检查它们</strong>。这正是 SAT 求解器（DPLL/CDCL）的核心能力。</p>
+  </div>
+</div>
+
+<h3>Small Scope Hypothesis · 小作用域假设（全书的思想基石）</h3>
+<div class="callout key">
+  <span class="tag">原文表述</span>
+  <p>「We still haven't proved the assertion is valid.」——我们仍<strong>没有证明</strong>断言有效。但直觉上，
+  如果真有问题，它却<strong>无法在一个只有 10 个名字和地址的反例中展示出来</strong>，这是非常不可能的。</p>
+  <p>走多远是建模者必须做的<strong>实用主义判断</strong>（pragmatic judgment）。随着 scope 增大，分析终将变得<strong>不可处理</strong>（intractable）。
+  这个权衡在<em>原则上</em>与「决定程序测得够不够」时面对的权衡并无不同。但实践中，
+  <strong>穷尽 scope=10 所提供的模型覆盖度，超过手写测试用例所能达到的任何程度。</strong></p>
+  <p style="margin-bottom:0">为什么？<strong>「Most flaws in models can be illustrated by small instances, since they arise from some
+  <em>shape</em> being handled incorrectly, and whether the shape belongs to a large or small instance makes no difference.」</strong><br>
+  模型中的大多数缺陷都能用小实例来说明，因为它们源于某个<strong>「形状」（shape）</strong>被处理错了——
+  而这个形状属于大实例还是小实例，毫无区别。所以如果分析考虑了所有小实例，大多数缺陷就会被揭示。<br>
+  <strong>这一观察被称为 small scope hypothesis（小作用域假设），是 Alloy 分析所依赖的根本前提。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：「shape」是理解小作用域假设的关键词</span>
+  <p>想想 <code>delUndoesAdd</code> 的那个反例：它需要的「形状」只是<em>一条已存在的链接</em>——
+  3 个名字就够了。真实系统里可能有百万个联系人，但 bug 的<em>形状</em>不会因此改变。
+  这与测试的差别是本质性的：手写测试用例只能覆盖你<em>想到的</em>形状，
+  而 scope 内的穷举覆盖<em>所有</em>能在这个规模下构造的形状。<strong>第 5 章会把这套论证严格化，并诚实指出它失效的边界（5.3 节）。</strong></p>
+</div>
+
+<h3>两个「代数风格」的断言</h3>
+<pre><code><span class="c">// ① add 是幂等的：重复添加没有效果</span>
+<span class="k">assert</span> addIdempotent {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    add (b,b',n,a) <span class="k">and</span> add (b',b",n,a) <span class="k">implies</span> b'.addr <span class="o">=</span> b".addr
+}
+
+<span class="c">// ② add 是局部的：给名字 n 加条目，不影响查另一个名字 n' 的结果</span>
+<span class="k">assert</span> addLocal {
+  <span class="k">all</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    add (b,b',n,a) <span class="k">and</span> n <span class="o">!=</span> n' <span class="k">implies</span> lookup (b,n') <span class="o">=</span> lookup (b',n')
+}</code></pre>
+<p>两个都<strong>没有反例</strong>。（<code>addLocal</code> 在 2.3 节引入间接引用后会失败，那是本章第二个重要发现。）</p>
+
+<div class="callout key">
+  <span class="tag">模拟谓词与断言 = 测试驱动与桩</span>
+  <p>fig. 2.7 的最终模型<strong>包含了模拟谓词、断言以及它们配套的命令</strong>。
+  原文：「These play the same role that <strong>test drivers and stubs</strong> play for code;
+  they are an <strong>integral part of the development</strong>.」</p>
+  <p style="margin-bottom:0">它们扮演代码中测试驱动与桩的角色，是开发不可分割的一部分。
+  <strong>当你修改模型时，你可以重新 check 断言、重新 run 模拟，就像改完代码跑回归测试一样。</strong>
+  ——这是把 Alloy 纳入日常工程流程的具体做法。</p>
+</div>
+
+<h3>fig. 2.7　简单地址簿的最终模型（完整）</h3>
+<pre><code><span class="k">module</span> tour/addressBook1
+<span class="k">sig</span> <span class="t">Name</span>, <span class="t">Addr</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="k">lone</span> <span class="t">Addr</span>}
+
+<span class="k">pred</span> show (b: <span class="t">Book</span>) {
+  <span class="o">#</span>b.addr <span class="o">&gt;</span> <span class="n">1</span>
+  <span class="o">#</span><span class="t">Name</span>.(b.addr) <span class="o">&gt;</span> <span class="n">1</span>
+}
+<span class="k">run</span> show <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">1</span> <span class="t">Book</span>
+
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span>) {b'.addr <span class="o">=</span> b.addr <span class="o">+</span> n <span class="o">-&gt;</span> a}
+<span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>) {b'.addr <span class="o">=</span> b.addr <span class="o">-</span> n <span class="o">-&gt;</span> <span class="t">Addr</span>}
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {n.(b.addr)}
+
+<span class="k">pred</span> showAdd (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span>) {
+  add (b, b', n, a)
+  <span class="o">#</span><span class="t">Name</span>.(b'.addr) <span class="o">&gt;</span> <span class="n">1</span>
+}
+<span class="k">run</span> showAdd <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">2</span> <span class="t">Book</span>
+
+<span class="k">assert</span> delUndoesAdd {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    <span class="k">no</span> n.(b.addr) <span class="k">and</span>
+      add (b,b',n,a) <span class="k">and</span> del (b',b",n) <span class="k">implies</span> b.addr <span class="o">=</span> b".addr
+}
+<span class="k">assert</span> addIdempotent {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    add (b,b',n,a) <span class="k">and</span> add (b',b",n,a) <span class="k">implies</span> b'.addr <span class="o">=</span> b".addr
+}
+<span class="k">assert</span> addLocal {
+  <span class="k">all</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, a: <span class="t">Addr</span> |
+    add (b,b',n,a) <span class="k">and</span> n <span class="o">!=</span> n'
+      <span class="k">implies</span> lookup (b,n') <span class="o">=</span> lookup (b',n')
+}
+<span class="k">check</span> delUndoesAdd <span class="k">for</span> <span class="n">10</span> <span class="k">but</span> <span class="n">3</span> <span class="t">Book</span>
+<span class="k">check</span> addIdempotent <span class="k">for</span> <span class="n">3</span>
+<span class="k">check</span> addLocal <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">2</span> <span class="t">Book</span></code></pre>
+
+<hr>
+
+<h2 id="s23"><span class="num">2.3</span>Classification Hierarchy · 分类层次</h2>
+<p>真实的地址簿应用里：你可以给一个地址建别名，然后<strong>把那个别名当作另一个别名的目标</strong>；
+而且一个别名可以命名多个目标，于是<strong>一组地址可以用单个名字引用</strong>。</p>
+<p>作者选择<strong>从头开始重写</strong>（而非在旧模型上改造），按需复用旧模型的片段。先是分类层次：</p>
+<pre><code><span class="k">module</span> tour/addressBook2
+<span class="k">abstract sig</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">abstract sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+<span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="t">Target</span>}</code></pre>
+
+<div class="fig">
+  <div style="text-align:center">
+    <div class="atom d" style="font-size:14px;padding:8px 20px">Target <span style="color:var(--ink-dim);font-size:11px">(abstract)</span></div>
+  </div>
+  <div style="text-align:center;color:var(--ink-dim);margin:6px 0">▲ extends　　　　　▲ extends</div>
+  <div class="rel" style="justify-content:center;gap:60px">
+    <div style="text-align:center">
+      <div class="atom b">Addr</div>
+    </div>
+    <div style="text-align:center">
+      <div class="atom" style="font-size:14px;padding:8px 20px">Name <span style="color:var(--ink-dim);font-size:11px">(abstract)</span></div>
+      <div style="color:var(--ink-dim);margin:6px 0">▲ extends　　▲ extends</div>
+      <div class="rel">
+        <div class="atom c">Alias</div>
+        <div class="atom c">Group</div>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:center;color:var(--ink-dim);margin:16px 0 6px">Book.addr : Name → Target</div>
+  <div class="cap">图 2-C　模型图（model diagram）：由分析器从文本<strong>自动生成</strong>的声明图形表示（对应原书 fig. 2.8）</div>
+</div>
+<p>关键变化：<code>Book</code> 的 <code>addr</code> 字段现在把名字映射到 <strong>target</strong>。
+一个 target 要么就是一个地址（同以前），要么<strong>本身就是一个名字</strong>；而名字要么是 group 要么是 alias。</p>
+<div class="callout idea">
+  <span class="tag">解读：这就是 Composite 模式的关系化</span>
+  <p><code>Name extends Target</code> 这一行是全部魔法所在。因为 <code>Name</code> 是 <code>Target</code> 的子类型，
+  <code>addr: Name -&gt; Target</code> 就<strong>自动允许名字指向名字</strong>，无需任何特殊机制。
+  同时 <code>abstract sig</code> 保证 <code>Target</code> 和 <code>Name</code> 没有「裸」实例——每个 target 必是 Addr 或 Name，
+  每个 name 必是 Alias 或 Group。这正是第 1 章许诺的「有子类型和并集但不需要向下转型」的类型系统。</p>
+</div>
+
+<h3>第一次模拟就暴露缺陷</h3>
+<pre><code><span class="k">pred</span> show (b: <span class="t">Book</span>) {<span class="k">some</span> b.addr}
+<span class="k">run</span> show <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">1</span> <span class="t">Book</span></code></pre>
+<p>分析器给出 fig. 2.9 的实例：<strong>一个别名映射到了它自己</strong>。
+「This is the first simulation we've done that clearly reveals a flaw to be remedied.」
+——这是我们做的第一次<strong>明确揭示出待修缺陷</strong>的模拟。</p>
+<div class="callout key">
+  <span class="tag">体会一下这件事</span>
+  <p>只写了 <code>some b.addr</code>（要一本非空的书）这么一句约束，工具就<strong>主动</strong>递给你一个自环实例。
+  没有人想到要测「别名指向自己」这种情形——它不在任何测试计划里。
+  <strong>这正是前言所说的「模拟会呈现你压根没想过的情况」。</strong>自环意味着 <code>lookup</code> 会陷入无限递归。</p>
+</div>
+
+<h3>修复：用传递闭包表达「不可达自身」</h3>
+<pre><code><span class="k">fact</span> {
+  <span class="k">all</span> b: <span class="t">Book</span> | <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(b.addr)
+}</code></pre>
+<p><strong>fact</strong> 是「假定永远成立」的约束。这条说：对任何书，不存在某个名字，
+它属于<strong>从它自身出发可达的 target 集合</strong>。</p>
+<div class="callout key">
+  <span class="tag">核心算子：传递闭包 ^</span>
+  <p><code>n.^(b.addr)</code> 表示从 n 出发可达的 target，用的是书 b 的地址映射的<strong>传递闭包</strong> <code>^(b.addr)</code>。</p>
+  <p style="margin-bottom:0">作者的直观解释：<br>
+  · <code>x.r</code> = 从对象 x 出发，经过<strong>一次</strong>关系 r 的应用所到的导航结果；<br>
+  · <code>x.^r</code> = 从对象 x 出发，经过<strong>一次或多次</strong> r 的应用所到的导航结果。</p>
+</div>
+
+<h3>signature fact：更地道的写法</h3>
+<p>像这种<strong>适用于某签名的每个成员</strong>的 fact，更好的写法是<strong>签名事实</strong>（signature fact）——
+量词和对具体成员的引用都是<strong>隐式</strong>的：</p>
+<pre><code><span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="t">Target</span>}
+ {<span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>addr}</code></pre>
+<div class="callout key">
+  <span class="tag">两处隐式化，务必看清</span>
+  <p>① 像面向对象程序中<strong>接收者（receiver）的字段引用</strong>一样，<code>addr</code> 现在隐式指 <code>this.addr</code>——
+  即一个<strong>原型书</strong>（archetypal book）的地址映射；<br>
+  ② <code>all b: Book |</code> 这个量词<strong>消失了</strong>。</p>
+  <p style="margin-bottom:0">注意 <code>n.^addr</code> 不再需要括号，因为 <code>addr</code> 是单个标识符，
+  而之前 <code>^(b.addr)</code> 必须加括号是因为 <code>b.addr</code> 是个复合表达式。</p>
+</div>
+
+<h3>三轮「模拟 → 发现问题 → 加 fact」</h3>
+<table>
+  <thead><tr><th>#</th><th>改谓词为</th><th>得到</th><th>判断</th><th>加的 fact</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>some b.addr</code></td>
+      <td>fig. 2.9：<strong>别名映射到自己</strong></td>
+      <td style="color:var(--danger)">缺陷，必修</td>
+      <td><code>no n: Name | n in n.^addr</code></td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td>（同上）</td>
+      <td>fig. 2.10：一个 group 含两个地址</td>
+      <td>正常，但想看别名 → 改谓词</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>some Alias.(b.addr)</code><br><span style="font-size:12.5px;color:var(--ink-dim)">要求「映射所有别名后应有某些目标」</span></td>
+      <td>fig. 2.11：<strong>一个别名映射到两个地址</strong></td>
+      <td style="color:var(--danger)">不可取——映射到多于一个目标的名字应该是 group，不是 alias</td>
+      <td><code>all a: Alias | lone a.addr</code></td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td>（同上）</td>
+      <td>fig. 2.12：<strong>别名映射到一个空 group</strong></td>
+      <td style="color:var(--warn)">新问题，且<strong>不好修</strong></td>
+      <td>见下</td>
+    </tr>
+  </tbody>
+</table>
+<p>合并后的 Book 签名：</p>
+<pre><code><span class="k">sig</span> <span class="t">Book</span> {addr: <span class="t">Name</span> <span class="o">-&gt;</span> <span class="t">Target</span>}
+ {
+   <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(addr)
+   <span class="k">all</span> a: <span class="t">Alias</span> | <span class="k">lone</span> a.addr
+ }</code></pre>
+
+<h3>空查找问题：把它变成显式的断言</h3>
+<p>fig. 2.12 意味着：<strong>你查一个名字，可能一个地址都拿不回来，尽管这个名字确实在地址簿里！</strong>
+作者补了一句现实观察：许多地址簿应用<strong>允许</strong>这种情况，然后（很不帮忙地）
+<strong>只在稍后发送消息时才报告失败</strong>。</p>
+<p>先把 Book 签名细化，让「书中包含哪些名字」显式化——加一个 <code>names</code> 字段，
+并把 <code>addr</code> 的声明改成「只映射这个集合中的名字，且每个至少映射到一个目标」：</p>
+<pre><code><span class="k">sig</span> <span class="t">Book</span> {
+  names: <span class="k">set</span> <span class="t">Name</span>,
+  addr: names <span class="o">-&gt;</span> <span class="k">some</span> <span class="t">Target</span> }
+ {
+   <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(addr)
+   <span class="k">all</span> a: <span class="t">Alias</span> | <span class="k">lone</span> a.addr
+ }</code></pre>
+<div class="callout key">
+  <span class="tag">一个高级技巧：用字段名作为关系定义域</span>
+  <p><code>addr: names -&gt; some Target</code> 中的 <code>names</code> <strong>不是一个签名，而是同一签名内的另一个字段</strong>。
+  Alloy 允许用字段来约束另一个字段的定义域，语义是「对每本书 b，b.addr 的定义域 ⊆ b.names」。
+  这种「字段引用字段」的能力让模型能表达非常精细的依赖关系。</p>
+</div>
+<p>然后加断言，声称「书中每个名字的查找都会产生结果」：</p>
+<pre><code><span class="k">assert</span> lookupYields {
+  <span class="k">all</span> b: <span class="t">Book</span>, n: b.names | <span class="k">some</span> lookup (b,n)
+}</code></pre>
+<p>检查它会得到一个跟 fig. 2.12 一样的反例。<strong>这个问题不容易修</strong>：
+我们可以简单加一条 fact 说「group 不能为空」，但<strong>如何维持这样的性质并不显然</strong>，所以先搁置，稍后回来（→ 2.4 节）。</p>
+<div class="callout idea">
+  <span class="tag">解读：这里体现的建模判断力</span>
+  <p>「group 非空」是一条<strong>不变式</strong>（invariant），而 <code>add</code> 可以随手创建空 group，
+  <code>del</code> 可以随手把 group 掏空。要用 fact 维持它，就得给每个操作加前置条件——
+  但作者此时还不确定该加什么。<strong>承认「先放着」是成熟建模者的标志</strong>：
+  与其草率加一条 fact 把模型搞得更难懂，不如先去 2.4 节用轨迹分析<em>看清这个问题是怎么产生的</em>，再对症下药。</p>
+</div>
+
+<h3>更新操作以匹配新模型</h3>
+<pre><code><span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {b'.addr <span class="o">=</span> b.addr <span class="o">+</span> n <span class="o">-&gt;</span> t}
+<span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {b'.addr <span class="o">=</span> b.addr <span class="o">-</span> n <span class="o">-&gt;</span> t}
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {n.<span class="o">^</span>(b.addr) <span class="o">&amp;</span> <span class="t">Addr</span>}</code></pre>
+<p>作者说「差别很小」，但每一处都值得看：</p>
+<ul>
+  <li><code>add</code> 现在接受一个 <strong>target</strong> 而非 address（因为可以加别名/组）。</li>
+  <li><code>del</code> 现在除名字外还接受一个 <strong>target</strong>。
+    <div class="callout warn" style="margin:8px 0">
+      <span class="tag">一个由工具驱动的设计发现</span>
+      <p style="margin-bottom:0">「At first I didn't see the need for the second argument of <code>del</code>,
+      but <strong>while exploring the model with the analyzer</strong>, I realized that without it
+      you wouldn't be able to remove just one target from a group.」<br>
+      作者一开始没看出 <code>del</code> 需要第二个参数，是<strong>在用分析器探索模型时</strong>才意识到：
+      没有它，你就<strong>无法只从 group 中移除一个目标</strong>。
+      ——这是一个绝佳例证：模型的工具化探索会<strong>反过来修正 API 设计</strong>。</p>
+    </div>
+  </li>
+  <li><code>lookup</code> 现在有意思多了，被<strong>推广到任意深度</strong>：
+    它跟随地址映射<strong>任意多次</strong>（而非仅一次）得到一组 target，
+    然后与地址集合<strong>求交</strong>（<code>&amp;</code>），从而返回从该名字可达的<strong>所有地址</strong>。</li>
+</ul>
+<div class="callout key">
+  <span class="tag">值得背下来的一行</span>
+  <p><code>n.^(b.addr) &amp; Addr</code></p>
+  <p style="margin-bottom:0">「沿关系走任意步，然后与某个类型求交」——这是 Alloy 里<strong>过滤出特定子类型</strong>的标准惯用法。
+  由于类型系统不需要向下转型，这种「闭包 + 交集」的组合就是类型收窄的全部手段。第 3 章会把 <code>^</code> 和 <code>&amp;</code> 严格定义。</p>
+</div>
+
+<h3>旧断言的复检：addLocal 失败了</h3>
+<table>
+  <thead><tr><th>断言</th><th>结果</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>delUndoesAdd</code></td><td style="color:var(--accent-2)">✓ 通过</td><td>（带上「名字原本未映射」的额外条件）</td></tr>
+    <tr><td><code>addIdempotent</code></td><td style="color:var(--accent-2)">✓ 通过</td><td>—</td></tr>
+    <tr><td><code>addLocal</code></td><td style="color:var(--danger)">✗ 失败</td><td>见下</td></tr>
+  </tbody>
+</table>
+<p>fig. 2.13 的反例中，注意那些标明<strong>谁是违反的见证者</strong>的标签：
+<code>n'</code> 是 <strong>Group1</strong>，它关联的地址被一次施加在 <code>n</code>（即 <strong>Group0</strong>）上的 <code>add</code> 改变了。</p>
+<div class="callout key">
+  <span class="tag">结论：这次不修模型</span>
+  <p>「Now that we have <strong>indirection</strong>, changing the binding of one alias or group can affect another.
+  This seems reasonable, and we decide that <strong>the model doesn't need to be fixed</strong>.」</p>
+  <p style="margin-bottom:0">既然现在有了间接引用，改变一个别名或组的绑定<strong>本来就可能</strong>影响另一个。
+  这看起来是合理的，所以我们决定<strong>模型不需要修改</strong>（是断言不再适用了）。</p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：反例的三种命运</span>
+  <p>本章已经完整展示了面对反例时的三种正确反应，这个分类非常有用：<br>
+  <strong>(a) 修断言</strong>——<code>delUndoesAdd</code>：模型合理，断言漏了前置条件；<br>
+  <strong>(b) 修模型</strong>——自环、别名多目标：断言/直觉合理，模型缺约束；<br>
+  <strong>(c) 撤销断言</strong>——<code>addLocal</code>：<em>引入间接引用后这个性质本来就不该成立</em>。<br>
+  第 (c) 类最考验判断力：你必须能说出「为什么这个性质在新设计下<em>不该</em>成立」，
+  而不是因为懒得修就把它删掉。</p>
+</div>
+
+<h3>fig. 2.14　分层地址簿的最终模型（完整）</h3>
+<pre><code><span class="k">module</span> tour/addressBook2
+
+<span class="k">abstract sig</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">abstract sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+
+<span class="k">sig</span> <span class="t">Book</span> {
+  names: <span class="k">set</span> <span class="t">Name</span>,
+  addr: names <span class="o">-&gt;</span> <span class="k">some</span> <span class="t">Target</span> }
+ {
+   <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(addr)
+   <span class="k">all</span> a: <span class="t">Alias</span> | <span class="k">lone</span> a.addr
+ }
+
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {b'.addr <span class="o">=</span> b.addr <span class="o">+</span> n <span class="o">-&gt;</span> t}
+<span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {b'.addr <span class="o">=</span> b.addr <span class="o">-</span> n <span class="o">-&gt;</span> t}
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {n.<span class="o">^</span>(b.addr) <span class="o">&amp;</span> <span class="t">Addr</span>}
+
+<span class="k">assert</span> delUndoesAdd {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span> |
+    <span class="k">no</span> n.(b.addr) <span class="k">and</span>
+      add (b,b',n,t) <span class="k">and</span> del (b',b",n, t) <span class="k">implies</span> b.addr <span class="o">=</span> b".addr
+}
+<span class="k">check</span> delUndoesAdd <span class="k">for</span> <span class="n">3</span>
+
+<span class="k">assert</span> addIdempotent {
+  <span class="k">all</span> b,b',b": <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span> |
+    add (b,b',n,t) <span class="k">and</span> add (b',b",n,t) <span class="k">implies</span> b'.addr <span class="o">=</span> b".addr
+}
+<span class="k">check</span> addIdempotent <span class="k">for</span> <span class="n">3</span>
+
+<span class="k">assert</span> addLocal {
+  <span class="k">all</span> b,b': <span class="t">Book</span>, n,n': <span class="t">Name</span>, t: <span class="t">Target</span> |
+    add (b,b',n,t) <span class="k">and</span> n <span class="o">!=</span> n'
+      <span class="k">implies</span> lookup (b,n') <span class="o">=</span> lookup (b',n')
+}
+<span class="k">check</span> addLocal <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">2</span> <span class="t">Book</span>   <span class="c">// 已知会失败，属预期</span>
+
+<span class="k">assert</span> lookupYields {
+  <span class="k">all</span> b: <span class="t">Book</span>, n: b.names | <span class="k">some</span> lookup(b,n)
+}
+<span class="k">check</span> lookupYields <span class="k">for</span> <span class="n">4</span> <span class="k">but</span> <span class="n">1</span> <span class="t">Book</span></code></pre>
+
+<hr>
+
+<h2 id="s24"><span class="num">2.4</span>Execution Traces · 执行轨迹</h2>
+<p>回到<strong>空查找</strong>问题。这次不只看坏状态，还要看<strong>它是怎么产生的</strong>。
+于是不再考虑单个步骤的效果，而是考虑<strong>整条轨迹</strong>——由从初始状态出发的多个步骤组成。</p>
+<div class="callout key">
+  <span class="tag">改动量惊人地小</span>
+  <p>「The body of the model remains <strong>unchanged</strong>.」——模型的主体<strong>保持不变</strong>。
+  需要做的只是：给地址簿<strong>加一个排序</strong>，并约束它，使得
+  ① 第一本书满足某些初始条件；② 排序中任意相邻的两本书由某个操作相关联。</p>
+</div>
+<pre><code><span class="k">module</span> tour/addressBook3
+<span class="k">open</span> util/ordering [<span class="t">Book</span>]
+…
+<span class="k">pred</span> init (b: <span class="t">Book</span>) {<span class="k">no</span> b.addr}
+<span class="k">fact</span> traces {
+  init (<span class="k">first</span> ())
+  <span class="k">all</span> b: <span class="t">Book</span> <span class="o">-</span> <span class="k">last</span> () | <span class="k">let</span> b' <span class="o">=</span> <span class="k">next</span> (b) |
+    <span class="k">some</span> n: <span class="t">Name</span>, t: <span class="t">Target</span> | add (b, b', n, t) <span class="k">or</span> del (b, b', n, t)
+}</code></pre>
+
+<h3>逐行拆解</h3>
+<dl class="term">
+  <dt>open util/ordering [Book]</dt>
+  <dd>排序由<strong>库模块</strong> <code>util/ordering</code> 提供。这个模块是<strong>泛型的</strong>——它可以对<em>任意类型</em>的集合排序——
+    所以打开时必须用一个类型<strong>实例化</strong>（这里是 <code>Book</code>）。
+    模块有自己的签名和字段，但通过三个函数访问：<code>first</code>（序中第一个元素）、
+    <code>next</code>（给定元素的后继）、<code>last</code>（最后一个）。</dd>
+  <dt>pred init (b: Book) {no b.addr}</dt>
+  <dd>给出<strong>初始条件</strong>：地址簿是空的。</dd>
+  <dt>init (first ())</dt>
+  <dd>轨迹中的<strong>第一本书</strong>满足初始条件。</dd>
+  <dt>all b: Book - last ()</dt>
+  <dd>「除最后一本外的每本书」。<code>-</code> 是<strong>集合差</strong>算子。</dd>
+  <dt>let b' = next (b) |</dt>
+  <dd><code>let</code> 引入一个<strong>局部别名</strong>，把 b 的后继命名为 b'，避免后面反复写 <code>next(b)</code>。</dd>
+  <dt>some n: Name, t: Target | add(...) or del(...)</dt>
+  <dd>b 与其后继 b' 由 <code>add</code> 或 <code>del</code> 的约束相关联。
+    <code>some</code> 是<strong>存在量词</strong>：存在某个名字和目标使得这一步成立。
+    注意——<strong>具体是哪个 n、哪个 t、用的是 add 还是 del，全由分析器自己选</strong>。</dd>
+</dl>
+
+<div class="callout idea">
+  <span class="tag">解读：这就是 Shlyakhter 的那个发明</span>
+  <p>前言致谢里说 Ilya Shlyakhter「发明了通过给每个关系加一列状态原子来表达动态的建模范式」。
+  这里看到的正是它：<strong>「轨迹」不是一种新的语言构造，只是 Book 集合上的一个全序 + 一条 fact。</strong>
+  Alloy 里没有 <code>transition</code>、<code>event</code>、<code>state machine</code> 这些关键字，
+  动态性完全由静态的关系结构承载。这也是为什么「模型主体保持不变」——
+  加动态不需要重写任何东西。第 2.5.1 节的最后一个问答会进一步解释这个设计选择。</p>
+</div>
+
+<h3>看一条样例轨迹</h3>
+<pre><code><span class="k">pred</span> show () {}
+<span class="k">run</span> show <span class="k">for</span> <span class="n">4</span></code></pre>
+<p>分析器生成 fig. 2.15 的轨迹：<strong>连续三次添加</strong>。图注说明：
+每个面板代表一个状态，<strong>从左上角的初始状态开始，顺时针方向推进</strong>。</p>
+<div class="callout key">
+  <span class="tag">最后一次添加很有意思</span>
+  <p>最后一步（让 <code>Group0</code> 成为 <code>Group1</code> 的成员）很有趣：<strong>它创建了通往同一个地址的两条路径</strong>。
+  「Again, we see how simulation generates cases that are <strong>thought-provoking</strong>,
+  even when they don't expose obvious flaws.」<br>
+  模拟生成的案例<strong>发人深省</strong>，即使它们没有暴露明显缺陷。</p>
+  <p style="margin-bottom:0">多条路径通向同一地址在真实邮件系统里意味着<strong>重复收件</strong>——
+  这不是「错」，但确实是个需要产品层面决策的问题。工具没有判断它，只是把它<strong>摆到你面前</strong>。</p>
+</div>
+
+<h3>用轨迹调查空查找问题</h3>
+<pre><code><span class="k">assert</span> lookupYields {<span class="k">all</span> b: <span class="t">Book</span>, n: b.names | <span class="k">some</span> lookup(b,n)}
+<span class="k">check</span> lookupYields <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">4</span> <span class="t">Book</span></code></pre>
+<p>断言与之前<strong>完全一样</strong>，但这次书集合被约束成一条轨迹，
+所以反例（fig. 2.16）展示了<strong>一系列操作如何导致一个坏状态</strong>。</p>
+<ul>
+  <li>注意标签 <code>lookupYields_n</code> 指出违反的<strong>见证者</strong>：<code>Group0</code>。</li>
+  <li>违反<strong>实际上在第一步之后就发生了</strong>，在状态 <code>Book1</code> 中——所以作者省略了另外两个状态。</li>
+  <li><strong>「A smaller scope would have sufficed.」</strong>——更小的 scope 本来就够了。</li>
+</ul>
+<div class="callout warn">
+  <span class="tag">根因</span>
+  <p>问题在于 <code>add</code> 允许把一个<strong>无意义的别名</strong>（one that refers to nothing，即不指向任何东西）加进一个 group。</p>
+</div>
+
+<h3>修复 ①：给 add 加前置条件</h3>
+<pre><code><span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {
+  t <span class="k">in</span> <span class="t">Addr</span> <span class="k">or</span> <span class="k">some</span> lookup (b,t)      <span class="c">// ← 前置条件</span>
+  b'.addr <span class="o">=</span> b.addr <span class="o">+</span> n <span class="o">-&gt;</span> t
+}</code></pre>
+<p>前置条件说：给定的目标<strong>要么是一个地址，要么在查找时至少解析出一个地址</strong>。</p>
+<p>再次检查断言，得到 fig. 2.17 的反例。<strong>这次问题出在删除上：我们删掉了一个 group 的最后一个成员。</strong></p>
+
+<h3>修复 ②：给 del 加前置条件</h3>
+<pre><code><span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {
+  <span class="k">no</span> b.addr.n <span class="k">or</span> <span class="k">some</span> n.(b.addr) <span class="o">-</span> t    <span class="c">// ← 前置条件</span>
+  b'.addr <span class="o">=</span> b.addr <span class="o">-</span> n <span class="o">-&gt;</span> t
+}</code></pre>
+<p>前置条件说：<strong>n 本身没有被映射到（<code>no b.addr.n</code>），或者除了 t 之外它还映射到别的目标（<code>some n.(b.addr) - t</code>）</strong>。</p>
+<div class="callout warn">
+  <span class="tag">作者的自我评价：draconian（严苛）</span>
+  <p>「We can fix this, <strong>albeit in a rather draconian manner</strong>, by forbidding such a deletion with a precondition.」
+  ——用前置条件禁止这种删除，虽然是<strong>相当严苛的</strong>办法。</p>
+  <p style="margin-bottom:0">这个自我批评很重要：真实产品里你<em>应该</em>允许删除 group 的最后一个成员（用户就是想清空它），
+  然后在 <code>lookup</code> 返回空时给出友好提示。模型这里选择「禁止」只是为了让断言通过、把讨论推进下去。
+  <strong>建模者必须时刻分清「模型的简化」与「设计的结论」。</strong></p>
+</div>
+<p style="color:var(--ink-dim);font-size:14px">
+  顺带注意 <code>no b.addr.n</code> 这个写法：<code>b.addr.n</code> 是从 book 出发经 addr 到 n 的导航，
+  它非空意味着「有某个名字映射到了 n」。所以 <code>no b.addr.n</code> = 「n 不是任何人的目标」。
+  这种情况下删除 n 的出边是安全的（n 反正查不到，谈不上 lookupYields）。
+</p>
+
+<h3>确认修复：把 scope 拉到 6</h3>
+<pre><code><span class="k">check</span> lookupYields <span class="k">for</span> <span class="n">6</span></code></pre>
+<p>现在找不到反例了。于是把 scope 提到 <strong>6</strong>，分析所有涉及 6 个 target 和 6 本地址簿的场景。
+「This is a much larger space, and analysis takes <strong>almost 2 minutes</strong>, but still no counterexample is found.」
+——这是个<strong>大得多</strong>的空间，分析花了将近 2 分钟，但仍然没有找到反例。</p>
+<div class="callout idea">
+  <span class="tag">解读：两个数字构成的现实图景</span>
+  <p>把本章的耗时数据串起来看：<code>for 3</code> → 瞬间；<code>for 10 but 3 Book</code>（单步分析）→ <strong>3 秒</strong>；
+  <code>for 6</code>（<strong>带轨迹</strong>，6 本书 6 个 target）→ <strong>近 2 分钟</strong>。</p>
+  <p style="margin-bottom:0">这说明两件事：① 加轨迹会让分析代价<strong>急剧上升</strong>（因为要搜索整条执行，而不是一次转移），
+  这也解释了作者为什么说「实践中通常一次只分析一个操作就够了」；
+  ② 2006 年 2GHz G5 上的 2 分钟，在今天大致是秒级——<strong>印证了前言的赌注：求解器变快，Alloy 就变快。</strong></p>
+</div>
+
+<h3>fig. 2.18　带轨迹的分层地址簿最终模型（完整）</h3>
+<pre><code><span class="k">module</span> tour/addressBook3
+<span class="k">open</span> util/ordering [<span class="t">Book</span>]
+
+<span class="k">abstract sig</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Addr</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">abstract sig</span> <span class="t">Name</span> <span class="k">extends</span> <span class="t">Target</span> {}
+<span class="k">sig</span> <span class="t">Alias</span>, <span class="t">Group</span> <span class="k">extends</span> <span class="t">Name</span> {}
+
+<span class="k">sig</span> <span class="t">Book</span> {
+  names: <span class="k">set</span> <span class="t">Name</span>,
+  addr: names <span class="o">-&gt;</span> <span class="k">some</span> <span class="t">Target</span> }
+ {
+   <span class="k">no</span> n: <span class="t">Name</span> | n <span class="k">in</span> n.<span class="o">^</span>(addr)
+   <span class="k">all</span> a: <span class="t">Alias</span> | <span class="k">lone</span> a.addr
+ }
+
+<span class="k">pred</span> add (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {
+  t <span class="k">in</span> <span class="t">Addr</span> <span class="k">or</span> <span class="k">some</span> lookup(b,t)
+  b'.addr <span class="o">=</span> b.addr <span class="o">+</span> n <span class="o">-&gt;</span> t
+}
+<span class="k">pred</span> del (b, b': <span class="t">Book</span>, n: <span class="t">Name</span>, t: <span class="t">Target</span>) {
+  <span class="k">no</span> b.addr.n <span class="k">or</span> <span class="k">some</span> n.(b.addr) <span class="o">-</span> t
+  b'.addr <span class="o">=</span> b.addr <span class="o">-</span> n <span class="o">-&gt;</span> t
+}
+<span class="k">fun</span> lookup (b: <span class="t">Book</span>, n: <span class="t">Name</span>): <span class="k">set</span> <span class="t">Addr</span> {
+  n.<span class="o">^</span>(b.addr) <span class="o">&amp;</span> <span class="t">Addr</span>
+}
+
+<span class="k">pred</span> init (b: <span class="t">Book</span>) {<span class="k">no</span> b.addr}
+<span class="k">fact</span> traces {
+  init (<span class="k">first</span> ())
+  <span class="k">all</span> b: <span class="t">Book</span> <span class="o">-</span> <span class="k">last</span> () | <span class="k">let</span> b' <span class="o">=</span> <span class="k">next</span> (b) |
+    <span class="k">some</span> n: <span class="t">Name</span>, t: <span class="t">Target</span> | add (b, b', n, t) <span class="k">or</span> del (b, b', n, t)
+}
+
+<span class="k">pred</span> show () {}
+<span class="k">run</span> show <span class="k">for</span> <span class="n">4</span>
+
+<span class="k">assert</span> lookupYields {
+  <span class="k">all</span> b: <span class="t">Book</span>, n: b.names | <span class="k">some</span> lookup (b,n)
+}
+<span class="k">check</span> lookupYields <span class="k">for</span> <span class="n">3</span> <span class="k">but</span> <span class="n">4</span> <span class="t">Book</span>
+<span class="k">check</span> lookupYields <span class="k">for</span> <span class="n">6</span></code></pre>
+
+<hr>
+
+<h2 id="s25"><span class="num">2.5</span>Summary · 小结</h2>
+<div class="callout">
+  <span class="tag">本章的目的（作者澄清）</span>
+  <p>这段短 tour 的目的<strong>不是</strong>展示这种建模风格能完成多少东西。
+  读完本书并做些练习后，你将能为更有趣的事物写出更精巧的模型。
+  它的目的是展示：<strong>要为一个软件设计问题获得洞见，你实际需要做的事有多么少。</strong>
+  我们最复杂的模型<strong>只有一页长</strong>，但这已足以探索一个真实系统中出现的若干问题。</p>
+</div>
+<p>接着是一句关于「trivial」的辩护，也是全书的态度宣言：</p>
+<div class="callout warn">
+  <span class="tag">关于「这些问题太琐碎」</span>
+  <p>「It's easy to dismiss the kinds of issue we looked at as <strong>trivial and obvious</strong>.
+  They often are—<strong>in retrospect</strong>, at least.」<br>
+  把我们看过的问题当作琐碎显然的东西而不予理会，这很容易。它们往往确实如此——<em>至少事后看来</em>。</p>
+  <p style="margin-bottom:0">「Indeed, the hardest, and most rewarding, challenge in software design is
+  <strong>reducing a mass of complicated, incongruous details to a few simple generalities</strong>.
+  <strong>Simplicity is the key to good software design.</strong>」<br>
+  软件设计中最困难、也最有价值的挑战，是<strong>把一大堆复杂而不协调的细节归约为少数几条简单的通则</strong>。
+  简洁是好软件设计的关键。</p>
+</div>
+
+<h3>「回顾这次建模练习，更有教益的是回想我们<em>没有</em>做什么」</h3>
+<p>这是本章的点睛之笔。六条「没做」，每一条都是对传统方法的对比：</p>
+<table>
+  <thead><tr><th>#</th><th>我们没做的事</th><th>细节与含义</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><strong>没有先写一个精细的模型再分析</strong></td>
+      <td>我们的第一次分析，施加在一个<strong>不到十行</strong>的模型上。模型是<strong>随着用分析器探索而增量开发</strong>的。</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><strong>没有用任何复杂数学或陌生符号</strong></td>
+      <td>Alloy 语言基于<strong>基本逻辑的简单概念</strong>，加上一个用于沿关系导航的<strong>特殊的点算子</strong>——
+        它类似于（但比）Java 的解引用点<strong>更灵活</strong>。</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><strong>没写任何可执行代码</strong>就能拿到样例状态、甚至样例轨迹</td>
+      <td>这一点有个<strong>本次 tour 没有利用到的重大优势</strong>：你可以写出一个操作的<strong>非常局部的描述</strong>，
+        允许许多不同的行为。（即：规格说明可以是<em>欠定的</em>，这在命令式语言里不可能。）</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><strong>没有写任何测试用例</strong></td>
+      <td>我们写的断言像是<strong>测试预言机</strong>（test oracles），用来检查结果。
+        写一个断言很少比写单个测试用例更麻烦，<strong>但它拥有一个大到无法想象的测试套件的覆盖度</strong>。</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><strong>没有以任何方式引导分析器</strong></td>
+      <td>除了给一个 scope 来限定分析范围之外，什么都没做。
+        <strong>没有证明步骤、没有引理、没有需要建议的启发式。</strong>（直接对比定理证明）</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><strong>不必担心误报</strong>（false alarms）</td>
+      <td>虽然断言的分析<strong>可能</strong>找不到反例（因为反例只存在于更大的 scope 中），
+        但它<strong>绝不会报告一个虚假的反例</strong>。<br>
+        <span style="color:var(--ink-dim);font-size:13.5px">（当然，反例仍可能是<em>不相关</em>的——因为断言不是我们本来的意图，
+        或者模型没有表达我们心里想的行为。这是<strong>建模错误</strong>，不是<strong>工具误报</strong>。）</span></td>
+    </tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">第 6 条是最强的保证，务必分清两件事</span>
+  <p>Alloy 分析的可靠性是<strong>单边</strong>的：<br>
+  · <strong>报出反例 → 100% 是真的</strong>（在模型的意义下）。绝不会有无中生有的警报，所以你不会浪费时间 chasing 幽灵。<br>
+  · <strong>没报反例 → 不保证没问题</strong>，只保证「在这个 scope 内没问题」。</p>
+  <p style="margin-bottom:0">这个不对称性是 Alloy 相比「近似分析 / 静态启发式检查器」的根本优势：
+  <strong>它的信噪比是完美的</strong>。而括号里那句补充同样重要——如果反例不相关，
+  那不是工具的错，而是<strong>你的断言或模型写错了</strong>，这本身也是有价值的发现。</p>
+</div>
+
+<h3>两种对照实验</h3>
+<div class="grid c2">
+  <div class="card">
+    <h4>如果全程用纸笔做？</h4>
+    <p style="color:var(--ink-soft);font-size:14.5px;margin-bottom:0">
+      「Without <strong>extraordinary discipline and perseverance</strong>, it's hard to motivate yourself to explore tricky issues.」
+      ——没有非凡的自律和毅力，你很难有动力去探索棘手的问题。<br><br>
+      而且即便真的探索了，我们大概<strong>也不会把它们表述得足够精确</strong>，
+      以至于可以<strong>与他人分享</strong>（或者供我们<strong>自己日后回忆</strong>）。
+      <span style="color:var(--ink-dim)">← 这一点常被忽略：模型的价值不只是发现 bug，还是<strong>可传递的设计文档</strong>。</span>
+    </p>
+  </div>
+  <div class="card">
+    <h4>如果用代码（比如 Java）做？</h4>
+    <p style="color:var(--ink-soft);font-size:14.5px;margin-bottom:0">
+      · 至少需要 <strong>5 个文件</strong>（仅仅为了表示那个分类层次）；<br>
+      · 一行的 <code>lookup</code> 操作会需要<strong>一个循环或递归</strong>、访问<strong>一个 hashtable</strong>、
+        并把结果<strong>累积到另一个数据结构</strong>里；<br>
+      · 我们唯一能做的分析就是<strong>执行几个固定的测试用例</strong>——
+        <strong>没有</strong>任意样例的生成、<strong>没有</strong>界内的穷举检查、<strong>没有</strong>结果的可视化显示。
+    </p>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="qa"><span class="num">2.5.1</span>Questions · 四个问答</h2>
+
+<div class="qa">
+  <div class="q">Q1：这种建模风格是新的吗？</div>
+  <div class="a">
+    <p><strong>不是。</strong>四条历史线索：</p>
+    <ul>
+      <li><strong>Jim Horning 与 John Guttag</strong> 在 <strong>1980 年</strong>的一篇论文里描述了一个<strong>非常相似</strong>的方法，
+        其中用<strong>定理证明器</strong>来交互式地回答关于候选设计的问题 [21]。
+        <strong>那篇论文是 Alloy 的主要灵感来源之一。</strong>
+        <span style="color:var(--ink-dim);font-size:13.5px">（前言里也说这篇论文「至今仍没有获得它应得的知名度」。）</span></li>
+      <li><strong>Z 记法</strong> [65]，1980 年代在牛津发展起来，<strong>其设计初衷就是鼓励增量式规格说明</strong>，
+        许多已发表的 Z 例子都证明了这一点。</li>
+      <li>若干工具能<strong>动画化（animate）规格说明</strong>：用于 UML 的 <strong>USE 工具</strong> [71] 和 <strong>VDMTools</strong> [2]，
+        它们从给定的初始状态出发<strong>执行操作并求值约束</strong>。</li>
+    </ul>
+    <p style="margin-bottom:0"><strong>Alloy 的新意不在风格，而在分析引擎</strong>：把定理证明换成 SAT，从而做到全自动、无需引导。</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q2：你探索的问题不是很琐碎吗？</div>
+  <div class="a">
+    <p>「With hindsight, <strong>most software design problems are trivial</strong>.
+    But if you don't address them head-on, <strong>trivial issues have a nasty habit of becoming nontrivial</strong>.」<br>
+    事后看来，大多数软件设计问题都是琐碎的。但如果你不正面处理它们，
+    <strong>琐碎的问题有个讨厌的习惯：变得不琐碎。</strong></p>
+    <p style="margin-bottom:0"><strong>一个扎心的现实例证</strong>（写书当时）：作者所知的大多数邮件客户端都<strong>没有优雅地处理空查找问题</strong>。
+    比如 <strong>Apple 的邮件客户端</strong>：它允许你在地址簿里创建<strong>空的 group 和 alias</strong>，
+    但（<em>没有任何解释性警告</em>）<strong>拒绝</strong>让你把它们放进邮件头。
+    而如果你创建一个<strong>唯一成员是空 alias 的 group</strong>，它<strong>允许</strong>你把这个 group 放进邮件头，
+    然后把一条<strong>格式错误的消息传给 SMTP 服务器</strong>，结果被<strong>退信</strong>。</p>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这个例子的分量</span>
+  <p>这不是随手举的例子，而是精确复现了本章 <code>lookupYields</code> 断言所捕捉的那个 shape：
+  <strong>局部检查（alias 非空）通过，但组合后（group 的唯一成员是空 alias）全局性质失败</strong>。
+  一个世界级的工程组织，在一个日常功能上，犯了一个 30 行 Alloy 模型 + 一次 <code>check</code> 就能抓到的错。
+  这就是「琐碎问题变得不琐碎」的实证。<strong>第 6.2 节的酒店房卡锁是同一论证的加强版——那是个真实的安全漏洞。</strong></p>
+</div>
+
+<div class="qa">
+  <div class="q">Q3：如何为 Alloy 分析选择 scope？</div>
+  <div class="a">
+    <p>每个命令（<code>check</code> 断言或 <code>run</code> 谓词）都指定一个 scope，给每个签名的元素数量设上界。存在权衡：</p>
+    <ul>
+      <li><strong>小 scope</strong>：可能<strong>漏掉</strong>实例；</li>
+      <li><strong>大 scope</strong>：分析<strong>更慢</strong>，而且倾向于产生<strong>更大、更难理解</strong>的实例。</li>
+    </ul>
+    <p style="margin-bottom:0"><strong>推荐工作方式：从小 scope 开始，如果找不到实例再逐步增大。</strong><br>
+    另外，<strong>某些签名的 scope 往往是明确的</strong>。例如：分析「从地址簿的一个值到另一个值的单次状态变化」这类转移，
+    <strong>只需要两本书</strong>。（这正是本章反复出现 <code>but 2 Book</code> 的原因。）</p>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q4：为什么 Alloy 里没有内建「执行」的概念？</div>
+  <div class="a">
+    <p><strong>不把某个特定的执行概念硬编码进语言，使得这个记法可以用于许多不同的惯用法（idioms）。</strong></p>
+    <p style="margin-bottom:0">举例：在第 6 章里，酒店锁方案的模型被开发了<strong>两个版本</strong>——</p>
+    <ul style="margin-bottom:0">
+      <li>一个用<strong>本章的惯用法</strong>：执行步骤满足具名的操作，但<strong>操作名本身不是执行的一部分</strong>；</li>
+      <li>另一个用的惯用法是：<strong>执行就是一系列具体的、具名的事件</strong>。</li>
+    </ul>
+  </div>
+</div>
+<div class="callout idea">
+  <span class="tag">解读：这是「机制 vs 策略」的经典取舍</span>
+  <p>Alloy 提供的是<strong>机制</strong>（关系 + 算子 + 排序库模块），不提供<strong>策略</strong>（什么叫「一次执行」）。
+  对比一下：模型检查语言（SMV、Promela/SPIN）把「状态机 + 转移」硬编码进语言，
+  于是你只能用那一种方式思考行为。Alloy 让你自由选择：</p>
+  <ul style="margin-bottom:0">
+    <li><strong>状态对</strong>（本章 2.2）：一次分析一个操作，最便宜；</li>
+    <li><strong>全序轨迹</strong>（本章 2.4）：<code>util/ordering</code>，看整条执行；</li>
+    <li><strong>具名事件序列</strong>（第 6 章酒店）：事件本身是原子，可以携带类型与参数；</li>
+    <li><strong>偏序 / 并发</strong>：自己定义因果序，适合分布式协议（第 6.1 节环上选举）。</li>
+  </ul>
+</div>
+
+<hr>
+
+<h2 id="cheat">本章语法速查：出现过的全部记法</h2>
+<div class="grid c2">
+  <div class="card">
+    <h4>声明类</h4>
+    <dl class="term" style="margin-bottom:0">
+      <dt>module tour/addressBook1</dt><dd>模块声明与路径名</dd>
+      <dt>sig Name, Addr {}</dt><dd>签名（对象集合），可一次声明多个</dd>
+      <dt>abstract sig Target {}</dt><dd>抽象签名：无直接实例，只能有子类型实例</dd>
+      <dt>sig Alias, Group extends Name {}</dt><dd>子类型声明，可共享父类</dd>
+      <dt>addr: Name -&gt; lone Addr</dt><dd>字段声明 + 重数（<code>lone</code>/<code>one</code>/<code>some</code>/<code>set</code>）</dd>
+      <dt>addr: names -&gt; some Target</dt><dd>用<strong>另一字段</strong>限定定义域</dd>
+      <dt>open util/ordering [Book]</dt><dd>打开泛型库模块并用类型实例化</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>定义类</h4>
+    <dl class="term" style="margin-bottom:0">
+      <dt>pred show (b: Book) { … }</dt><dd>谓词：体是<strong>公式</strong>，可带参数</dd>
+      <dt>fun lookup (…): set Addr { … }</dt><dd>函数：体是<strong>表达式</strong>，须声明返回类型</dd>
+      <dt>fact { … }</dt><dd>全局事实：假定永远成立</dd>
+      <dt>sig Book {…} { … }</dt><dd><strong>签名事实</strong>：隐式 <code>all this: Book |</code>，字段隐式为 <code>this.addr</code></dd>
+      <dt>assert delUndoesAdd { … }</dt><dd>断言：意在普遍有效的约束</dd>
+      <dt>run show for 3 but 1 Book</dt><dd>找实例；scope=3，Book 例外为 1</dd>
+      <dt>check delUndoesAdd for 10</dt><dd>找反例</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>关系 / 集合算子</h4>
+    <dl class="term" style="margin-bottom:0">
+      <dt>n -&gt; a</dt><dd>构造元组（product）</dd>
+      <dt>b.addr　／　n.(b.addr)</dt><dd>join（导航）；复合表达式须加括号</dd>
+      <dt>Name.(b.addr)</dt><dd>join 作用于<strong>整个集合</strong></dd>
+      <dt>b.addr + n -&gt; a</dt><dd>集合并（union）</dd>
+      <dt>b.addr - n -&gt; Addr</dt><dd>集合差（difference）</dd>
+      <dt>n.^(b.addr) &amp; Addr</dt><dd><code>&amp;</code> 集合交（intersection），用于类型收窄</dd>
+      <dt>n.^addr</dt><dd><strong>传递闭包</strong>：一次或多次</dd>
+      <dt>#b.addr &gt; 1</dt><dd><code>#</code> 基数（cardinality）</dd>
+      <dt>t in Addr</dt><dd>集合成员 / 子集判定</dd>
+      <dt>Book - last ()</dt><dd>集合差用于「除最后一个外」</dd>
+    </dl>
+  </div>
+  <div class="card">
+    <h4>逻辑连接词与量词</h4>
+    <dl class="term" style="margin-bottom:0">
+      <dt>all b,b': Book | …</dt><dd>全称量词，多变量同类型可合并声明</dd>
+      <dt>some n: Name, t: Target | …</dt><dd>存在量词</dd>
+      <dt>no n: Name | …</dt><dd>= <code>not some</code>，「不存在」</dd>
+      <dt>some b.addr　／　no b.addr</dt><dd>不带量词的 <code>some</code>/<code>no</code>：非空 / 为空</dd>
+      <dt>p and q　p or q</dt><dd>合取 / 析取（<strong>换行即隐式 and</strong>）</dd>
+      <dt>p implies q</dt><dd>蕴含</dd>
+      <dt>n != n'</dt><dd>不等（<code>=</code> 的否定）</dd>
+      <dt>let b' = next (b) | …</dt><dd>局部别名绑定</dd>
+      <dt>first () / next (b) / last ()</dt><dd>来自 <code>util/ordering</code> 的排序函数</dd>
+    </dl>
+  </div>
+</div>
+
+<h2>一句话总结第 2 章</h2>
+<div class="card">
+  <p style="font-size:16.5px;margin:0">
+    用<strong>不到十行</strong>声明一个结构，用 <code>run</code> 让工具<strong>主动</strong>递给你想不到的实例，
+    用 <code>assert</code> + <code>check</code> 让工具在<strong>数十亿案例</strong>里替你找反例，
+    用<strong>反例上的 witness 标签</strong>定位根因，然后修模型 / 修断言 / 撤销断言——
+    如此循环，一页纸的模型就能探索一个真实系统的设计问题。
+    全过程<strong>不需要</strong>：可执行代码、测试用例、数学符号、证明引导，
+    也<strong>不会</strong>有误报。这就是 lightweight formal methods 的手感。
+  </p>
+</div>
+
+<div class="pager">
+  <a href="ch1.html"><div class="d">← 上一章</div><div class="n">1 · Introduction 导论</div></a>
+  <a href="ch3.html" class="next"><div class="d">下一章</div><div class="n">3 · Logic 逻辑 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 第 2 章</div>
+</div>
+</body>
+</html>
