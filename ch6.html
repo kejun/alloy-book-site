@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第 6 章 · Examples 案例 · Software Abstractions 解读</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">Alloy<span>·</span>Software Abstractions</div>
+  <div class="crumb">第 6 章 · 案例</div>
+  <nav class="navlinks">
+    <a href="index.html">目录</a>
+    <a href="preface.html">前言</a>
+    <a href="ch1.html">1</a><a href="ch2.html">2</a><a href="ch3.html">3</a>
+    <a href="ch4.html">4</a><a href="ch5.html">5</a><a href="ch6.html" class="on">6</a>
+    <a href="appA.html">A</a><a href="appB.html">B</a><a href="appC.html">C</a>
+    <a href="appD.html">D</a><a href="appE.html">E</a>
+  </nav>
+</div></div>
+
+<div class="wrap">
+<h1><span class="num">6</span>Examples · 四个案例</h1>
+<p class="sub">原书 p. 169–227 · 全书最长的一章，四个完整案例，每个示范一类不同的应用：<strong>环形领导者选举</strong>（分布式算法 + 迹 idiom）、<strong>酒店门锁</strong>（环境中的其他行动者 + 事件式变体）、<strong>媒体资产管理</strong>（真实软件的特性交互）、<strong>内存抽象</strong>（教科书问题 + 抽象函数）。</p>
+
+<div class="toc">
+  <div class="t">本章地图</div>
+  <ol>
+    <li><a href="#s61">6.1 环形领导者选举</a>
+      <ol><li>6.1.1 拓扑与状态组件 · 6.1.2 协议动态 · 6.1.3 引入迹 · 6.1.4 动态分析 · 6.1.5 计算机器直径</li></ol></li>
+    <li><a href="#s62">6.2 酒店房间门锁</a>
+      <ol><li>6.2.1 状态组件与钥匙排序 · 6.2.2 酒店操作 · 6.2.3 分析 · 6.2.4 事件式变体</li></ol></li>
+    <li><a href="#s63">6.3 媒体资产管理</a>
+      <ol><li>6.3.1 目录与应用状态 · 6.3.2 操作 · 6.3.3 分析 · 6.3.4 洞见</li></ol></li>
+    <li><a href="#s64">6.4 内存抽象</a>
+      <ol><li>6.4.1 抽象内存 · 6.4.2 缓存内存 · 6.4.3 定长内存 · 6.4.4 抽象函数速览 · 6.4.5 缓存的抽象函数 · 6.4.6 历史变量</li></ol></li>
+    <li><a href="#sum">第 6 章小结</a></li>
+  </ol>
+</div>
+
+<div class="callout">
+  <span class="tag">四个案例各自示范什么</span>
+  <table>
+    <thead><tr><th>案例</th><th>类型</th><th>示范的方法</th></tr></thead>
+    <tbody>
+      <tr><td><strong>6.1 环形领导者选举</strong></td><td>著名的分布式算法</td><td>如何<strong>建模局部动作、检验全局性质</strong>，使用一种<strong>基于「迹（trace）」的 idiom</strong>，其中<strong>步骤被建模为谓词</strong></td></tr>
+      <tr><td><strong>6.2 酒店门锁</strong></td><td>可重编码门锁，给出<strong>两种形式</strong>：迹 idiom + 显式事件变体</td><td><strong>方法论上比第一个更有趣</strong>，因为它<strong>不是纯算法的</strong>：涉及对系统环境中<strong>其他行动者行为的假设</strong>（即入住与退房的客人）</td></tr>
+      <tr><td><strong>6.3 媒体资产管理</strong></td><td>照片/影片浏览程序的两个简单特性</td><td><strong>风味非常不同，更接近软件工程师实践中的建模</strong>；展示<strong>通过思考简单的代数性质来暴露设计上的微妙之处</strong></td></tr>
+      <tr><td><strong>6.4 内存抽象</strong></td><td>教科书问题</td><td>用<strong>抽象函数</strong>论证一个内存实现的正确性；展示 Alloy 如何<strong>自动化一个熟悉的分析</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2 id="s61"><span class="num">6.1</span>Leader Election in a Ring · 环形领导者选举</h2>
+
+<h3>问题与协议</h3>
+<p>许多分布式协议需要<strong>一个进程扮演领导者角色</strong>来协调其他进程。<strong>预先指派领导者不可行</strong>，所以需要某种机制，让一组<strong>运行同一程序的通信进程</strong>能够<strong>动态地「选举」出一个领导者</strong>。</p>
+<p>考虑进程构成一个<strong>环</strong>的情形。由于<strong>通信拓扑是对称的，我们必须到别处寻找可利用的不对称性</strong>。我们假定进程有<strong>唯一的、全序的标识符</strong>——例如它们所在机器网卡的序列号（所谓的 <strong>MAC ID</strong>）。<strong>领导者将是标识符最大的那个进程。</strong></p>
+<div class="callout key">
+  <span class="tag">协议 [8]</span>
+  <p>进程把自己的标识符当作 <strong>Token</strong>，沿环朝某个方向（比如顺时针）传递。每个进程检查它收到的每个标识符：</p>
+  <ul>
+    <li>标识符<strong>小于</strong>自己的 ⇒ <strong>消费掉这个 token</strong>；</li>
+    <li>标识符<strong>大于</strong>自己的 ⇒ <strong>把 token 继续传下去</strong>；</li>
+    <li>标识符<strong>等于</strong>自己的 ⇒ 它知道 token 已经<strong>绕环一整圈</strong>，于是<strong>选举自己为领导者</strong>。</li>
+  </ul>
+</div>
+
+<div class="callout idea">
+  <span class="tag">建模分布式算法的原则：尽量少做假设</span>
+  <p>建模分布式算法时，你要<strong>对通信与调度做尽可能少的假设</strong>。显然算法必须对<strong>进程执行的所有交错（interleaving）</strong>都成立，因为进程是并发的。<strong>理想情况下，即使消息在进程之间被缓冲、被重排序、甚至被丢弃，它也应该成立。</strong></p>
+  <p>作者的取舍：<strong>不建模进程之间的显式消息缓冲区，而是给每个进程一个 token 池（pool）</strong>。在一步中，一个 token 可以从一个进程的池里取出、移到它在环中的后继的池里。<strong>token 的选择是任意的</strong>（以建模重排序），<strong>参与某一步的进程的选择也是任意的</strong>（以建模并发）。<strong>消息投递是可靠的</strong>，但要修改模型以允许消息被丢弃是很容易的。</p>
+</div>
+
+<h3>6.1.1 Topology and State Components · 拓扑与状态组件</h3>
+<p>首先命名模块并导入全序库模块，把它分别应用到<strong>表示时间步的 signature</strong> 和<strong>表示环中进程的 signature</strong>：</p>
+<pre><code><span class="k">module</span> examples/ringElection
+<span class="k">open</span> util/ordering[<span class="t">Time</span>] <span class="k">as</span> TO
+<span class="k">open</span> util/ordering[<span class="t">Process</span>] <span class="k">as</span> PO
+<span class="k">sig</span> <span class="t">Time</span> {}</code></pre>
+<div class="callout idea">
+  <span class="tag">一个巧妙的省略</span>
+  <p><strong>不需要「进程标识符」这个特殊概念——代表进程的那个原子本身也就充当它的标识符。</strong>这是 Alloy「原子无解释」特性的直接收益：你不必为「ID」再造一个 signature。</p>
+</div>
+
+<pre><code><span class="k">sig</span> <span class="t">Process</span> {
+  succ: <span class="t">Process</span>,             <span class="c">// 后继进程（环中一侧的邻居）</span>
+  toSend: <span class="t">Process</span> -&gt; <span class="t">Time</span>,  <span class="c">// 待沿环发送的「进程标识符」池</span>
+  elected: <span class="k">set</span> <span class="t">Time</span>        <span class="c">// 它认为自己被选为领导者的那些时刻</span>
+}</code></pre>
+
+<div class="callout key">
+  <span class="tag">「加上 Time 列」= 让关系变成动态的（本章最核心的 idiom）</span>
+  <p><code>Time</code> signature <strong>没有出现在 <code>succ</code> 字段的声明中，因为拓扑是静态的</strong>。<strong>给一个关系加上一列 Time，就使它变成动态的。</strong></p>
+  <table style="margin-top:.6em">
+    <thead><tr><th>字段</th><th>没有 Time 列</th><th>加上 Time 列</th></tr></thead>
+    <tbody>
+      <tr><td><code>toSend</code></td><td>只是进程之间的关系，<code>p.toSend</code> 表示一个进程集合</td><td>变成关系，<strong><code>p.toSend.t</code> 是在时刻 t 与 p 关联的进程集合</strong></td></tr>
+      <tr><td><code>elected</code></td><td>会是一个进程集合</td><td>变成关系，<strong><code>elected.t</code> 是在时刻 t 被选为领导者的进程集合</strong>；<strong><code>p.elected</code> 是进程 p 被选中的那些时刻的集合</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<p>进程要构成一个环。<code>succ</code> 的声明已确保每个进程<strong>恰好有一个后继</strong>，所以只需再加一条约束：<strong>从任意进程出发反复跟随 succ，所有进程都可达</strong>：</p>
+<pre><code><span class="k">fact</span> Ring {<span class="k">all</span> p: <span class="t">Process</span> | <span class="t">Process</span> <span class="k">in</span> p.<span class="o">^</span>succ}</code></pre>
+
+<div class="fig">
+<pre><code><span class="k">module</span> examples/ringElection
+<span class="k">open</span> util/ordering[<span class="t">Time</span>] <span class="k">as</span> TO
+<span class="k">open</span> util/ordering[<span class="t">Process</span>] <span class="k">as</span> PO
+<span class="k">sig</span> <span class="t">Time</span> {}
+<span class="k">sig</span> <span class="t">Process</span> { succ: <span class="t">Process</span>, toSend: <span class="t">Process</span> -&gt; <span class="t">Time</span>, elected: <span class="k">set</span> <span class="t">Time</span> }
+<span class="k">fact</span> Ring {<span class="k">all</span> p: <span class="t">Process</span> | <span class="t">Process</span> <span class="k">in</span> p.<span class="o">^</span>succ}
+
+<span class="k">pred</span> init (t: <span class="t">Time</span>) {<span class="k">all</span> p: <span class="t">Process</span> | p.toSend.t = p}
+<span class="k">pred</span> step (t, t': <span class="t">Time</span>, p: <span class="t">Process</span>) {
+  <span class="k">let</span> from = p.toSend, to = p.succ.toSend |
+    <span class="k">some</span> id: from.t {
+      from.t' = from.t - id
+      to.t' = to.t + (id - PO/prevs(p.succ))
+    }
+}
+<span class="k">pred</span> skip (t, t': <span class="t">Time</span>, p: <span class="t">Process</span>) {p.toSend.t = p.toSend.t'}
+
+<span class="k">fact</span> Traces {
+  init (TO/first ())
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t) |
+    <span class="k">all</span> p: <span class="t">Process</span> |
+      step (t, t', p) <span class="k">or</span> step (t, t', succ.p) <span class="k">or</span> skip (t, t', p)
+}
+<span class="k">fact</span> DefineElected {
+  <span class="k">no</span> elected.TO/first()
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/first()|
+    elected.t = {p: <span class="t">Process</span> | p <span class="k">in</span> p.toSend.t - p.toSend.(TO/prev(t))}
+}
+<span class="k">assert</span> AtMostOneElected {<span class="k">lone</span> elected.<span class="t">Time</span>}
+<span class="k">check</span> AtMostOneElected <span class="k">for</span> 3 <span class="t">Process</span>, 7 <span class="t">Time</span></code></pre>
+<div class="cap">fig. 6.1 环形领导者选举，第 1 部分。模型图（fig. 6.3）：<code>Process</code> 框上有 <code>! succ !</code>（自环）与 <code>toSend.&lt;Time&gt;</code>、<code>elected</code> 两条指向 <code>Time</code> 的弧。</div>
+</div>
+
+<div class="fig">
+<pre><code><span class="k">pred</span> progress () {
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t) |
+    <span class="k">some</span> <span class="t">Process</span>.toSend.t =&gt;
+      <span class="k">some</span> p: <span class="t">Process</span> | <span class="k">not</span> skip (t, t', p)
+}
+<span class="k">assert</span> AtLeastOneElected { progress () =&gt; <span class="k">some</span> Elected.<span class="t">Time</span> }
+
+<span class="k">pred</span> looplessPath () {<span class="k">no disj</span> t, t': <span class="t">Time</span> | toSend.t = toSend.t'}
+<span class="k">run</span> looplessPath <span class="k">for</span> 13 <span class="t">Time</span>, 3 <span class="t">Process</span></code></pre>
+<div class="cap">fig. 6.2 环形领导者选举，第 2 部分。</div>
+</div>
+
+<h4>6.1.1 Discussion</h4>
+<div class="qa">
+  <div class="q">Q：为什么要为「排序」这么简单的概念导入库模块？</div>
+  <div class="a"><p><strong>把标准概念抽取到库里总是好的</strong>：它<strong>降低理解模型的认知负担</strong>（模型使用标准词汇与概念时），并<strong>降低犯错的风险</strong>——<strong>即使是简单的排序也可能写错</strong>。</p>
+  <p>在这个例子里还有<strong>性能优势</strong>：应用于 <code>util/ordering</code> 的<strong>对称破缺被硬连线进了 Analyzer 的实现</strong>，它依赖排序的某个性质，<strong>而这个性质很难从库模块的文本中推断出来</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么时间在字段声明中显式出现？</div>
+  <div class="a"><p>替代方案是在 Alloy 中引入<strong>「可变字段」的概念</strong>。那会<strong>让语言复杂化</strong>，并且<strong>把用户绑死在某一种特定的 idiom 上</strong>。</p>
+  <p><strong>当时刻像任何其他原子一样出现在关系里时，整套关系算子的 repertoire 都能被应用。</strong>例如表达式 <code>elected.Time</code> 表示「在<strong>任意</strong>时刻被选中的进程集合」。<strong>声明约束也能用来表达动态性质</strong>：</p>
+<pre><code>elected <span class="k">in</span> <span class="t">Process</span> <span class="k">lone</span> -&gt; <span class="t">Time</span>   <span class="c">// 任意时刻至多一个进程被选中</span>
+toSend: (<span class="t">Process</span> <span class="k">lone</span> -&gt; <span class="t">Process</span>) -&gt; <span class="t">Time</span>
+<span class="c">// 任意时刻，每个进程标识符至多驻留在一个进程的发送池中</span></code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么把 Time signature 放在字段声明的<strong>末尾</strong>？</div>
+  <div class="a"><p>乍看之下，把 Time 列放在开头似乎更自然：</p>
+<pre><code><span class="k">sig</span> <span class="t">Process</span> {toSend: <span class="t">Time</span> -&gt; <span class="t">Process</span>}   <span class="c">// 而非 Process -&gt; Time</span></code></pre>
+<p><strong>大多数情况下唯一的差别只是 join 参数的位置</strong>：进程 p 在时刻 t 的池中的进程，前者写作 <code>p.toSend[t]</code>（或 <code>t.(p.toSend)</code>），后者写作 <code>p.toSend.t</code>。</p>
+<div class="callout warn" style="margin-top:.6em">
+  <span class="tag">但注意</span>
+  <p>在<strong>第一种</strong>写法中，因为字段声明在 <code>Process</code> 内，<code>toSend</code> 是一个<strong>第一列为 Process 的三元关系</strong>——所以 <strong>Time 列出现在中间而不是末尾</strong>。当你用关系算子写表达式时，这就成了不便。</p>
+</div>
+<p>用<strong>第二种</strong>声明形式，表达式 <code>toSend.t</code> 表示一个<strong>从 Process 到 Process 的关系</strong>：当 p 在时刻 t 的池中持有 q 的标识符时，它把 p 映射到 q。这让写这类约束变得容易：</p>
+<pre><code>toSend.t = <span class="t">Process</span> &lt;: iden   <span class="c">// 该关系是进程上的恒等关系（正是 6.1.2 的初始化条件）</span></code></pre>
+<p>类似地，如果环拓扑是动态的（<code>sig Process {succ: Process -&gt; Time}</code>），无环条件可以从</p>
+<pre><code><span class="k">fact</span> Ring {<span class="k">all</span> p: <span class="t">Process</span> | <span class="t">Process</span> <span class="k">in</span> p.<span class="o">^</span>succ}</code></pre>
+<p>轻松扩展为</p>
+<pre><code><span class="k">fact</span> Ring {<span class="k">all</span> t: <span class="t">Time</span>, p: <span class="t">Process</span> | <span class="t">Process</span> <span class="k">in</span> p.<span class="o">^</span>(succ.t)}</code></pre>
+<p>若 Time 列在中间，这些约束就<strong>没法写得这么方便</strong>——你不得不写类似 <code>{p, q: Process | p -&gt; t -&gt; q in succ}</code> 的东西，而不能写 <code>succ.t</code>。</p>
+<p><strong>简言之，问题的实质是：Time 列出现在关系的外侧还是中间。如果在中间，你就无法写一个简单的 join 表达式来表示「关系在给定时刻 t 的值」。</strong></p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么不把 Time signature 放在关系的<strong>最前面</strong>？</div>
+  <div class="a"><p>所以更好的问题是：为什么 Time 列写在<strong>最后</strong>而不是<strong>最前</strong>。确实，在这个模型里，写成下面这样几乎没差别：</p>
+<pre><code><span class="k">sig</span> <span class="t">Process</span> { succ: <span class="t">Process</span> }
+<span class="k">sig</span> <span class="t">Time</span> { toSend: <span class="t">Process</span> -&gt; <span class="t">Process</span>, elected: <span class="k">set</span> <span class="t">Process</span> }</code></pre>
+<table style="margin-top:.6em">
+  <thead><tr><th></th><th>动态字段挂在 Process 上（本书用法）</th><th>动态字段挂在 Time 上</th></tr></thead>
+  <tbody>
+    <tr><td><strong>风格渊源</strong></td><td>令人想起<strong>面向对象编程</strong></td><td>大多数<strong>传统建模语言</strong>（如 Z 和 VDM）使用的 idiom；这种情况下叫 <code>State</code> 比叫 <code>Time</code> 更合适</td></tr>
+    <tr><td><strong>特点</strong></td><td>把单个对象的<strong>所有静态与动态方面打包在一起</strong>；允许用 signature 扩展对对象分类</td><td>有一个<strong>全局状态</strong>；<strong>更干净地分离静态与动态方面</strong>；支持一种<strong>状态被增量地增长</strong>的建模风格（在 Z 中常见）</td></tr>
+    <tr><td><strong>书中用在哪</strong></td><td>6.1、6.2</td><td><strong>6.3 的媒体资产例子</strong></td></tr>
+  </tbody>
+</table></div>
+</div>
+
+<h3>6.1.2 Protocol Dynamics · 协议动态</h3>
+<p>协议本身分三个阶段描述。</p>
+<dl class="term">
+  <dt>① 初始条件：每个进程只准备好发送自己的标识符</dt>
+  <dd><pre><code><span class="k">pred</span> init (t: <span class="t">Time</span>) { <span class="k">all</span> p: <span class="t">Process</span> | p.toSend.t = p }</code></pre></dd>
+  <dt>② 允许的状态迁移：从池中任取一个标识符，移到后继的池里</dt>
+  <dd><pre><code><span class="k">pred</span> step (t, t': <span class="t">Time</span>, p: <span class="t">Process</span>) {
+  <span class="k">let</span> from = p.toSend, to = p.succ.toSend |
+    <span class="k">some</span> id: from.t {                 <span class="c">// 任意选一个标识符</span>
+      from.t' = from.t - id           <span class="c">// 从 p 的池中移除</span>
+      to.t' = to.t + (id - PO/prevs(p.succ))   <span class="c">// 加入后继的池（或被消费）</span>
+    }
+}</code></pre>
+  <div class="callout key" style="margin-top:.5em">
+    <span class="tag"><code>id - PO/prevs(p.succ)</code> 在做什么</span>
+    <p>它从「只含标识符 id 的单例集合」中<strong>减去所有先于 <code>p.succ</code> 的标识符</strong>。这就<strong>建模了 token 的消费</strong>：<strong>如果 token 中的标识符大于接收进程的标识符，它就被放进池中等待转发；否则它被丢弃。</strong></p>
+    <p><strong>不要被这里的两个不同的排序搞混：</strong>一个是<strong>进程绕环的排序</strong>，一个是<strong>标识符的排序</strong>。表达式 <code>p.succ</code> 表示 p 在<strong>环中</strong>的标识符后继；对它应用函数 <code>PO/prevs</code>，得到的是<strong>在标识符空间中先于它的那些进程标识符的集合</strong>。</p>
+  </div></dd>
+  <dt>③ 被选中进程的指定</dt>
+  <dd><pre><code><span class="k">fact</span> DefineElected {
+  <span class="k">no</span> elected.TO/first()                    <span class="c">// 第一个时刻没有进程被选中</span>
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/first()|
+    elected.t = {p: <span class="t">Process</span> |
+      p <span class="k">in</span> p.toSend.t - p.toSend.(TO/prev(t))}   <span class="c">// 「刚刚收到自己标识符」的进程</span>
+}</code></pre>
+  <p>我们本可以像对待 token 池那样处理 <code>elected</code>——在 <code>init</code> 里初始化它、在 <code>step</code> 里更新它。<strong>但这样定义能给出更干净的「关注点分离」，并避免了对框架条件（frame conditions）的需要。</strong></p></dd>
+</dl>
+
+<div class="qa">
+  <div class="q">Q：为什么「被选中」这个概念不是<strong>粘性的（sticky）</strong>？</div>
+  <div class="a"><p>你可能已经注意到，这个选举定义<strong>只让一个进程在它收到自己标识符的那一个时刻处于「被选中」状态</strong>。在下一个时刻，它就不再被视为被选中了。<strong>如果你不喜欢这样，你可以修改模型，让选举变得「粘性」——一旦被选中就保持被选中。</strong></p>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">但没那么简单</span>
+    <p><strong>这不只是「把集合理解式里的第二项去掉」的问题</strong>，即把定义改成</p>
+<pre><code>elected.t = {p: <span class="t">Process</span> | p <span class="k">in</span> p.toSend.t}</code></pre>
+    <p>而不是</p>
+<pre><code>elected.t = {p: <span class="t">Process</span> | p <span class="k">in</span> p.toSend.t - p.toSend.(TO/prev(t))}</code></pre>
+    <p><strong>如果你不确定为什么，试着在 Alloy Analyzer 里运行这些命令，看看会发生什么。</strong></p>
+  </div></div>
+</div>
+
+<h3>6.1.3 Introducing Traces · 引入迹</h3>
+<p>我们想检验两个性质：<strong>至多一个领导者被选出</strong>，以及<strong>最终有某个领导者被选出</strong>。</p>
+<table>
+  <thead><tr><th>路线</th><th>做法</th></tr></thead>
+  <tbody>
+    <tr><td><strong>传统的归纳分析</strong>（Alloy 可以自动化它）</td><td>对第一个性质：<strong>构造一个不变式</strong>，用 Alloy 检验「不变式蕴含该性质」且「不变式在每一步都被保持」。对第二个性质：<strong>找某个整数度量</strong>，用 Alloy 检验「它在每步递减」且「归零蕴含选举发生」。</td></tr>
+    <tr><td><strong>本书采用的路线</strong></td><td><strong>需要更少的洞见（insight），并允许直接检验性质。</strong>目前的模型实例涉及一组状态；<strong>只需添加一条 fact，就能把这些状态串成一条执行迹</strong>。然后就可以<strong>直接对迹表述断言</strong>。如果断言无效，<strong>反例就是一条展示它如何被违反的迹</strong>。</td></tr>
+  </tbody>
+</table>
+<pre><code><span class="k">fact</span> Traces {
+  init (TO/first ())
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t) |
+    <span class="k">all</span> p: <span class="t">Process</span> |
+      step (t, t', p) <span class="k">or</span> step (t, t', succ.p) <span class="k">or</span> skip (t, t', p)
+}</code></pre>
+<p>它说：<strong>初始条件在第一个时刻成立</strong>；对任何后续时刻，<strong>每个进程 p 要么自己走一步，要么它的前驱 <code>succ.p</code> 走一步，要么什么都不做</strong>。「什么都不做」被建模为一个操作：</p>
+<pre><code><span class="k">pred</span> skip (t, t': <span class="t">Time</span>, p: <span class="t">Process</span>) { p.toSend.t = p.toSend.t' }</code></pre>
+
+<div class="qa">
+  <div class="q">Q：为什么迹约束允许<strong>前驱</strong>走一步？</div>
+  <div class="a"><p>当进程 p 从时刻 t 走到 t' 时，谓词 <code>step(t, t', p)</code> 成立。这意味着<strong>一个标识符从 p 的池移到它后继进程的池</strong>。<strong>那个后继进程因此也经历了一次状态变化</strong>。它的状态变化由<strong>同一个 step 谓词描述，只是应用于它的前驱</strong>。</p>
+  <p><strong>如果没有第二个谓词调用，约束就不可能被满足</strong>——因为那个后继进程要么必须 skip，要么必须自己作为 token 转移的源头，<strong>而这两者都与「作为 token 转移的目标」不相容</strong>。<code>run</code> 命令会抓住这个错误并报告不一致。</p>
+  <p>或者，作者本可以写一个更简单的迹约束：</p>
+<pre><code><span class="k">some</span> p: <span class="t">Process</span> |
+  step (t, t', p) <span class="k">and all</span> p': <span class="t">Process</span> - (p + p.succ) | skip (t, t', p)</code></pre>
+<p>意思是「每步有一个进程移动，除这个进程和它的后继外，其他任何进程都没有状态变化」。<strong>这种表述的缺点是它一次只允许一对进程移动。</strong></p>
+<div class="callout key" style="margin-top:.5em">
+  <span class="tag">隐式并发的价值</span>
+  <p>原版本的<strong>隐式并发（implicit concurrency）</strong>除了<strong>更一般</strong>之外，还有一个优势：<strong>它允许更短的迹里发生更多事情，因此在更小的作用域下做的分析更有意义。</strong></p>
+</div></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么一个操作必须取<strong>两个</strong>时间参数？</div>
+  <div class="a">既然 <code>step</code> 和 <code>skip</code> 总是被应用于一个时刻及其后继，你可能会问为什么不声明单个参数 t、然后在谓词体内把 t' 定义为 <code>TO/next(t)</code>。<strong>这里的动机是关注点分离：与其在每个操作里都承诺使用「迹」这个 idiom，不如只在一个小小的地方承诺它，这样换成另一种 idiom 就会很容易。</strong></div>
+</div>
+
+<h3>6.1.4 Dynamic Analysis · 动态分析</h3>
+<div class="callout">
+  <span class="tag">第一步：先跑个简单模拟，确认模型没有过度约束</span>
+<pre><code><span class="k">pred</span> show () { <span class="k">some</span> elected }
+<span class="k">run</span> show <span class="k">for</span> 3 <span class="t">Process</span>, 4 <span class="t">Time</span></code></pre>
+  <p>作者选了<strong>三个进程</strong>的作用域——<strong>最小的有趣环</strong>——和<strong>四个时刻</strong>，因为<strong>领导者的 token 必须绕环一整圈，所以时刻数必须比进程数至少多一</strong>。生成的样例迹见 fig. 6.4：<strong>进程 P2 的标识符一路绕完一圈，而在此之前没有发送任何其他标识符</strong>（初始状态在左上的面板，执行按<strong>顺时针</strong>穿过各面板）。</p>
+</div>
+
+<p>确认模型至少是一致的之后，就可以着手检验性质了。<strong>协议的目的，是到达一个「恰好一个领导者被选出」的状态。</strong></p>
+<div class="callout key">
+  <span class="tag">方法论：把性质拆成子性质，分别检验</span>
+  <p><strong>在可能的时候，最好把一个性质拆分成子性质并分别检验。</strong>这样在某个性质不成立时，<strong>更容易诊断出了什么问题</strong>。所以我们分别考虑两个性质：<strong>至多一个</strong>与<strong>至少一个</strong>被选中的进程。</p>
+</div>
+
+<h4>① AtMostOneElected —— 有效</h4>
+<pre><code><span class="k">assert</span> AtMostOneElected { <span class="k">lone</span> elected.<span class="t">Time</span> }
+<span class="k">check</span> AtMostOneElected <span class="k">for</span> 3 <span class="t">Process</span> <span class="k">but</span> 7 <span class="t">Time</span></code></pre>
+<div class="callout idea">
+  <span class="tag">解读：<code>elected.Time</code> 比 <code>all t: Time | lone elected.t</code> 更强</span>
+  <p>表达式 <code>elected.Time</code> 表示<strong>在任意时刻被选中的进程集合</strong>。所以这条断言不仅说了「任意时刻至多一个进程被选中」（那可以写成 <code>all t: Time | lone elected.t</code>），而是<strong>更强地说：选举不会从一个进程变成另一个进程</strong>。</p>
+  <p>作用域把分析限制在 3 个进程、7 个时刻的环上。<strong>AtMostOneElected 断言是有效的，找不到反例。</strong></p>
+</div>
+
+<h4>② AtLeastOneElected —— 无效，然后修复</h4>
+<pre><code><span class="k">assert</span> AtLeastOneElected { <span class="k">some</span> t: <span class="t">Time</span> | <span class="k">some</span> elected.t }
+<span class="k">check</span> AtLeastOneElected <span class="k">for</span> 3 <span class="k">but</span> 7 <span class="t">Time</span></code></pre>
+<div class="callout pit">
+  <span class="tag">第二个断言无效：反例里「什么都没发生」</span>
+  <p>它有一个反例，其中<strong>什么事情都没发生</strong>。<strong>问题出在包含了 skip 操作——它允许每个进程在每一步都 skip！</strong></p>
+</div>
+<p>修复办法：<strong>强制进展（progress）</strong>——坚持「只要某个进程有一个非空的标识符池，某个进程（不必是同一个）就必须移动」。写成谓词：</p>
+<pre><code><span class="k">pred</span> progress () {
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t) |
+    <span class="k">some</span> <span class="t">Process</span>.toSend.t =&gt;
+      <span class="k">some</span> p: <span class="t">Process</span> | <span class="k">not</span> skip (t, t', p)
+}</code></pre>
+<p>然后<strong>把断言以这个谓词成立为条件</strong>：</p>
+<pre><code><span class="k">assert</span> AtLeastOneElected { progress () =&gt; <span class="k">some</span> Elected.<span class="t">Time</span> }
+<span class="k">check</span> AtLeastOneElected <span class="k">for</span> 3 <span class="t">Process</span>, 7 <span class="t">Time</span></code></pre>
+<div class="callout idea">
+  <span class="tag">解读 · 「公平性假设作为断言前件」是通用套路</span>
+  <p>注意这里的处理模式：<strong>把「活性（liveness）」性质写成 <code>公平性假设 =&gt; 想要的结论</code></strong>，而不是把公平性写成 fact。这样模型<strong>依然允许什么都不发生的迹</strong>（用于其他分析），但断言只在<strong>满足进展假设的迹</strong>上被要求成立。这正是 5.1.3 Discussion 里提到的、CTL 无法表达的「<strong>公平性性质（fairness properties）</strong>」。</p>
+  <p><strong>7 个时刻实际上是能保证产生领导者的最小作用域。</strong>作者找到它的方法很朴素：<strong>从更小的作用域开始，逐步增大，直到断言不再产生反例</strong>。</p>
+</div>
+
+<h4>6.1.4 Discussion</h4>
+<div class="qa">
+  <div class="q">Q：进程总是按标识符顺序被放进环里的吗？</div>
+  <div class="a"><p><strong>不是。</strong>它们在 fig. 6.4 中以那个顺序出现，是因为 <strong>Alloy Analyzer 的对称破缺优化</strong>（见 5.2.1 后的讨论）。<strong>由于原子是可互换的</strong>，你可以取一个命令的任意实例（或反例），通过<strong>置换原子</strong>造出另一个。</p>
+  <p>数学家会说：把进程绕环排成 P0、P1、P2……是<strong>「不失一般性」的，因为这个方案的描述从未提及特定原子</strong>。Analyzer 利用这一点来减少搜索——<strong>对 <code>succ</code> 施加一个约束</strong>。<code>util/ordering</code> 模块的排序关系用了<strong>同样的技巧：这就是为什么迹中的时刻总是按顺序出现</strong>。</p>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">如果模型显式比较这两个关系，对称破缺就会退让</span>
+    <p><strong>如果模型显式地比较这两个关系，那么在两处都破缺对称性就不再有效，Analyzer 会退让（back off），不再包含对 <code>succ</code> 的对称破缺约束。</strong>要看到这一点，加上：</p>
+<pre><code><span class="k">fact</span> DifferentOrder { <span class="k">all</span> p: <span class="t">Process</span> | p.succ != PO/next(p) }</code></pre>
+    <p>模拟就会显示一个<strong>标识符乱序出现</strong>的环。</p>
+  </div></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：<code>AtLeastOneElected</code> 怎么可能是有效的？作用域不是允许更短的迹吗？</div>
+  <div class="a"><p>与排序模块相关的对称破缺<strong>实际上会强制被排序的集合包含「作用域所允许的最大数量」的原子</strong>。所以我们的两条命令的效果，与写成精确作用域时相同：</p>
+<pre><code><span class="k">check</span> AtMostOneElected  <span class="k">for exactly</span> 3 <span class="t">Process</span>, <span class="k">exactly</span> 7 <span class="t">Time</span>
+<span class="k">check</span> AtLeastOneElected <span class="k">for exactly</span> 3 <span class="t">Process</span>, <span class="k">exactly</span> 7 <span class="t">Time</span></code></pre></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这违反了作用域单调性吗？如果违反了，要紧吗？</div>
+  <div class="a"><p><strong>是的，它违反了；是的，它要紧（至少在某些方面）。</strong></p>
+  <ul>
+    <li>对检验 <code>AtLeastOneElected</code> 而言，<strong>signature Time 需要精确作用域</strong>；<strong>这类「最终性（eventuality）」性质永远不是作用域单调的</strong>。</li>
+    <li>对检验 <code>AtMostOneElected</code> 而言，<strong>精确作用域并不可取</strong>，因为可以设想存在<strong>「坏迹」（两个进程被选中）无法被延长到作用域要求的完整长度</strong>。不幸的是，<strong>无法检验这种情况不会发生</strong>（见 5.3 节）。</li>
+    <li>精确作用域对<strong>两条命令都有</strong>的另一个不良后果是：它<strong>强制环中进程数恰好是某个数</strong>。</li>
+  </ul>
+  <p>不过很容易调整模型，使得<strong>作用域 k 下的分析考察所有「至多 k 个进程」的环</strong>——引入一个子签名：</p>
+<pre><code><span class="k">sig</span> <span class="t">Process</span> {}
+<span class="k">sig</span> <span class="t">RingProcess</span> <span class="k">extends</span> <span class="t">Process</span> {
+  succ: <span class="t">RingProcess</span>,
+  toSend: <span class="t">RingProcess</span> -&gt; <span class="t">Time</span>,
+  elected: <span class="k">set</span> <span class="t">Time</span>
+}
+<span class="k">fact</span> Ring {<span class="k">all</span> p: <span class="t">RingProcess</span> | <span class="t">RingProcess</span> <span class="k">in</span> p.<span class="o">^</span>succ}</code></pre>
+<p>从而<strong>只把 succ 的重数约束和 Ring fact 施加在「出现在环中的那部分进程」上</strong>。</p></div>
+</div>
+
+<h3>6.1.5 Computing Machine Diameter · 计算机器直径</h3>
+<div class="callout warn">
+  <span class="tag">为什么需要这一节</span>
+  <p>作用域内的穷尽分析由<strong>小作用域假设</strong>证成，通常看起来是捕获大多数 bug 的合理办法——例如如果这个协议在五节点的环上没有反例，它似乎不太可能藏着 bug。<strong>但「给迹设界」这件事说服力就弱一些。</strong></p>
+  <ul>
+    <li>对 <code>AtLeastOneElected</code>：我们找的是<strong>选举的见证者</strong>，所以<strong>增加迹长不会产生新的反例</strong>。</li>
+    <li>对 <code>AtMostOneElected</code>：我们<strong>有理由担心漏掉一个只在更长迹中才显现的 bug</strong>。</li>
+  </ul>
+  <p>关于作用域是否充分，我们可以问的一个问题是：<strong>我们考察的迹是否长到足以覆盖所有可达状态？</strong>如果是，就可以放心：分析 <code>AtMostOneElected</code> 这样的断言时，不会因为迹长不足而漏掉 bug——<strong>因为该断言是关于状态的声明，而每个可达状态都会被考察到</strong>。</p>
+</div>
+<div class="callout key">
+  <span class="tag">直径（diameter）的定义</span>
+  <p><strong>一个状态机的直径，是一个状态距初始状态的最大距离</strong>，其中两个状态之间的距离是<strong>能把你从一个带到另一个的最少执行步数</strong>。一般来说，<strong>用 Alloy 计算一个被建模状态机的直径是不可能的，但我们常常能找到一个上界。</strong></p>
+</div>
+<p>做法是：写一个谓词，<strong>它的实例是「无环路径（loopless path）」——即给定状态至多被访问一次的迹</strong>。我们协议的行为只依赖于标识符池，所以<strong>当两个时刻的池相等时，我们就认为它们的状态等价</strong>：</p>
+<pre><code><span class="k">pred</span> looplessPath () { <span class="k">no disj</span> t, t': <span class="t">Time</span> | toSend.t = toSend.t' }</code></pre>
+<p>然后<strong>对递增的迹长求这个谓词的实例</strong>：</p>
+<table>
+  <thead><tr><th>命令</th><th>结果</th></tr></thead>
+  <tbody>
+    <tr><td><code>run looplessPath for 3 Process, 12 Time</code></td><td>✅ <strong>产生一个解</strong></td></tr>
+    <tr><td><code>run looplessPath for 3 Process, 13 Time</code></td><td>❌ <strong>不产生解</strong></td></tr>
+  </tbody>
+</table>
+<div class="callout key">
+  <span class="tag">结论</span>
+  <p><strong>不存在含 13 个时刻且无环的迹。</strong>因此我们可以断定：<strong>对三节点环，Time 的作用域 12 足以到达该协议的所有状态。</strong>换句话说，当 Process 的作用域为 3 时，<strong>再增大 Time 的作用域不会有任何收获——就 Time 而言，分析是完备的。</strong></p>
+</div>
+
+<h4>6.1.5 Discussion</h4>
+<div class="qa">
+  <div class="q">Q：Alloy 的迹断言与时序逻辑相比表达力如何？</div>
+  <div class="a"><p><strong>由于模型的实例是迹，这些断言可比于线性时序逻辑（LTL），而不是计算树逻辑（CTL）</strong>——后者需要实例是树结构。</p>
+  <p><strong>任何 LTL 性质都能轻松用一阶逻辑表达</strong>，这由「LTL 归约到可满足性」（即所谓的<strong>有界模型检查（bounded model checking）</strong> [5]）所证明。<strong>一阶逻辑比时序逻辑更有表达力</strong>，尽管那额外的能力——至少在时序方面——<strong>似乎并不必要</strong>。</p>
+  <p>把迹<strong>过滤到那些满足 progress 性质的迹</strong>，是一类叫<strong>「公平性性质（fairness properties）」</strong>的经典例子，<strong>而这类性质在 CTL 中不可表达</strong>。一般来说，<strong>LTL 似乎比 CTL 更适合描述软件的时序性质</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这类分析中 Alloy 与模型检查器相比如何？</div>
+  <div class="a"><table>
+    <thead><tr><th></th><th>模型检查器</th><th>Alloy 迹分析</th></tr></thead>
+    <tbody>
+      <tr><td>状态空间</td><td>通常<strong>能穷尽整个状态空间</strong></td><td>只考察<strong>有界长度的迹</strong>，且界通常很小；小系统有时可获得直径上界</td></tr>
+      <tr><td>确立「无 bug」</td><td>更强</td><td><strong>较弱</strong></td></tr>
+      <tr><td>发现 bug 的速度</td><td>——</td><td><strong>有 bug 时可能更快被 Alloy 的基于 SAT 的分析找到，因为 SAT 求解本质上是深度优先的</strong></td></tr>
+      <tr><td>描述语言</td><td>大多数模型检查器的机器描述语言<strong>非常底层</strong>，所以描述这样一个协议往往<strong>更具挑战性</strong></td><td>高层、关系式</td></tr>
+      <tr><td>拓扑</td><td><strong>依赖进程拓扑被固定</strong>，无法对任意拓扑做分析</td><td><strong>可以对任意拓扑做分析</strong></td></tr>
+      <tr><td>非时序量词</td><td>Zohar Manna 与 Amir Pnueli 的 LTL 开创性表述 [50] <strong>包含一个非时序量词</strong>，但<strong>许多模型检查器似乎把它省掉了</strong>。这意味着你<strong>无法表达不同时刻状态组件值之间的关系</strong>——例如「某操作使一个计数器递增」或「保持某状态组件不变」</td><td>天然支持</td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<h2 id="s62"><span class="num">6.2</span>Hotel Room Locking · 酒店房间门锁</h2>
+
+<h3>问题背景</h3>
+<p>如果你住过酒店，你可能会好奇<strong>门锁是怎么工作的</strong>。锁用<strong>一次性的钥匙</strong>——<strong>不像大多数锁那样，它们无法被反复用同一把钥匙开启</strong>。这就提出了一个问题：<strong>当房间被分配给新客人时，如何阻止旧客人再进入？</strong></p>
+<div class="callout key">
+  <span class="tag">可重编码锁（recodable locks）</span>
+  <p><strong>可重编码的锁解决了这个问题</strong>，酒店从 1980 年代起就在使用——<strong>先是机械式的，现在是电子式的</strong>。它们的工作方式是：<strong>给下一位住客发新钥匙时，锁会被重新编码，于是先前的钥匙停止工作。</strong></p>
+  <p>锁是一个<strong>独立的、电池供电的单元</strong>，其内存中持有<strong>当前的钥匙组合（current key combination）</strong>。一个硬件装置——比如<strong>反馈移位寄存器（feedback shift register）</strong>——生成<strong>伪随机数</strong>。锁<strong>既可以用当前组合打开，也可以用它的后继组合打开</strong>；<strong>把后继组合插入锁，就使它成为当前组合</strong>。</p>
+  <p><strong>关键在于：前台与锁之间不需要通信。</strong>只要<strong>初始同步</strong>一次，加上<strong>两边运行同一个伪随机数生成器</strong>，双方的记录就能保持同步。</p>
+</div>
+
+<h3>6.2.1 State Components and Key Ordering · 状态组件与钥匙排序</h3>
+<pre><code><span class="k">module</span> examples/hotel
+<span class="k">open</span> util/ordering[<span class="t">Time</span>] <span class="k">as</span> TO
+<span class="k">open</span> util/ordering[<span class="t">Key</span>] <span class="k">as</span> KO
+<span class="k">sig</span> <span class="t">Key</span>, <span class="t">Time</span> {}
+<span class="k">sig</span> <span class="t">Room</span> { keys: <span class="k">set</span> <span class="t">Key</span>, currentKey: keys <span class="k">one</span> -&gt; <span class="t">Time</span> }
+<span class="k">fact</span> DisjointKeySets { <span class="t">Room</span> &lt;: keys : <span class="t">Room</span> <span class="k">lone</span> -&gt; <span class="t">Key</span> }
+<span class="k">one sig</span> <span class="t">FrontDesk</span> {
+  lastKey: (<span class="t">Room</span> -&gt; <span class="k">lone</span> <span class="t">Key</span>) -&gt; <span class="t">Time</span>,
+  occupant: (<span class="t">Room</span> -&gt; <span class="t">Guest</span>) -&gt; <span class="t">Time</span>
+}
+<span class="k">sig</span> <span class="t">Guest</span> { keys: <span class="t">Key</span> -&gt; <span class="t">Time</span> }
+
+<span class="k">fun</span> nextKey (k: <span class="t">Key</span>, ks: <span class="k">set</span> <span class="t">Key</span>): <span class="k">set</span> <span class="t">Key</span> { KO/min (KO/nexts (k) &amp; ks) }</code></pre>
+<div class="cap">fig. 6.5 模型图：<code>Room</code>（<code>? keys</code> 自环、<code>currentKey.&lt;Time&gt; !</code>）、<code>Guest</code>（<code>keys.&lt;Time&gt;</code>）、<code>Key</code>、<code>&lt;FrontDesk&gt;</code>（<code>lastKey.&lt;Time&gt; ?</code>、<code>occupant.&lt;Time&gt;</code>）、<code>Time</code>。</div>
+
+<table>
+  <thead><tr><th>声明</th><th>含义</th></tr></thead>
+  <tbody>
+    <tr><td><code>sig Key, Time {}</code></td><td><code>Key</code> 代表<strong>钥匙组合</strong>。书中口语说的「卡片（card）」，指的是客人插入锁里的<strong>物理钥匙</strong>。</td></tr>
+    <tr><td><code>Room.keys</code></td><td>这个房间的锁<strong>可能</strong>接受的组合集合。</td></tr>
+    <tr><td><code>Room.currentKey</code></td><td>带 Time 列 ⇒ <strong>动态</strong>。<code>keys one -&gt; Time</code> 表示：<strong>每个时刻，当前钥匙恰好是该房间 keys 中的一个</strong>。</td></tr>
+    <tr><td><code>FrontDesk.lastKey</code></td><td>前台记录的、每个房间<strong>最后发出的钥匙</strong>。<code>lone</code> 是为了容纳<strong>初始化之前的状态</strong>。<strong>这个 <code>lone</code> 其实并非必要，但「宁可欠约束」总是明智的</strong>（见 5.4 节的作用域选取准则）。</td></tr>
+    <tr><td><code>FrontDesk.occupant</code></td><td>每个房间的<strong>住客名册</strong>。</td></tr>
+    <tr><td><code>Guest.keys</code></td><td>客人<strong>在各时刻手上持有的钥匙</strong>。</td></tr>
+    <tr><td><code>nextKey(k, ks)</code></td><td>「从 ks 中挑出 k 之后的最小者」——即<strong>伪随机序列上 k 的后继组合</strong>。<code>KO/nexts(k) &amp; ks</code> 求交集，<code>KO/min</code> 取最小。</td></tr>
+  </tbody>
+</table>
+
+<div class="qa">
+  <div class="q">Q：<code>fact DisjointKeySets</code> 那条约束在说什么？</div>
+  <div class="a"><p>它是一个<strong>声明约束（declaration constraint）</strong>（见 3.6.4），说的是 <code>keys</code> 字段<strong>是单射的</strong>：<strong>每个钥匙组合至多属于一个房间</strong>。<code>Room lone -&gt; Key</code> 中的 <code>lone</code> 就是这个意思。</p>
+  <p><strong><code>&lt;:</code> 限制符用来消除歧义</strong>：因为 <code>Room</code> 和 <code>Guest</code> 都有名为 <code>keys</code> 的字段，<code>Room &lt;: keys</code> 挑出的是 <strong>Room 的那个 keys</strong>（等价于 <code>(Room -&gt; univ) &amp; keys</code>，见 4.4.4）。</p></div>
+</div>
+
+<h3>6.2.2 Hotel Operations · 酒店操作</h3>
+<h4>init —— 初始化</h4>
+<pre><code><span class="k">pred</span> init (t: <span class="t">Time</span>) {
+  <span class="k">no</span> Guest.keys.t
+  <span class="k">no</span> FrontDesk.occupant.t
+  <span class="k">all</span> r: <span class="t">Room</span> | FrontDesk.lastKey.t [r] = r.currentKey.t
+}</code></pre>
+<div class="callout warn">
+  <span class="tag">初始化并不容易实现</span>
+  <p><strong>这是唯一一个需要「锁 ↔ 前台」之间通信的操作。</strong>实践中通常靠一张<strong>特殊的重置卡（reset card）</strong>完成。其他所有操作都靠双方运行同一个伪随机生成器来保持同步。</p>
+</div>
+
+<h4>entry —— 客人开门</h4>
+<pre><code>1 <span class="k">pred</span> entry (t, t': <span class="t">Time</span>, g: <span class="t">Guest</span>, r: <span class="t">Room</span>, k: <span class="t">Key</span>) {
+2   k <span class="k">in</span> g.keys.t                                    <span class="c">// 前置：g 在 t 时持有 k</span>
+3   <span class="k">let</span> ck = r.currentKey |
+4     (k = ck.t <span class="k">and</span> ck.t' = ck.t) <span class="k">or</span>                 <span class="c">// k 就是当前组合 ⇒ 锁不变</span>
+5     (k = nextKey(ck.t, r.keys) <span class="k">and</span> ck.t' = k)      <span class="c">// k 是后继组合 ⇒ 重编码</span>
+6   noRoomChangeExcept (t, t', r)                    <span class="c">// 框架条件</span>
+7   noGuestChangeExcept (t, t', none)
+8   noFrontDeskChange (t, t')
+9 }</code></pre>
+
+<h4>三个框架条件谓词</h4>
+<pre><code><span class="k">pred</span> noFrontDeskChange (t, t': <span class="t">Time</span>) {
+  FrontDesk.lastKey.t = FrontDesk.lastKey.t'
+  FrontDesk.occupant.t = FrontDesk.occupant.t'
+}
+<span class="k">pred</span> noRoomChangeExcept (t, t': <span class="t">Time</span>, rs: <span class="k">set</span> <span class="t">Room</span>) {
+  <span class="k">all</span> r: <span class="t">Room</span> - rs | r.currentKey.t = r.currentKey.t'
+}
+<span class="k">pred</span> noGuestChangeExcept (t, t': <span class="t">Time</span>, gs: <span class="k">set</span> <span class="t">Guest</span>) {
+  <span class="k">all</span> g: <span class="t">Guest</span> - gs | g.keys.t = g.keys.t'
+}</code></pre>
+<div class="callout idea">
+  <span class="tag">解读 · 这就是 5.1 里说的「框架问题」的具体样子</span>
+  <p>「框架条件（frame condition）」= 明确写出<strong>「其他所有状态组件都不变」</strong>。这里把三个组件的框架条件各封装成一个谓词，<strong>每个操作只需一行调用</strong>——这是应对框架问题的常规工程手法，也正好为 6.2.4 的 Reiter 式改写做了对照。</p>
+  <p>注意 <code>noRoomChangeExcept(t, t', r)</code> 里的参数：<strong>「除了 r 之外」</strong>。这就是框架条件的「例外表」写法。</p>
+</div>
+
+<h4>checkout —— 退房</h4>
+<pre><code><span class="k">pred</span> checkout (t, t': <span class="t">Time</span>, g: <span class="t">Guest</span>) {
+  <span class="k">let</span> occ = FrontDesk.occupant {
+    <span class="k">some</span> occ.t.g                 <span class="c">// 前置：g 确实住过某个房间</span>
+    occ.t' = occ.t - <span class="t">Room</span> -&gt; g  <span class="c">// 从名册中移除 g 的所有条目</span>
+  }
+  FrontDesk.lastKey.t = FrontDesk.lastKey.t'
+  noRoomChangeExcept (t, t', none)
+  noGuestChangeExcept (t, t', none)
+}</code></pre>
+
+<h4>checkin —— 入住</h4>
+<pre><code>1  <span class="k">pred</span> checkin (t, t': <span class="t">Time</span>, g: <span class="t">Guest</span>, r: <span class="t">Room</span>, k: <span class="t">Key</span>) {
+2    g.keys.t' = g.keys.t + k                <span class="c">// 客人拿到钥匙 k</span>
+3    <span class="k">let</span> occ = FrontDesk.occupant {
+4      <span class="k">no</span> occ.t [r]                          <span class="c">// 前置：房间 r 当前无住客</span>
+5      occ.t' = occ.t + r -&gt; g               <span class="c">// 名册登记</span>
+6    }
+7    <span class="k">let</span> lk = FrontDesk.lastKey {
+8      lk.t' = lk.t ++ r -&gt; k                <span class="c">// 覆盖式记录最后发出的钥匙</span>
+9      k = nextKey (lk.t [r], r.keys)        <span class="c">// k 是上一个钥匙的后继</span>
+10   }
+11   noRoomChangeExcept (t, t', none)         <span class="c">// ★ 锁本身不变！</span>
+12   noGuestChangeExcept (t, t', g)
+13 }</code></pre>
+<div class="callout pit">
+  <span class="tag">第 11 行是本例 bug 的根源</span>
+  <p><code>checkin</code> <strong>不修改房间锁的当前钥匙</strong>——前台只是<strong>在记录里推进了一步</strong>，而<strong>锁要等到新客人真正插入新卡时（<code>entry</code> 的第 5 行）才会被重编码</strong>。这个「时间差」正是 6.2.3 中反例的来源。</p>
+</div>
+
+<h4>迹约束</h4>
+<pre><code><span class="k">fact</span> Traces {
+  init (TO/first ())
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t) |
+    <span class="k">some</span> g: <span class="t">Guest</span>, r: <span class="t">Room</span>, k: <span class="t">Key</span> |
+      entry (t, t', g, r, k) <span class="k">or</span> checkin (t, t', g, r, k) <span class="k">or</span> checkout (t, t', g)
+}</code></pre>
+<div class="callout idea">
+  <span class="tag">对比 6.1 的迹约束：这里没有 skip，也没有并发</span>
+  <p>6.1 的 <code>Traces</code> 是 <code>all p: Process | step(...) or step(...succ...) or skip(...)</code>——<strong>每个进程都要表态，允许隐式并发</strong>。这里是 <code>some g, r, k | ...</code>——<strong>每步恰好发生一个操作</strong>。这不是疏忽：酒店场景里三个操作<strong>天然互斥于「前台」这一串行资源</strong>（<code>entry</code> 由锁独立完成，但它只改锁、不改前台，所以串行化不丢失可达行为）。<strong>这正是「迹 idiom 可以按场景调整」的示范。</strong></p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：「被拒绝进入」这件事在哪里被建模了？</div>
+  <div class="a"><p><strong>哪里都没有。</strong>它被 <code>entry</code> 的<strong>前置条件排除掉了</strong>（第 2 行 <code>k in g.keys.t</code> 加上第 4/5 行的分支，意味着<strong>只有能开门的钥匙才会触发 entry</strong>）。</p>
+  <p><strong>这样处理是必要的，因为我们的目标是「未授权进入」，而失败的开门尝试不会改变任何状态。</strong>如果要<strong>建模锁的审计功能</strong>（记录谁试过开门），那就<strong>需要</strong>显式建模被拒绝的进入。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么 <code>checkin</code> 的前置条件被分散在各处，而不是集中写成一个前置块？</div>
+  <div class="a"><p>因为这里的约束是<strong>围绕「状态组件」来组织的，而不是被切分成「前置条件 / 后置条件」</strong>。<strong>这样写避免了重复 <code>let</code> 语句，或者把它们的作用域扩得很大。</strong></p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 声明式规约的组织方式</span>
+    <p>这是声明式规约与传统「前置/后置条件」规约的一个实质差别：<strong>在 Alloy 里，约束是按「涉及哪个状态组件」聚合的，而不是按「时序阶段」聚合的。</strong>一个 <code>let</code> 块里既可以放前置条件也可以放后置条件，读的时候要自己把两者分开。作者在 <code>init</code>、<code>entry</code> 等谓词中一律如此。</p>
+  </div></div>
+</div>
+
+<h3>6.2.3 Analysis · 分析</h3>
+<div class="callout">
+  <span class="tag">要检验的性质：不会有非法进入</span>
+<pre><code><span class="k">assert</span> NoBadEntry {
+  <span class="k">all</span> t: <span class="t">Time</span>, r: <span class="t">Room</span>, g: <span class="t">Guest</span>, k: <span class="t">Key</span> | <span class="k">let</span> t' = TO/next(t) |
+    <span class="k">let</span> o = FrontDesk.occupant.t [r] |
+      entry (t, t', g, r, k) <span class="k">and</span> <span class="k">some</span> o =&gt; g <span class="k">in</span> o
+}
+<span class="k">check</span> NoBadEntry <span class="k">for</span> 3 <span class="k">but</span> 2 <span class="t">Room</span>, 2 <span class="t">Guest</span>, 5 <span class="t">Time</span></code></pre>
+  <p>读作：<strong>如果 g 打开了房间 r 的门，而且 r 当时有登记的住客 o，那么 g 必须属于 o。</strong></p>
+</div>
+<table>
+  <thead><tr><th>作用域参数</th><th>为什么这样选</th></tr></thead>
+  <tbody>
+    <tr><td>默认 <code>3</code></td><td>只约束 <code>Key</code>（未被显式指定的 signature 取默认值 3）</td></tr>
+    <tr><td><code>2 Room</code></td><td rowspan="2"><strong>两个客人 / 两个房间就足以暴露问题</strong>——一个 bug 不太可能需要更多</td></tr>
+    <tr><td><code>2 Guest</code></td></tr>
+    <tr><td><code>5 Time</code></td><td><strong>要把每个操作都执行一次，至少需要 4 个时刻</strong>（init + checkin + checkout + checkin + entry）</td></tr>
+  </tbody>
+</table>
+
+<div class="callout pit">
+  <span class="tag">反例（fig. 6.6）：五步剧本</span>
+  <table>
+    <thead><tr><th>#</th><th>发生了什么</th><th>锁的当前组合</th><th>前台 lastKey</th></tr></thead>
+    <tbody>
+      <tr><td>0</td><td>Room0 的当前钥匙是 <strong>K0</strong>，前台记录与之一致</td><td>K0</td><td>K0</td></tr>
+      <tr><td>1</td><td><strong>Guest0 入住</strong> Room0，拿到 <strong>K1</strong>，名册登记 Guest0</td><td><strong>K0</strong>（未变！）</td><td>K1</td></tr>
+      <tr><td>2</td><td><strong>Guest0 退房</strong>，名册清空</td><td>K0</td><td>K1</td></tr>
+      <tr><td>3</td><td><strong>Guest1 入住</strong> Room0，拿到 <strong>K2</strong>，名册登记 Guest1</td><td><strong>K0</strong>（仍未变！）</td><td>K2</td></tr>
+      <tr><td>4</td><td><strong>Guest0 出示 K1 —— 门开了</strong>（K1 是 K0 的后继组合）</td><td>K1</td><td>K2</td></tr>
+    </tbody>
+  </table>
+  <p><strong>根本原因：锁要等到新客人真正插入新卡时才会被重编码。</strong>所以即使新客人已经入住，<strong>先前住客的旧钥匙仍然能开门</strong>——只要新客人还没进过门。</p>
+</div>
+
+<h4>修复：加一条关于世界的假设</h4>
+<p>结论是：<strong>「阻止未授权进入」这个保证，只在「入住与开门之间没有插入其他事件」的假设下才成立</strong>：</p>
+<pre><code><span class="k">fact</span> NoIntervening {
+  <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t), t" = TO/next(t') |
+    <span class="k">all</span> g: <span class="t">Guest</span>, r: <span class="t">Room</span>, k: <span class="t">Key</span> |
+      checkin (t, t', g, r, k) =&gt; (entry (t', t", g, r, k) <span class="k">or</span> <span class="k">no</span> t")
+}</code></pre>
+<p>读作：<strong>每次 checkin 之后紧接着的一步，必须是同一客人、同一房间、同一钥匙的 entry</strong>（除非已经到迹的末尾）。</p>
+<table>
+  <thead><tr><th>命令</th><th>结果</th></tr></thead>
+  <tbody>
+    <tr><td><code>check NoBadEntry for 3 but 3 Room, 3 Guest, 7 Time</code></td><td>无反例，约 <strong>2 秒</strong>（2.5 GHz PowerBook G5）</td></tr>
+    <tr><td><code>check NoBadEntry for 5 but 3 Room, 3 Guest, 9 Time</code></td><td>无反例，<strong>不到一分钟</strong></td></tr>
+  </tbody>
+</table>
+<p>完整模型见原书 fig. 6.7–6.9。</p>
+
+<div class="qa">
+  <div class="q">Q：这个修复是不是在说「必须把新住客一路拖到房间门口」？</div>
+  <div class="a"><p><strong>不是。</strong><code>NoIntervening</code> 这条 fact <strong>只是记录了一个关于世界的假设</strong>。<strong>如果这个假设不成立，那么安全性保证就被削弱了。</strong>这正是「建模涉及环境中其他行动者」的典型情形——<strong>规约不能只描述自己的机器，还要显式写出对世界的假设</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：<code>some o</code> 这个额外假设是干什么的？</div>
+  <div class="a"><p>它存在的原因是：<strong>这套方案保护的是「住客彼此之间」，而不是「酒店免受住客侵扰」</strong>。</p>
+  <p><strong>如果去掉它，就会得到反例</strong>：一个客人退房之后<strong>立刻又用自己的钥匙重新进入</strong>。从酒店角度看这也许不算 bug（他已经付过费了），但从「名册为空时不许进入」的角度看它是违反断言的。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：问题的本质真的是「住客在首次进入之前并不拥有房间」吗？</div>
+  <div class="a"><p><strong>是的。</strong>而且<strong>「住客身份（occupancy）」完全可以用「首次进入」来定义</strong>——就像领导者选举协议里用「收到自己的标识符」来定义 <code>elected</code> 一样。<strong>这样就不需要那条额外的 <code>NoIntervening</code> 假设了。</strong></p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 「用定义代替假设」是更优雅的做法</span>
+    <p>这与 6.1.2 的 <code>fact DefineElected</code> 是同一个思路：<strong>与其在初始化和每步操作里维护一个状态组件（从而背上框架条件、并可能因假设不足而得到反例），不如把它定义成其他状态的函数。</strong>被定义出来的量<strong>天然满足框架条件，也不会引入额外的世界假设</strong>。作者在这里选择保留「假设 + 显式维护」的版本，是为了示范「如何为环境中的其他行动者写假设」这一课。</p>
+  </div></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这个问题是不是太「脏」了？真实的建模也会这样吗？</div>
+  <div class="a"><p><strong>是的，它很脏——而且它代表了绝大多数「 situated in the real world（身处真实世界之中）」的需求。</strong></p>
+  <p>传统上把需求当作「更高层的规约」来处理的做法<strong>无法应对这种情况</strong>。<strong>Michael Jackson 的「问题框架（problem frames）」理论 [38, 39] 解释了这一点</strong>，也解释了<strong>「简单可观察的事件」（进入房间）与「更适合用定义来刻画的事件」（获得住客身份）之间的区别</strong>。参见他的文章 “Definitions”“Designations”“Domains”“Machines”“Requirements”。</p>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">实用结论：入住后第一次开门，请一定用你自己的钥匙</span>
+    <p><strong>如果行李员用万能钥匙放你进房，那么锁就没有被重编码</strong>，你的贵重物品<strong>在你下次自己进门之前都处于风险之中</strong>。</p>
+  </div></div>
+</div>
+
+<h3>6.2.4 An Event-Based Variation · 事件式变体</h3>
+<div class="callout key">
+  <span class="tag">Alloy 没有固定的状态机 idiom</span>
+  <p>这一节把同一个酒店模型<strong>换一种写法</strong>：状态空间和迁移完全相同，但用<strong>事件（events）</strong>而不是<strong>操作（operations）</strong>。</p>
+  <table style="margin-top:.6em">
+    <thead><tr><th>操作式（6.2.2）</th><th>事件式（6.2.4）</th></tr></thead>
+    <tbody>
+      <tr><td>每个操作一个<strong>谓词</strong></td><td>声明一个 <strong>signature</strong>，它的<strong>原子就是事件</strong></td></tr>
+      <tr><td>谓词体内的约束</td><td>变成<strong>signature facts</strong>（签名事实）</td></tr>
+      <tr><td>操作的<strong>参数</strong>（t, t', g, r, k）</td><td>变成<strong>字段</strong>；signature 层次结构可以把公共的部分抽取出来</td></tr>
+    </tbody>
+  </table>
+</div>
+<pre><code><span class="k">module</span> examples/hotelEvents
+<span class="k">abstract sig</span> <span class="t">Event</span> { pre, post: <span class="t">Time</span>, guest: <span class="t">Guest</span> }
+<span class="k">abstract sig</span> <span class="t">RoomKeyEvent</span> <span class="k">extends</span> <span class="t">Event</span> { room: <span class="t">Room</span>, key: <span class="t">Key</span> }
+
+<span class="k">sig</span> <span class="t">Entry</span> <span class="k">extends</span> <span class="t">RoomKeyEvent</span> {} {
+  key <span class="k">in</span> guest.keys.pre
+  <span class="k">let</span> ck = room.currentKey |
+    (key = ck.pre <span class="k">and</span> ck.post = ck.pre) <span class="k">or</span>
+    (key = nextKey(ck.pre, room.keys) <span class="k">and</span> ck.post = key)
+}
+<span class="k">sig</span> <span class="t">Checkin</span> <span class="k">extends</span> <span class="t">RoomKeyEvent</span> {} {
+  keys.post = keys.pre + guest -&gt; key
+  <span class="k">let</span> occ = FrontDesk.occupant {
+    <span class="k">no</span> occ.pre [room]
+    occ.post = occ.pre + room -&gt; guest
+  }
+  <span class="k">let</span> lk = FrontDesk.lastKey {
+    lk.post = lk.pre ++ room -&gt; key
+    key = nextKey (lk.pre [room], room.keys)
+  }
+}
+<span class="k">sig</span> <span class="t">Checkout</span> <span class="k">extends</span> <span class="t">Event</span> {} {
+  <span class="k">let</span> occ = FrontDesk.occupant {
+    <span class="k">some</span> occ.pre.guest
+    occ.post = occ.pre - <span class="t">Room</span> -&gt; guest
+  }
+}</code></pre>
+<div class="cap">fig. 6.10–6.12 事件式酒店模型。<code>Checkout</code> 直接 extends <code>Event</code> 而非 <code>RoomKeyEvent</code>，因为它<strong>不涉及具体的钥匙</strong>。</div>
+
+<pre><code>1  <span class="k">fact</span> Traces {
+2    init (TO/first ())
+3    <span class="k">all</span> t: <span class="t">Time</span> - TO/last() | <span class="k">let</span> t' = TO/next (t) |
+4      <span class="k">some</span> e: <span class="t">Event</span> {
+5        e.pre = t <span class="k">and</span> e.post = t'
+6        currentKey.t != currentKey.t' =&gt; e <span class="k">in</span> <span class="t">Entry</span>
+7        occupant.t != occupant.t' =&gt; e <span class="k">in</span> <span class="t">Checkin</span> + <span class="t">Checkout</span>
+8        (lastKey.t != lastKey.t' <span class="k">or</span> keys.t != keys.t') =&gt; e <span class="k">in</span> <span class="t">Checkin</span>
+9      }
+10 }</code></pre>
+<div class="callout key">
+  <span class="tag">这就是 Reiter 式框架条件的样子</span>
+  <p>注意第 6–8 行的形式：<strong>「如果这个状态组件变了，那么发生的事件必定是这几类之一」</strong>。它们<strong>完全没有提到「不变」这件事</strong>——不变是<strong>推导出来的</strong>，而不是写出来的。这与 6.2.2 里 <code>noRoomChangeExcept / noGuestChangeExcept / noFrontDeskChange</code> 的写法形成鲜明对照。</p>
+</div>
+
+<pre><code>1  <span class="k">fact</span> NoIntervening {
+2    <span class="k">all</span> c: <span class="t">Checkin</span> |
+3      c.post = TO/last ()
+4      <span class="k">or</span> <span class="k">some</span> e: <span class="t">Entry</span> {
+5        e.pre = c.post
+6        e.room = c.room
+7        e.guest = c.guest
+8      }
+9  }
+
+<span class="k">assert</span> NoBadEntry {
+  <span class="k">all</span> e: <span class="t">Entry</span> | <span class="k">let</span> o = FrontDesk.occupant.(e.pre) [e.room] |
+    <span class="k">some</span> o =&gt; e.guest <span class="k">in</span> o
+}
+<span class="k">check</span> NoBadEntry <span class="k">for</span> 5 <span class="k">but</span> 3 <span class="t">Room</span>, 3 <span class="t">Guest</span>, 9 <span class="t">Time</span>, 8 <span class="t">Event</span></code></pre>
+<div class="callout idea">
+  <span class="tag">事件式版本明显更短</span>
+  <p>断言从 4 个量词（t, r, g, k）缩到 1 个（e）；<code>NoIntervening</code> 从嵌套的 <code>let t' / t"</code> 缩到直接说 <code>e.pre = c.post</code>。<strong>因为事件本身就是原子，「哪两个时刻之间发生了什么」不再需要用 t/t' 的算术来表达。</strong></p>
+</div>
+
+<div class="callout key">
+  <span class="tag">事件式的最大优势：可视化</span>
+  <p><strong>因为事件是原子，很容易看出 Analyzer 生成的每条迹的每个快照里发生的是哪个事件。</strong>fig. 6.13 展示的反例与 fig. 6.6 相同（在省略 <code>NoIntervening</code> 时产生）；<strong>可视化器被设置为「在事件的前置状态中显示事件」</strong>，也就是显示<strong>即将发生的那个事件</strong>。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：事件式写法有哪些吸引力？</div>
+  <div class="a">
+    <ul>
+      <li><strong>更好的可视化</strong>；</li>
+      <li><strong>更简洁、更直接的性质表述</strong>；</li>
+      <li><strong>signature 扩展（signature extension）</strong>能把事件的公共属性抽取出来。这里抽取的只是<strong>参数声明</strong>，但也可以<strong>在事件类之间共享传统的框架条件</strong>——<strong>在 signature 之间共享比在谓词之间共享更容易</strong>，因为<strong>谓词是显式参数化的，而 signature 扩展（像面向对象继承和 Z 的 schema 包含一样）是用自由变量来工作的</strong>。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这里本来可以用传统的框架条件吗？</div>
+  <div class="a"><p><strong>可以，一字不改地照搬。</strong>之所以选用这种不寻常的写法，是<strong>为了强调「一门没有固定 idiom 的语言」的灵活性</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：Reiter 式框架条件与传统式相比，孰优孰劣？</div>
+  <div class="a"><p>这个想法出自 <strong>Ray Reiter [57]</strong>，并由他与 <strong>Alex Borgida 和 John Mylopoulos [7]</strong> 为软件建模进一步阐发。<strong>是否合算，取决于状态组件数 m、操作数 k，以及每个操作改动多少组件：</strong></p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>场景</th><th>传统式（写等式）</th><th>Reiter 式（写蕴含）</th><th>谁更省</th></tr></thead>
+    <tbody>
+      <tr><td>m 个状态组件，k 个操作，<strong>每个操作只改一个组件</strong></td><td><strong>k × (m−1)</strong> 个等式</td><td>只需 <strong>m</strong> 个蕴含式（「如果这个组件变了，那么它的操作必定发生了」）</td><td><strong>Reiter 大胜</strong></td></tr>
+      <tr><td><strong>每个操作改动除一个之外的所有组件</strong></td><td>只需 <strong>k</strong> 个等式</td><td>需要 m 个蕴含式，<strong>每个都要列出 k−1 个操作名</strong></td><td><strong>传统式大胜</strong></td></tr>
+    </tbody>
+  </table>
+  <p><strong>就这个简单对比而言，Reiter 方案等价于「modifies 子句」</strong>（就像许多编程语言所提供的），但它的优势在于：</p>
+  <ul>
+    <li><strong>不需要任何逻辑之外的概念</strong>（no extra-logical notions）；</li>
+    <li><strong>能容纳更复杂的形式</strong>，例如<strong>依赖于调用状态（invocation state）的框架条件</strong>。</li>
+  </ul></div>
+</div>
+
+<h2 id="s63"><span class="num">6.3</span>Media Asset Management · 媒体资产管理</h2>
+
+<div class="callout">
+  <span class="tag">为什么要建模这个</span>
+  <p><strong>对于大型媒体集合，文件系统是不够的。</strong>「媒体资产管理（media asset management）」应用提供：<strong>缩略图视图、移动/重命名/复制/备份、标签与说明文字、网页生成</strong>。它们的两个主要优势是：</p>
+  <ul>
+    <li><strong>可以横切目录结构的目录集（catalogs that crosscut the directory structure）</strong>；</li>
+    <li><strong>批量操作（batch operations）</strong>。</li>
+  </ul>
+  <p>本节建模 <strong>iView Media Pro</strong> 的几个核心功能，目的是展示<strong>建模如何让我们对「看似显然、实则微妙」的基础功能产生洞见</strong>。这类分析<strong>最好在设计早期做</strong>，但当<strong>新功能威胁到关键抽象的清晰度时，后期做也有价值</strong>。</p>
+</div>
+<div class="callout key">
+  <span class="tag">作者的结论</span>
+  <p>作者<strong>已经使用 Media Pro 多年却并不理解其细节</strong>，动机来自偶尔遇到的「不愉快的意外」。<strong>结论是：这个设计非常合理（eminently sensible），除了加上撤销（undo）之外，他没有发现任何改进底层抽象的机会。</strong></p>
+  <p>本节只展示<strong>最终模型</strong>，另加<strong>一段独立的洞见总结</strong>（6.3.4）。</p>
+</div>
+
+<h3>6.3.1 Catalogs and Application State · 目录与应用状态</h3>
+<pre><code><span class="k">module</span> examples/assets
+<span class="k">sig</span> <span class="t">Catalog</span>, <span class="t">Asset</span> {}
+<span class="k">sig</span> <span class="t">ApplicationState</span> {
+  catalogs: <span class="k">set</span> <span class="t">Catalog</span>,
+  catalogState: catalogs -&gt; <span class="k">one</span> <span class="t">CatalogState</span>,
+  currentCatalog: catalogs,
+  buffer: <span class="k">set</span> <span class="t">Asset</span>
+}
+<span class="k">sig</span> <span class="t">CatalogState</span> {
+  assets: <span class="k">set</span> <span class="t">Asset</span>,
+  <span class="k">part</span> hidden, showing: <span class="k">set</span> assets,
+  selection: <span class="k">set</span> assets + <span class="t">Undefined</span>
+}
+<span class="k">one sig</span> <span class="t">Undefined</span> {}
+
+<span class="k">pred</span> catalogInv (cs: <span class="t">CatalogState</span>) {
+  cs.selection = <span class="t">Undefined</span>
+    <span class="k">or</span> (<span class="k">some</span> cs.selection <span class="k">and</span> cs.selection <span class="k">in</span> cs.showing)
+}
+<span class="k">pred</span> appInv (xs: <span class="t">ApplicationState</span>) {
+  <span class="k">all</span> cs: xs.catalogs | catalogInv (xs.catalogState[cs])
+}</code></pre>
+<div class="cap">fig. 6.14 模型图。注意 <code>part hidden, showing: set assets</code> 是<strong>依赖声明</strong>（见 4.2.4），<code>hidden</code> 和 <code>showing</code> 都被约束为 <code>assets</code> 的子集。</div>
+
+<table>
+  <thead><tr><th>概念</th><th>含义与动机</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Catalog（目录集）</strong></td><td>像一个<strong>文字处理器里的文档</strong>。<strong>剪切缓冲区主要用于在目录集之间移动资产</strong>。<strong>成员关系纯粹是组织性的——文件在磁盘上的位置不受影响。</strong></td></tr>
+    <tr><td><strong>hidden / showing</strong></td><td>隐藏与显示让用户<strong>聚焦于一个子集</strong>。</td></tr>
+    <tr><td><strong>selection</strong></td><td>有些批量动作（<strong>剪切/复制、重命名、重建缩略图</strong>）只作用于<strong>被选中的</strong>资产；另一些（<strong>网页生成</strong>）作用于所有<strong>正在显示的</strong>资产。</td></tr>
+    <tr><td><strong>Undefined</strong></td><td>一个单例 signature，用来表示「<strong>没有选中任何东西</strong>」。这就是 Alloy 里<strong>「用子类型模拟布尔/空值」</strong>的做法（见 4.7 关于没有布尔类型的说明）。</td></tr>
+  </tbody>
+</table>
+
+<div class="callout key">
+  <span class="tag">典型使用流程与核心不变式</span>
+  <p>典型用法是：<strong>选中一批资产 → 隐藏它们（或隐藏其他所有资产）→ 再从可见的子集中重新选择，或者直接执行操作。</strong></p>
+  <p><strong>由于动作绝不能作用于隐藏的资产，被选中的资产必须始终处于显示状态</strong>——这就是 <code>catalogInv</code> 表达的内容：</p>
+<pre><code>cs.selection = <span class="t">Undefined</span>                            <span class="c">// 要么没有选中任何东西</span>
+  <span class="k">or</span> (<span class="k">some</span> cs.selection <span class="k">and</span> cs.selection <span class="k">in</span> cs.showing)  <span class="c">// 要么选中了 ≥1 个且它们都在显示中</span></code></pre>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · 这一节用的是「Z/VDM 式全局状态」idiom</span>
+  <p>回想 6.1.1 Discussion 里提到的两种组织方式：这里<strong>动态字段挂在 <code>ApplicationState</code> / <code>CatalogState</code> 上，而不是挂在 <code>Asset</code> 上</strong>——这正是 <code>State</code> 风格。它还示范了「<strong>状态被增量地增长</strong>」的写法：模型里没有一个 <code>Time</code> signature，状态之间的关联完全由操作谓词的 <code>xs, xs'</code> 参数对来表达。<strong>换句话说，这一节把「迹」隐式化了——分析（6.3.3）里的断言直接量化三个连续状态 <code>xs, xs', xs"</code>。</strong></p>
+</div>
+
+<h3>6.3.2 Operations · 操作</h3>
+<pre><code><span class="k">pred</span> showSelected (cs, cs': <span class="t">CatalogState</span>) {
+  cs.selection != <span class="t">Undefined</span>          <span class="c">// 前置条件：有选中项（否则菜单项是灰的）</span>
+  cs'.showing = cs.selection         <span class="c">// ★ 替换 showing</span>
+  cs'.selection = cs.selection       <span class="c">// ★ 保留 selection</span>
+  cs'.assets = cs.assets
+}
+<span class="k">pred</span> hideSelected (cs, cs': <span class="t">CatalogState</span>) {
+  cs.selection != <span class="t">Undefined</span>
+  cs'.hidden = cs.hidden + cs.selection   <span class="c">// ★ 增补 hidden</span>
+  cs'.selection = <span class="t">Undefined</span>              <span class="c">// ★ 清空 selection</span>
+  cs'.assets = cs.assets
+}</code></pre>
+<div class="callout warn">
+  <span class="tag">这个不对称乍看之下令人惊讶</span>
+  <p><strong>show 会<em>替换</em> <code>showing</code> 并<em>保留</em>选中项；hide 会<em>增补</em> <code>hidden</code> 并<em>清空</em>选中项。</strong>为什么？6.3.4 会给出答案。</p>
+</div>
+
+<pre><code>1  <span class="k">pred</span> cut (xs, xs': <span class="t">ApplicationState</span>) {
+2    <span class="k">let</span> cs = xs.currentCatalog.(xs.catalogState), sel = cs.selection {
+3      sel != <span class="t">Undefined</span>                            <span class="c">// 前置条件</span>
+4      xs'.buffer = sel                              <span class="c">// ★ 替换缓冲区</span>
+5      <span class="k">some</span> cs': <span class="t">CatalogState</span> {
+6        cs'.assets = cs.assets - sel                <span class="c">// 从目录集中移除</span>
+7        cs'.showing = cs.showing - sel
+8        cs'.selection = <span class="t">Undefined</span>
+9        xs'.catalogState = xs.catalogState ++ xs.currentCatalog -&gt; cs'
+11     }
+12   }
+13   xs'.catalogs = xs.catalogs                       <span class="c">// 框架条件</span>
+14   xs'.currentCatalog = xs.currentCatalog
+15 }
+16 <span class="k">pred</span> paste (xs, xs': <span class="t">ApplicationState</span>) {
+17   <span class="k">let</span> cs = xs.currentCatalog.(xs.catalogState), buf = xs.buffer {
+18     xs'.buffer = buf
+19     <span class="k">some</span> cs': <span class="t">CatalogState</span> {
+20       cs'.assets = cs.assets + buf
+21       cs'.showing = cs.showing + (buf - cs.assets) <span class="c">// ★ 只让「新来的」显示</span>
+22       cs'.selection = buf - cs.assets              <span class="c">// ★ 只选中「新来的」</span>
+23       xs'.catalogState = xs.catalogState ++ xs.currentCatalog -&gt; cs'
+25     }
+26   }
+27   xs'.catalogs = xs.catalogs
+28   xs'.currentCatalog = xs.currentCatalog
+29 }</code></pre>
+<div class="callout key">
+  <span class="tag">两个细节</span>
+  <ul>
+    <li><strong><code>showSelected</code> 的前置条件是「选中项有定义」</strong>——否则菜单条目会<strong>灰掉</strong>。这就是把 UI 的可用性约束直接写进模型。</li>
+    <li><strong><code>paste</code> 没有前置条件</strong>：因为<strong>缓冲区（不像选中项）可以为空，但永远不会是「未定义」的</strong>。这个差别是 6.3.4 洞见之一的来源。</li>
+  </ul>
+</div>
+
+<h3>6.3.3 Analyses · 分析</h3>
+<div class="callout idea">
+  <span class="tag">这一节的分析风格与前几节不同</span>
+  <p>前面的例子检验的都是<strong>本质性质（essential properties）</strong>；<strong>这个例子更接近实践</strong>：<strong>没有任何单一性质能抓住设计的本质，但许多简单的「合理性检查（sanity checks）」能暴露错误和混乱。</strong>作者把它们分成两类。</p>
+</div>
+
+<h4>第 1 类：操作保持不变式</h4>
+<pre><code><span class="k">assert</span> HidePreservesInv {
+  <span class="k">all</span> cs, cs': <span class="t">CatalogState</span> |
+    catalogInv (cs) <span class="k">and</span> hideSelected (cs, cs') =&gt; catalogInv (cs')
+}
+<span class="k">check</span> HidePreservesInv</code></pre>
+<div class="callout pit">
+  <span class="tag">这条断言足以暴露「不清空选中项」的错误</span>
+  <p>如果把 <code>cs'.selection = Undefined</code> 换成 <code>cs'.selection = cs.selection</code>，<strong>Analyzer 就会产出一个反例，其中「一个被隐藏的资产最终处于选中状态」</strong>——这正好违反了 <code>catalogInv</code>。</p>
+</div>
+
+<h4>第 2 类：代数性质 —— cut 与 paste 应当互为逆操作</h4>
+<pre><code><span class="k">pred</span> sameApplicationState (xs, xs': <span class="t">ApplicationState</span>) {
+  xs'.catalogs = xs.catalogs
+  <span class="k">all</span> c: xs.catalogs | sameCatalogState (c.(xs.catalogState), c.(xs'.catalogState))
+  xs'.currentCatalog = xs.currentCatalog
+  xs'.buffer = xs.buffer
+}
+<span class="k">pred</span> sameCatalogState (cs, cs': <span class="t">CatalogState</span>) {
+  cs'.assets = cs.assets
+  cs'.showing = cs.showing
+  cs'.selection = cs.selection
+}
+
+<span class="k">assert</span> CutPaste {
+  <span class="k">all</span> xs, xs', xs": <span class="t">ApplicationState</span> |
+    appInv (xs) <span class="k">and</span> cut (xs, xs') <span class="k">and</span> paste (xs', xs")
+      =&gt; sameApplicationState (xs, xs")
+}
+<span class="k">assert</span> PasteCut {
+  <span class="k">all</span> xs, xs', xs": <span class="t">ApplicationState</span> |
+    (appInv (xs) <span class="k">and</span> paste (xs, xs') <span class="k">and</span> cut (xs', xs"))
+      =&gt; sameApplicationState (xs, xs")
+}
+<span class="k">assert</span> PasteNotAffectHidden {
+  <span class="k">all</span> xs, xs': <span class="t">ApplicationState</span> |
+    (appInv (xs) <span class="k">and</span> paste (xs, xs')) =&gt;
+      <span class="k">let</span> c = xs.currentCatalog |
+        xs'.catalogState[c].hidden = xs.catalogState[c].hidden
+}</code></pre>
+<table>
+  <thead><tr><th>断言</th><th>结果</th><th>原因</th></tr></thead>
+  <tbody>
+    <tr><td><code>CutPaste</code></td><td>❌ <strong>无效，但原因相当无关紧要（inconsequential）</strong></td><td><strong>cut 会<em>替换</em>缓冲区，而 paste 不会取回旧内容</strong>。如果缓冲区是一个<strong>栈（像 emacs 那样）</strong>，它就能取回。<strong>验证方法：把 <code>sameApplicationState</code> 里的 <code>xs'.buffer = xs.buffer</code> 注释掉，反例就消失了。</strong></td></tr>
+    <tr><td><code>PasteCut</code></td><td>❌ 也失败</td><td><strong>原因是选中项的变化</strong>。把 <code>sameCatalogState</code> 里的 <code>cs'.selection = cs.selection</code> 注释掉，可确认<strong>没有其他问题</strong>（但请看 6.3.4 第三点）。</td></tr>
+    <tr><td><code>PasteNotAffectHidden</code></td><td>✅ <strong>有效</strong></td><td>paste 不影响 hidden。</td></tr>
+  </tbody>
+</table>
+<div class="cap">fig. 6.15–6.17 分别汇总了状态与不变式、操作、断言。完整模型见原书。</div>
+
+<div class="callout idea">
+  <span class="tag">解读 · 「注释掉一条相等式来定位反例来源」是实用技巧</span>
+  <p>当你写了一个「状态相等」谓词却发现断言失败时，<strong>逐个注释掉其中的相等式</strong>，就能立刻知道<strong>是哪个组件的差异导致了失败</strong>。这是把「一个复合断言」降级为「一组可分别检验的子断言」的最省力做法，也呼应了 6.1.4 的方法论。</p>
+</div>
+
+<h3>6.3.4 Insights · 洞见</h3>
+<div class="grid c2">
+  <div class="card">
+    <h4>① 选中项不只是一个集合</h4>
+    <p>它要么是 <strong>Undefined</strong>，要么是一个<strong>含 ≥1 个资产的集合</strong>。这带来两个好处：</p>
+    <ul>
+      <li><strong>阻止「选中零个资产」</strong>——那毫无意义；</li>
+      <li><strong>阻止在什么都没选中时执行 show-selected</strong>，<strong>而那会把所有资产都隐藏掉！</strong></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>② show/hide 的不对称反映了另一个不对称</h4>
+    <p><strong>选中项始终是「正在显示的资产」。</strong></p>
+    <p>如果 show 是<strong>增补</strong>而不是<strong>替换</strong> <code>showing</code>，那么<strong>它将完全没有任何效果！</strong></p>
+    <p>换个说法：<strong>这两个命令其实都是关于「隐藏」的</strong>——hide 隐藏被选中的资产；<strong>show 隐藏「显示着但未被选中的」那些资产</strong>。</p>
+  </div>
+  <div class="card">
+    <h4>③ paste 让粘贴进来的资产保持选中</h4>
+    <p>这提供了<strong>某种程度的撤销</strong>——紧接着做一次 cut 即可。<strong>但这个撤销是不完整的，因为原来的选中项丢失了。</strong></p>
+    <p>这正解释了 6.3.3 中 <code>PasteCut</code> 为什么会失败：<strong>失败的不是目录集内容，而是选中项。</strong></p>
+  </div>
+  <div class="card">
+    <h4>④ 缓冲区与目录集共享资产的情形出奇地微妙</h4>
+    <p>作者<strong>一开始写错了</strong>，写成：</p>
+<pre><code>cs'.showing = cs.showing + buf
+cs'.selection = buf</code></pre>
+    <p>（用整个 <code>buf</code> 而不是 <code>buf - cs.assets</code>）结果 <strong><code>PasteNotAffectHidden</code> 和 <code>PasteCut</code> 都因意外原因失败了</strong>：</p>
+    <ul>
+      <li><strong>前者</strong>：粘贴一个<strong>已经被隐藏的</strong>资产会使它变成显示的（把它从 <code>hidden</code> 中移除）；</li>
+      <li><strong>后者</strong>：此外，产生的选中项<strong>包含了原本就在目录集里的资产</strong>，于是后续的 cut 会让目录集<strong>比 paste-cut 序列开始之前拥有更少的资产</strong>。</li>
+    </ul>
+    <p><strong>在 Media Pro 上做实验揭示了 paste 那个更复杂（但正确）的设计</strong>，它看起来是明智的，因为<strong>它保住了大多数用户所期望的代数性质 <code>PasteCut</code></strong>（至少忽略选中项时）。</p>
+  </div>
+</div>
+
+<h4>6.3.4 Discussion</h4>
+<div class="qa">
+  <div class="q">Q：cut 和 paste 里的存在量词是为了「分配一个新状态」吗？</div>
+  <div class="a"><p><strong>不是。在声明式规约里根本不需要「分配」这个概念。</strong>你完全可以改写成：</p>
+<pre><code><span class="k">let</span> cs' = xs'.catalogState [xs.currentCatalog] | cs'.assets = 表达式
+<span class="k">all</span> c: <span class="t">Catalog</span> - xs.currentCatalog |
+  xs'.catalogState [c] = xs.catalogState [c]</code></pre>
+  <p><strong>用存在量词之所以方便，是因为它允许使用关系覆盖算子 <code>++</code></strong>——即第 9/23 行的 <code>xs'.catalogState = xs.catalogState ++ xs.currentCatalog -&gt; cs'</code>，一行就替代了上面那条「所有其他目录集状态不变」的全称量词。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这些洞见是不是很琐碎（trivial）？</div>
+  <div class="a"><p><strong>也许是。</strong>它们当中<strong>没有一个是「showstopper」——即没有一个是日后无法修补的</strong>。<strong>但要做出一个可靠且可用的应用，你最终必须把所有这些事情都做对。</strong></p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：可用性问题能在抽象层面处理吗？</div>
+  <div class="a"><p><strong>有些问题确实无法在抽象层面解决，但这并不构成在设计阶段忽略它们的理由。</strong></p>
+  <ul>
+    <li><strong>早期聚焦可用性能捕获许多问题，并省下返工的成本</strong>；</li>
+    <li><strong>可用性研究作为「检验一个假设的实验」时最有效</strong>，而<strong>没有一个抽象干净、连贯的设计，你就没有假设</strong>。</li>
+  </ul>
+  <div class="callout key" style="margin-top:.6em">
+    <span class="tag">本章金句</span>
+    <p>「<strong>You can't tweak an incoherent user interface design into a usable and elegant one any more than you can test a pile of spaghetti code into a robust code base.</strong>」</p>
+    <p>你无法通过微调把一个不连贯的界面设计调成可用而优雅的，正如你无法通过测试把一堆面条代码测成一个健壮的代码库。</p>
+  </div></div>
+</div>
+
+<h2 id="s64"><span class="num">6.4</span>Memory Abstractions · 内存抽象</h2>
+
+<div class="callout key">
+  <span class="tag">这一节的教学目的</span>
+  <p><strong>内存系统长期以来一直是建模与分析的宠儿。</strong>之所以收录这个例子，是为了展示 <strong>Alloy 应用于一个「已被充分理解的问题」</strong>。作为一个教学案例，它示范了三件事：</p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>示范点</th><th>体现在哪</th></tr></thead>
+    <tbody>
+      <tr><td><strong>非确定性（nondeterminism）</strong></td><td>在 <code>flush</code> 和 <code>load</code> 的描述中；以及抽象内存的 <code>read</code></td></tr>
+      <tr><td><strong>抽象函数（abstraction functions）</strong></td><td>用来<strong>关联不同抽象层次上的模型</strong>（6.4.4–6.4.5）</td></tr>
+      <tr><td><strong>Alloy 的模块系统</strong></td><td>用来<strong>把各个模型彼此分开，也与「关联它们的检查」分开</strong>（<code>checkCache</code>、<code>checkFixedSize</code> 独立成模块）</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h3>6.4.1 Abstract Memory · 抽象内存</h3>
+<p><strong>模块被 <code>Addr</code>（地址集合）和 <code>Data</code>（可存储的数据值集合）参数化。</strong><code>Memory</code> signature 表示<strong>内存的可能状态</strong>。</p>
+<pre><code><span class="k">module</span> examples/abstractMemory [Addr, Data]
+<span class="k">sig</span> <span class="t">Memory</span> { data: <span class="t">Addr</span> -&gt; <span class="k">lone</span> <span class="t">Data</span> }
+<span class="k">fact</span> Canonicalize {
+  <span class="k">no disj</span> m, m': <span class="t">Memory</span> | m.data = m'.data
+}
+<span class="k">pred</span> init (m: <span class="t">Memory</span>) { <span class="k">no</span> m.data }
+<span class="k">pred</span> write (m, m': <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  m'.data = m.data ++ a -&gt; d
+}
+<span class="k">pred</span> read (m: <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  <span class="k">let</span> d' = m.data [a] | <span class="k">some</span> d' <span class="k">implies</span> d = d'
+}</code></pre>
+<div class="cap">fig. 6.18 简单抽象内存。</div>
+<table>
+  <thead><tr><th>要点</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>data</code> 是<strong>偏函数</strong></td><td><code>Addr -&gt; lone Data</code>：<strong>每个地址至多映射到一个数据值</strong>。</td></tr>
+    <tr><td><code>init</code></td><td><strong>内存初始为空，完全没有任何映射。</strong>（6.4.3 会把这个模型与一个「每个地址一开始就任意地有一个值」的更具体的模型关联起来。）</td></tr>
+    <tr><td><code>write</code></td><td>新内存 <code>m'</code> 的 data 映射 = 旧内存 <code>m</code> 的 data 映射<strong>被 <code>a -&gt; d</code> 覆盖</strong>。</td></tr>
+    <tr><td><code>read</code></td><td><strong>更有趣</strong>：如果被查询的地址<strong>有</strong>关联的数据值，就返回那个值；<strong>否则该值不受约束，任何值都可能被返回</strong>。这就是<strong>非确定性</strong>。</td></tr>
+    <tr><td><code>Canonicalize</code></td><td><strong>确保「内容相同的内存由同一个原子表示」</strong>——即 <code>Memory</code> 的原子与其 data 映射之间是<strong>双射</strong>。</td></tr>
+  </tbody>
+</table>
+
+<h4>两条可施加于此模型的检查</h4>
+<pre><code><span class="c">// ① 读一个地址返回刚刚写入的值</span>
+<span class="k">assert</span> WriteRead {
+  <span class="k">all</span> m, m': <span class="t">Memory</span>, a: <span class="t">Addr</span>, d1, d2: <span class="t">Data</span> |
+    write (m, m', a, d1) <span class="k">and</span> read (m', a, d2) =&gt; d1 = d2
+}
+<span class="k">check</span> WriteRead
+
+<span class="c">// ② 执行第二次相同的写没有效果</span>
+<span class="k">assert</span> WriteIdempotent {
+  <span class="k">all</span> m, m', m“: <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span> |
+    write (m, m', a, d) <span class="k">and</span> write (m', m”, a, d) =&gt; m' = m“
+}
+<span class="k">check</span> WriteIdempotent</code></pre>
+<div class="callout idea">
+  <span class="tag">解读 · <code>WriteRead</code> 为什么成立，全靠 <code>Canonicalize</code></span>
+  <p>没有 <code>Canonicalize</code>，<strong>两个内容相同的 <code>Memory</code> 原子可以同时存在</strong>，那么 <code>WriteIdempotent</code> 里的 <code>m' = m“</code> 就会失败——<strong>尽管它们在语义上无法区分</strong>。这就是「规范化」的实用价值：<strong>让外延相等与内涵相等重合</strong>。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么要把内存值规范化（canonicalize）？</div>
+  <div class="a"><p>替代方案是引入一个谓词，比如 <code>sameMemory</code>，当应用于两个 data 映射完全相同的内存时求值为真，然后<strong>用它来取代等号测试</strong>。</p>
+  <p><strong>两种做法都能正常工作</strong>，但规范化<strong>稍微更方便一些</strong>，原因是：</p>
+  <ul>
+    <li><strong>避免了「忘记使用等价谓词而误用等号」这个错误</strong>；</li>
+    <li><strong>Analyzer 生成的实例更容易理解</strong>，因为<strong>名字不同的内存总是在结构上不同的</strong>。</li>
+  </ul></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么 <code>read</code> 不取第二个内存参数？</div>
+  <div class="a"><p>因为 <strong><code>read</code> 不改变内存的状态，所以没有必要用第二个参数（比如 <code>m'</code>）来表示后置状态</strong>。</p>
+  <p><strong>不过有时加上它反而更好。</strong>在一个「read 操作可能把数据从主存加载到缓存」的更具体的模型里，<strong>第二个参数是必需的</strong>。而<strong>为了拿那个模型与这个抽象模型做对比，在抽象模型里也带上第二个参数会很方便</strong>——这样就<strong>不必单独检验「加载式的 read 不影响抽象状态」</strong>了。</p></div>
+</div>
+
+<h3>6.4.2 Cache Memory · 缓存内存</h3>
+<pre><code><span class="k">module</span> examples/cacheMemory [Addr, Data]
+<span class="k">sig</span> <span class="t">CacheSystem</span> { main, cache: <span class="t">Addr</span> -&gt; <span class="k">lone</span> <span class="t">Data</span> }
+<span class="k">pred</span> init (c: <span class="t">CacheSystem</span>) { <span class="k">no</span> c.main + c.cache }
+<span class="k">pred</span> write (c, c': <span class="t">CacheSystem</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  c'.main = c.main
+  c'.cache = c.cache ++ a -&gt; d
+}
+<span class="k">pred</span> read (c: <span class="t">CacheSystem</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  <span class="k">some</span> d
+  d = c.cache [a]
+}
+<span class="k">pred</span> load (c, c': <span class="t">CacheSystem</span>) {
+  <span class="k">some</span> addrs: <span class="k">set</span> c.main.<span class="t">Data</span> - c.cache.<span class="t">Data</span> |
+    c'.cache = c.cache ++ addrs &lt;: c.main
+  c'.main = c.main
+}
+<span class="k">pred</span> flush (c, c': <span class="t">CacheSystem</span>) {
+  <span class="k">some</span> addrs: <span class="k">some</span> c.cache.<span class="t">Data</span> {
+    c'.main = c.main ++ addrs &lt;: c.cache
+    c'.cache = c.cache - addrs -&gt; <span class="t">Data</span>
+  }
+}</code></pre>
+<div class="cap">fig. 6.19 缓存内存。</div>
+<table>
+  <thead><tr><th>要点</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td>两个字段</td><td>表示系统状态的 signature（<code>CacheSystem</code>）有<strong>两个「地址 → 数据值」的映射，一个给主存，一个给缓存</strong>。</td></tr>
+    <tr><td><strong>读写只涉及缓存</strong></td><td><code>write</code> 改缓存、<strong>主存不变</strong>；<code>read</code> 返回缓存中的值，并且<strong>有一个「该值必须存在」的前置条件</strong>。</td></tr>
+    <tr><td>load / flush 的角色</td><td><strong>在执行 read 之前，系统可以先执行一个 load，把请求的地址带进缓存；在执行 write 之前，可以先执行一个 flush，为缓存中的新条目腾出空间。</strong></td></tr>
+    <tr><td><strong>非确定性</strong></td><td><code>load</code> 和 <code>flush</code> 是<strong>非确定的</strong>：<strong>它们不指定某个具体的缓存策略，而是通过「把「哪些条目被加载 / 被换出」这个问题悬而不决」来覆盖所有策略。</strong></td></tr>
+    <tr><td>没有 Canonicalize</td><td>见下方 Discussion。</td></tr>
+  </tbody>
+</table>
+
+<h4>更有趣的检查：load 与 flush</h4>
+<pre><code><span class="k">assert</span> LoadNotObservable {
+  <span class="k">all</span> c, c', c“: <span class="t">CacheSystem</span>, a1, a2: <span class="t">Addr</span>, d1, d2, d3: <span class="t">Data</span> |
+    {
+      read (c, a2, d2)
+      write (c, c', a1, d1)
+      load (c', c“)
+      read (c“, a2, d3)
+    } <span class="k">implies</span> d3 = (<span class="k">if</span> a1 = a2 <span class="k">then</span> d1 <span class="k">else</span> d2)
+}
+<span class="k">check</span> LoadNotObservable</code></pre>
+<div class="callout key">
+  <span class="tag">断言的含义</span>
+  <p><strong>如果依次执行「读、写、load、读」，那么第二次读返回的数据值，要么与写入的值相符（当第二次读的地址与写的地址相同时），要么与最初读到的值相符（当不相同时）。</strong>换句话说：<strong>夹在中间的 load 没有可观察的效果。</strong></p>
+  <p><strong>找不到反例；这条断言有效。</strong></p>
+</div>
+
+<div class="callout pit">
+  <span class="tag">反面对照：如果把 <code>load</code> 写错</span>
+  <p>假设我们在规约 <code>load</code> 时犯了错，<strong>允许任意条目从主存被复制到缓存，而不管它们的地址是否与缓存中已有条目的地址相符</strong>：</p>
+<pre><code><span class="k">pred</span> load (c, c': <span class="t">CacheSystem</span>) {
+  <span class="k">some</span> addrs: <span class="k">set</span> <span class="t">Addr</span> |        <span class="c">// ★ 少了 c.main.Data - c.cache.Data 的约束</span>
+    c'.cache = c.cache ++ addrs &lt;: c.main
+  c'.main = c.main
+}</code></pre>
+  <p><strong>Analyzer 现在会找到一个反例，展示「缓存中的新鲜值（尚未被 flush 出去）被覆盖掉了」。</strong></p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · <code>addrs &lt;: c.main</code> 的读法</span>
+  <p><code>&lt;:</code> 是<strong>域限制（domain restriction）</strong>：把关系 <code>c.main</code> 限制到定义域 <code>addrs</code> 内。所以 <code>c.cache ++ addrs &lt;: c.main</code> 的意思是「<strong>只把 addrs 中那些地址的主存内容覆盖进缓存</strong>」。<code>flush</code> 里的 <code>addrs &lt;: c.cache</code> 同理，方向相反。正确版 <code>load</code> 里 <code>addrs</code> 的类型是 <code>c.main.Data - c.cache.Data</code>——<strong>「在主存有值、但在缓存还没有值」的那些数据</strong>，正好排除了覆盖脏数据的可能。</p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么缓存版本<strong>没有</strong>对内存值做规范化？</div>
+  <div class="a"><p><strong>这个模型（不同于前面的抽象内存模型）没有包含规范化 fact。</strong>原因是：<strong>我们的例子不涉及对缓存内存的比较，但它会涉及对抽象内存的比较</strong>——即当我们检验「加载与刷新没有抽象层面的效果」时。</p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读</span>
+    <p>规范化只在「<strong>需要对状态本身做相等比较</strong>」时才必要。6.4.5 的 <code>LoadOK</code> / <code>FlushOK</code> 断言里有 <code>m = m'</code>，比较的是<strong>抽象内存</strong>——而抽象内存已经规范化过了。缓存系统本身从不被拿来互相比较，所以省下这条 fact 是合理的（也让模型更简洁）。</p>
+  </div></div>
+</div>
+
+<h3>6.4.3 Fixed-Size Memory · 定长内存</h3>
+<p>在 6.4.1 的抽象内存模型中，<strong>内存会随着对新地址的写入而动态增长</strong>，尽管可能地址的集合是固定的。<strong>对于一个用硬件实现的内存，更真实的模型是每个状态下每个地址都有一个值。</strong></p>
+<pre><code><span class="k">module</span> examples/fixedSizeMemory [Addr, Data]
+<span class="k">sig</span> <span class="t">Memory</span> { data: <span class="t">Addr</span> -&gt; <span class="k">one</span> <span class="t">Data</span> }   <span class="c">// ★ lone 变成 one</span>
+<span class="k">pred</span> init (m: <span class="t">Memory</span>) { }                  <span class="c">// ★ 空的！</span>
+<span class="k">pred</span> write (m, m': <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  m'.data = m.data ++ a -&gt; d
+}
+<span class="k">pred</span> read (m: <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  d = m.data [a]                            <span class="c">// ★ 不再区分地址是否存在</span>
+}</code></pre>
+<div class="cap">fig. 6.20 定长内存。</div>
+<table>
+  <thead><tr><th>与抽象内存的差别</th><th>说明</th></tr></thead>
+  <tbody>
+    <tr><td><code>lone</code> → <code>one</code></td><td><strong>初始化谓词现在是空的</strong>：允许任意初始的数据值指派，<strong>只要遵守 <code>data</code> 字段声明的重数</strong>，从而每个地址都有一个确定的数据值与之关联。</td></tr>
+    <tr><td><code>read</code> 简化</td><td><strong>不再区分「地址是否存在」的情形，只是返回给定地址的数据值。</strong>读一个从未被写过的地址，会返回<strong>初始化时留下的任意「垃圾值」</strong>。</td></tr>
+  </tbody>
+</table>
+<p><strong>这个模型可以接受与抽象内存模型同样种类的内部分析——这里没有任何新东西。</strong>真正的新内容在 6.4.4 之后：<strong>如何证明这个更具体的模型符合那个更抽象的模型</strong>。</p>
+
+<h3>6.4.4 A Quick Introduction to Abstraction Functions · 抽象函数速览</h3>
+<p>我们现在已经看到内存模型的<strong>三个变体</strong>：一个抽象内存模型，和两个更具体的模型（一个容纳任意初始化，一个描述缓存）。<strong>如果我们观察后两者的行为，我们会期望它们符合抽象模型。</strong>也就是说：<strong>如果你唯一能看到的是「哪些操作发生了、传给它们的地址、以及传入 write / 传出 read 的数据值」，那么每一个具体系统的执行都将与抽象系统的某个执行无法区分。</strong></p>
+
+<h4>第一步：同一状态空间内的精化</h4>
+<p>要判定一个具体操作</p>
+<pre><code><span class="k">pred</span> concreteOp (s, s': <span class="t">State</span>) {…}</code></pre>
+<p>产生的行为是否被抽象操作</p>
+<pre><code><span class="k">pred</span> abstractOp (s, s': <span class="t">State</span>) {…}</code></pre>
+<p>所接受，<strong>可以断言「具体操作的每一次迁移都是抽象操作的一次迁移」</strong>：</p>
+<pre><code><span class="k">assert</span> Refinement {
+  <span class="k">all</span> s, s': <span class="t">State</span> | concreteOp (s, s') =&gt; abstractOp (s, s')
+}</code></pre>
+<div class="callout">
+  <span class="tag">书中的例子</span>
+  <p>检验抽象模型的 write</p>
+<pre><code><span class="k">pred</span> write (m, m': <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) { m'.data = m.data ++ a -&gt; d }</code></pre>
+  <p>是否满足这个<strong>更抽象</strong>的描述</p>
+<pre><code><span class="k">pred</span> writeWeak (m, m': <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) { m'.data [a] = d }</code></pre>
+  <p>——后者<strong>（没什么帮助地）允许除被写入的那个地址之外的每个地址都被破坏</strong>：</p>
+<pre><code><span class="k">assert</span> WriteRefinement {
+  <span class="k">all</span> m, m': <span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span> |
+    write (m, m', a, d) =&gt; writeWeak (m, m', a, d)
+}</code></pre>
+</div>
+
+<h4>第二步：跨状态空间就需要抽象函数</h4>
+<div class="callout warn">
+  <span class="tag">简单做法失效</span>
+  <p><strong>但要跨内存模型做比较，这个简单办法行不通：被比较的操作作用于不同的状态空间。</strong></p>
+</div>
+<p><strong>Tony Hoare 的一篇经典论文 [28] 提出了一个如今广为人知、被广泛使用的解决方案：定义一个把具体状态映射到对应抽象状态的「抽象函数」。</strong></p>
+<p>假设我们的操作是</p>
+<pre><code><span class="k">pred</span> concreteOp (s, s': <span class="t">ConcreteState</span>) {…}
+<span class="k">pred</span> abstractOp (s, s': <span class="t">AbstractState</span>) {…}</code></pre>
+<p>那么我们尝试找一个抽象函数</p>
+<pre><code><span class="k">fun</span> alpha (s: <span class="t">ConcreteState</span>): <span class="t">AbstractState</span> {…}</code></pre>
+<p>使得下面这条断言<strong>有效</strong>：</p>
+<pre><code><span class="k">assert</span> AbstractionRefinement {
+  <span class="k">all</span> s, s': <span class="t">ConcreteState</span> |
+    concreteOp (s, s') =&gt; abstractOp (alpha(s), alpha(s'))
+}</code></pre>
+<div class="callout key">
+  <span class="tag">这样做的意义</span>
+  <p><strong>如果能找到这样的抽象函数，那么具体模型的可观察行为——其中「除了状态本身之外的一切都是可见的」——就将符合抽象模型。</strong></p>
+</div>
+
+<div class="qa">
+  <div class="q">Q：这里的「符合（conformance）」究竟是什么概念？</div>
+  <div class="a"><p><strong>我们用「迹包含（trace inclusion）」作为衡量标准。</strong></p>
+  <ul>
+    <li><strong>迹（trace）</strong>是一段执行历史：<strong>一个事件序列，每个事件代表某个操作触发的一步</strong>；</li>
+    <li><strong>一个事件可以由「操作的名字 + 这一步中输入与输出所取的值」完整描述</strong>。<strong>注意前置状态与后置状态不是事件的一部分，因为它们被视为从外部不可见</strong>；</li>
+    <li>每台机器（抽象的和具体的）都有一个<strong>迹集（trace set）</strong>来概括它的行为；</li>
+    <li><strong>具体机器符合抽象机器，当且仅当它的迹集是抽象模型迹集的子集。</strong></li>
+  </ul></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：迹包含是不是太强 / 太弱的「符合」标准？</div>
+  <div class="a"><p><strong>如果具体机器以这种方式符合，它就永远不会做坏事。</strong>但另一方面，<strong>符合并不保证它会做任何好事</strong>。特别是：</p>
+  <div class="callout pit" style="margin-top:.5em">
+    <span class="tag">空迹集的机器符合任何抽象机器！</span>
+    <p><strong>一个完全没有任何迹的具体机器，符合任何抽象机器。</strong></p>
+  </div>
+  <p><strong>为了确保「好事会发生」，符合的概念需要被扩展。</strong>如果每个操作代表一次服务请求及其履行，我们或许可以要求<strong>具体操作具有同等的可适用性（just as applicable）</strong>：<strong>只要抽象机器中的某条迹可以被某个事件延长，具体机器中就有对应的事件（或更一般地，一个合适的事件序列）</strong>。这就确保<strong>具体机器绝不会拒绝回应一个抽象机器本会回应的请求</strong>。</p>
+  <p><strong>这种扩展在 Alloy 中不容易表述或检验，因为它需要对状态做无界的全称量化。</strong>我们需要的断言大致是说：<strong>对每一个具体的前置状态，只要对应的抽象操作可适用，具体操作就可适用（即存在一个满足操作约束的具体后置状态）</strong>。<strong>这个「对具体后置状态的存在量词」在被否定以求反例时，会变成一个无界的全称量词，所以 Alloy 无法处理它。</strong>详见 5.3 节。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：抽象函数方法总是行得通吗？</div>
+  <div class="a"><p><strong>这个方法是「健全的（sound）」</strong>——意思是：<strong>如果你能找到一个满足精化条件的抽象函数，那么就可以推出具体机器符合抽象机器。</strong></p>
+  <p><strong>但它不是「完备的（complete）」</strong>：<strong>仅仅因为具体机器符合，并不意味着抽象函数就存在。</strong>标准方法出问题的情况<strong>很少见</strong>，发生在<strong>抽象机器与具体机器在不同的点上表现出非确定性、但可观察效果相同</strong>的时候。</p>
+  <p>有<strong>两种</strong>办法可以让它变得完备：</p>
+  <table style="margin-top:.5em">
+    <thead><tr><th>办法</th><th>做法</th><th>评价</th></tr></thead>
+    <tbody>
+      <tr><td>① 泛化为<strong>抽象关系</strong></td><td>允许一个具体状态对应多个抽象状态</td><td><strong>这对 Alloy 并不可取，因为它需要一个无界的全称量化</strong></td></tr>
+      <tr><td>② 用额外的状态变量<strong>增广具体模型</strong></td><td>以<strong>不改变可观察行为</strong>的方式加入变量，使抽象函数变得可寻</td><td>两类变量：<strong>历史变量（history）</strong>与<strong>预言变量（prophecy）</strong>，取决于那个「麻烦的非确定性」是在具体机器中<strong>更早</strong>还是<strong>更晚</strong>被消解。<strong>历史变量的用法见 6.4.6。</strong></td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：如果挑错了抽象函数怎么办？</div>
+  <div class="a"><p><strong>挑哪个函数都无所谓，只要它满足精化条件，外加一个条件：它必须是「全的（total）」，即为每一个具体状态都给出一个解释。</strong></p>
+  <p><strong>这个「全性」条件在 Alloy 中不容易检验，因为它需要一个无界的全称量词</strong>（见 5.3 节）。但<strong>你常常可以把抽象函数写成一眼就能看出它是全的形式</strong>，而且<strong>你可以「模拟」它——只需在 Alloy Analyzer 里运行这个函数——来检验它是一致的</strong>。</p></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：抽象函数真的必须映射每一个具体状态吗？</div>
+  <div class="a"><p><strong>不一定。你可以引入一个不变式（invariant）。</strong>只要<strong>每个具体操作都保持这个不变式</strong>——这在 Alloy 中很容易检验（见 6.3.1 的 <code>HidePreservesInv</code> 模式）——那么<strong>精化条件就可以被限制在「满足该不变式的那些前置状态」上，于是抽象函数只需要映射它们</strong>。</p>
+  <div class="callout idea" style="margin-top:.5em">
+    <span class="tag">解读 · 这把 6.3 与 6.4 串起来了</span>
+    <p>6.3.3 的「操作保持不变式」分析在这里派上了新用场：<strong>不变式 + 保持性证明 = 缩小抽象函数的定义域</strong>。这也正是 Hoare 式论证的标准结构——<strong>「不变式 + 精化」两件套</strong>。</p>
+  </div></div>
+</div>
+
+<h3>6.4.5 Abstraction Function for Cache Memory · 缓存内存的抽象函数</h3>
+<p>为了拿缓存模型与抽象模型做对比，<strong>我们新建一个 Alloy 模块</strong>：</p>
+<pre><code><span class="k">module</span> examples/checkCache [Addr, Data]
+<span class="k">open</span> cacheMemory [Addr, Data] <span class="k">as</span> cache
+<span class="k">open</span> abstractMemory [Addr, Data] <span class="k">as</span> amemory</code></pre>
+<p>然后声明一个抽象函数，<strong>说明「与一个缓存系统相关联的抽象内存」是这样得到的：取主存的内容，再用缓存的内容覆盖它</strong>：</p>
+<pre><code><span class="k">fun</span> alpha (c: <span class="t">CacheSystem</span>): <span class="t">Memory</span> {
+  {m: <span class="t">Memory</span> | m.data = c.main ++ c.cache}
+}</code></pre>
+<div class="callout idea">
+  <span class="tag">解读 · 为什么是 <code>c.main ++ c.cache</code></span>
+  <p><code>++</code> 是<strong>关系覆盖</strong>：<code>c.cache</code> 里的条目<strong>覆盖</strong> <code>c.main</code> 里的同地址条目。这精确对应了缓存语义——<strong>缓存中的值（可能是脏的、尚未 flush 的）是权威值，主存里的是旧值。</strong>这一行就是整个精化论证的实质。<br>
+  注意 <code>alpha</code> 依赖于抽象内存的 <code>Canonicalize</code> fact：<strong>正因为「内容相同 ⇒ 同一个原子」，集合理解式 <code>{m: Memory | …}</code> 才恰好返回一个单例集合</strong>，从而 <code>alpha</code> 真的是一个函数。</p>
+</div>
+
+<h4>read 与 write 的精化</h4>
+<pre><code><span class="k">assert</span> ReadOK {
+  <span class="k">all</span> c: <span class="t">CacheSystem</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>, m: <span class="t">Memory</span> |
+    cache/read (c, a, d) <span class="k">and</span> m = alpha (c)
+      =&gt; amemory/read (m, a, d)
+}
+<span class="k">check</span> ReadOK
+
+<span class="k">assert</span> WriteOK {
+  <span class="k">all</span> c, c': <span class="t">CacheSystem</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>, m, m': <span class="t">Memory</span> |
+    cache/write (c, c', a, d)
+    <span class="k">and</span> m = alpha (c) <span class="k">and</span> m' = alpha (c')
+      =&gt; amemory/write (m, m', a, d)
+}
+<span class="k">check</span> WriteOK</code></pre>
+
+<h4>load 与 flush：与「什么都不做」的抽象操作对比</h4>
+<div class="callout key">
+  <span class="tag">关键思路</span>
+  <p><strong><code>load</code> 和 <code>flush</code> 在抽象模型中没有对应物；从抽象视角看，它们的效果甚至应当是「不可察觉的」。</strong>所以我们拿它们与<strong>「什么都不做的那个抽象操作」</strong>做对比：</p>
+</div>
+<pre><code><span class="k">assert</span> LoadOK {
+  <span class="k">all</span> c, c': <span class="t">CacheSystem</span>, m, m': <span class="t">Memory</span> |
+    cache/load (c, c')
+    <span class="k">and</span> m = alpha (c) <span class="k">and</span> m' = alpha (c')
+      =&gt; m = m'
+}
+<span class="k">check</span> LoadOK
+
+<span class="k">assert</span> FlushOK {
+  <span class="k">all</span> c, c': <span class="t">CacheSystem</span>, m, m': <span class="t">Memory</span> |
+    cache/flush (c, c')
+    <span class="k">and</span> m = alpha (c) <span class="k">and</span> m' = alpha (c')
+      =&gt; m = m'
+}
+<span class="k">check</span> FlushOK</code></pre>
+<div class="callout idea">
+  <span class="tag">解读 · 「不可观察」= 「抽象状态不变」</span>
+  <p>这就是把「某个内部操作对外界不可见」这句话<strong>形式化</strong>的标准方式：<strong>该操作前后，抽象函数的值相等。</strong>注意 <code>LoadOK</code> 正是 6.4.2 那条 Discussion 所预告的检验——「加载与刷新没有抽象层面的效果」。</p>
+  <p>也正因为这两条断言里有 <code>m = m'</code> 这个<strong>对抽象内存原子的相等比较</strong>，抽象内存模型才<strong>必须</strong>有 <code>Canonicalize</code>；否则内容相同的两个抽象内存会是不同原子，断言就会假失败。</p>
+</div>
+
+<h3>6.4.6 History Variables · 历史变量</h3>
+<div class="callout warn">
+  <span class="tag">困境</span>
+  <p><strong>只靠一个抽象函数，无法证明「定长内存符合抽象模型」。但定长内存确实是符合的：</strong></p>
+  <ul>
+    <li><strong>那些任意的初始值，对应于抽象内存中「没有关联数据值」的那些地址</strong>；</li>
+    <li><strong>当 read 操作返回这样一个任意值时，抽象模型也会允许它</strong>——因为在抽象的设定下，<strong>那个地址本来就不在映射里，而这种情况下抽象的 read 操作对返回值不做任何约束</strong>。</li>
+  </ul>
+  <p><strong>不幸的是，在初始状态之后，你就再也无法通过观察定长内存的「地址/数据」映射，来判断哪些地址被写过、哪些仍然持有它们的初始垃圾值。</strong></p>
+  <p><strong>解决这个两难的办法，是给模型增加一个额外的状态组件来维持这个区分。</strong></p>
+</div>
+
+<pre><code><span class="k">module</span> examples/fixedSizeMemory_H [Addr, Data]
+<span class="k">open</span> fixedSizeMemory [Addr, Data] <span class="k">as</span> memory
+<span class="k">sig</span> <span class="t">Memory_H</span> <span class="k">extends</span> memory/<span class="t">Memory</span> {
+  unwritten: <span class="k">set</span> <span class="t">Addr</span>
+}
+<span class="k">pred</span> init (m: <span class="t">Memory_H</span>) {
+  memory/init (m)
+  m.unwritten = <span class="t">Addr</span>                 <span class="c">// 初始时所有地址都「未被写过」</span>
+}
+<span class="k">pred</span> read (m: <span class="t">Memory_H</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  memory/read (m, a, d)              <span class="c">// read 不改变 unwritten</span>
+}
+<span class="k">pred</span> write (m, m': <span class="t">Memory_H</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>) {
+  memory/write (m, m', a, d)
+  m'.unwritten = m.unwritten - a     <span class="c">// ★ 写过的地址从集合中移除</span>
+}</code></pre>
+<div class="cap">fig. 6.21 用历史变量扩展定长内存模型。</div>
+<div class="callout key">
+  <span class="tag">历史变量（history variable）</span>
+  <p>这个状态组件 <code>unwritten</code> 被称作<strong>历史变量</strong>，因为<strong>它保存了关于行为的额外历史</strong>——在这个例子中是<strong>「尚未被写入的地址集合」</strong>。</p>
+  <p><strong>注意它完全不影响可观察行为</strong>：它既不是任何操作的输入，也不是输出。这正是 6.4.4 里说的「以不改变可观察行为的方式增广具体模型」。</p>
+</div>
+
+<p>现在，<strong>使用增广后的状态，我们就能表述一个抽象函数，并像之前那样检验各操作，只不过用的是增广后的具体模型而不是原来的模型</strong>：</p>
+<pre><code><span class="k">module</span> examples/checkFixedSize [Addr, Data]
+<span class="k">open</span> fixedSizeMemory_H [Addr, Data] <span class="k">as</span> fmemory
+<span class="k">open</span> abstractMemory [Addr, Data] <span class="k">as</span> amemory
+
+<span class="k">pred</span> alpha (fm: fmemory/<span class="t">Memory</span>, am: amemory/<span class="t">Memory</span>) {
+  am.data = fm.data - (fm.unwritten -&gt; <span class="t">Data</span>)   <span class="c">// ★ 抹掉所有未写过的地址</span>
+}
+
+<span class="k">assert</span> initOK {
+  <span class="k">all</span> fm: fmemory/<span class="t">Memory</span>, am: amemory/<span class="t">Memory</span> |
+    fmemory/init (bm) <span class="k">and</span> alpha (bm, am)
+      =&gt; amemory/init (am)
+}
+<span class="k">check</span> initOK
+
+<span class="k">assert</span> readOK {
+  <span class="k">all</span> fm: fmemory/<span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>,
+      am: amemory/<span class="t">Memory</span> |
+    fmemory/read (fm, a, d) <span class="k">and</span> alpha (fm, am))
+      =&gt; amemory/read (am, a, d)
+}
+<span class="k">check</span> readOK
+
+<span class="k">assert</span> writeOK {
+  <span class="k">all</span> fm, fm': fmemory/<span class="t">Memory</span>, a: <span class="t">Addr</span>, d: <span class="t">Data</span>,
+      am: amemory/<span class="t">Memory</span> |
+    fmemory/write (fm, fm', a, d)
+    <span class="k">and</span> alpha (fm, am) <span class="k">and</span> alpha (fm', am')
+      =&gt; amemory/write (am, am', a, d)
+}
+<span class="k">check</span> writeOK</code></pre>
+<div class="cap">fig. 6.22 抽象函数与精化断言。</div>
+<div class="callout pit">
+  <span class="tag">原书 fig. 6.22 有几处排印错误</span>
+  <p>照抄原文时要注意：<strong><code>initOK</code> 里写成了 <code>bm</code>，而量词声明的是 <code>fm</code></strong>；<strong><code>readOK</code> 里多了一个右括号 <code>alpha (fm, am))</code></strong>；<strong><code>writeOK</code> 里用了 <code>am'</code>，但量词只声明了 <code>am</code></strong>。这些都是<strong>书本身的笔误</strong>，不影响方法的正确性——修正后即可运行。</p>
+</div>
+<div class="callout idea">
+  <span class="tag">解读 · <code>alpha</code> 这一行怎么读</span>
+  <p><code>fm.data - (fm.unwritten -&gt; Data)</code>：先构造<strong>「所有未写过的地址 × 所有数据值」</strong>这个关系，再从 <code>fm.data</code> 中<strong>减掉</strong>它。结果就是<strong>「只保留被写过的地址的映射」</strong>——而这正好就是抽象内存的语义（未写过的地址<strong>不在映射里</strong>）。<strong>一个减号，就把「垃圾值」翻译成了「缺失」。</strong></p>
+  <p>注意这里 <code>alpha</code> 被写成了<strong>谓词</strong>（两个参数）而不是<strong>函数</strong>（一个参数），原因见下方 Discussion。</p>
+</div>
+
+<h4>6.4.6 Discussion</h4>
+<div class="qa">
+  <div class="q">Q：定长内存为什么<strong>也</strong>需要抽象函数？它的状态难道不与抽象内存的状态相匹配吗？</div>
+  <div class="a"><p><strong>缓存模型的状态显然与抽象模型的状态不同，因为它把内存分成了两个映射。</strong>但你可能想知道<strong>定长内存</strong>的状态是否不同：像抽象内存一样，它的状态只由<strong>一个叫做 <code>data</code> 的字段</strong>构成，把地址映射到数据值。<strong>答案是：仍然需要抽象函数，有两个理由。</strong></p>
+  <p><strong>第一，不同的 signature 代表不同的原子集合，即使它们的字段同名。</strong>能用同名字段是一种<strong>便利</strong>——一种 <strong>Alloy 自动消解的重载（overloading）</strong>。<strong>Alloy 不允许两个同名的不同 signature</strong>；尽管这两个都叫 <code>Memory</code>，但<strong>它们声明在不同的模块里，所以它们的全名是唯一的</strong>（<code>abstractMemory/Memory</code> 与 <code>fixedSizeMemory/Memory</code>）。</p>
+  <p><strong>第二，即使我们改写模型，让定长内存与抽象内存共享同一个状态 signature，抽象函数仍然是需要的。</strong>考虑检验初始化谓词：<strong>抽象内存要求「地址/数据映射初始为空」，而定长内存要求它是「满的」！</strong></p>
+  <div class="callout key" style="margin-top:.5em">
+    <span class="tag">本质</span>
+    <p><strong>问题的实质是：即使两个状态空间的名字匹配、并且由同一组原子表示，一个状态在两个模型中也可以有不同的解释（interpretation）。</strong></p>
+    <p>事实上，<strong>要用抽象内存的术语来解释定长内存的一个状态，我们需要区分「已被写入的地址」和「仍然持有初始化时任意值的地址」。这正是我们引入历史变量的原因。</strong></p>
+    <p><strong>即使没有历史变量，当两个状态空间的「解释」不同时，也需要一个抽象函数来在它们之间架桥。</strong>再举一个例子：<strong>拿一个算术实现去测试另一个「字节序不同」的实现</strong>——<strong>测试框架将需要施加转换，尽管两个实现都把一个整数表示为一个字节。</strong></p>
+  </div></div>
+</div>
+
+<div class="qa">
+  <div class="q">Q：为什么把抽象函数写成谓词而不是函数？</div>
+  <div class="a"><p><strong>纯粹是为了示范一种不同的风格；它仍然是一个函数，尽管它是被隐式定义的。</strong>谓词形式<strong>或许更可取，因为它不使用集合理解式（set comprehension）</strong>。</p>
+  <div class="callout warn" style="margin-top:.5em">
+    <span class="tag">反直觉的一点：<code>fun</code> 关键字并不保证它是抽象函数</span>
+    <p>你可能以为「把抽象函数定义成一个 Alloy <code>fun</code>（像 6.4.5 那样）」就能<strong>确保它真的是一个从具体状态到抽象状态的函数</strong>。<strong>不幸的是，这不是真的：</strong></p>
+    <p><strong>如果理解式的性质写得不好，单个具体状态可能会映射到一个含有多于一个抽象状态的集合。</strong>那样你<strong>仍然有一个「Alloy 关键字意义上的函数」</strong>（因为结果是一个抽象状态的<em>集合</em>），<strong>但你没有一个抽象函数</strong>，因为「状态到状态」的映射不是一一的。</p>
+  </div>
+  <div class="callout idea" style="margin-top:.6em">
+    <span class="tag">解读 · 呼应 4.6「函数只是语法糖」</span>
+    <p>这正是第 4 章反复强调的那一点：<strong>Alloy 的 <code>fun</code> 返回的是一个「集合」，不是数学意义上的单值</strong>。所以要真正确保 <code>alpha</code> 是函数，<strong>必须靠模型里的其他 fact（这里是 <code>Canonicalize</code>）</strong>，而不是靠关键字。</p>
+  </div></div>
+</div>
+
+<h2 id="sum">第 6 章小结</h2>
+<div class="card">
+<ol>
+  <li><strong>四个案例，四种不同的建模范式</strong>：分布式算法（领导者选举）、涉及环境行动者的需求（酒店门锁）、真实软件的特性交互（媒体资产管理）、经典形式化方法问题（内存抽象）。这一章的用意是说明 <strong>Alloy 不局限于「算法验证」</strong>。</li>
+  <li><strong>「加一列 Time 使关系变成动态的」是全书最重要的建模 idiom。</strong>Time 列<strong>放在末尾</strong>，这样 <code>r.t</code> 就能取出「关系在时刻 t 的值」；放在中间则必须写 <code>{p,q | p-&gt;t-&gt;q in r}</code>。</li>
+  <li><strong>拓扑静态、状态动态</strong>：<code>succ</code> 不带 Time 列（环是固定的），<code>toSend</code>/<code>elected</code> 带 Time 列。<strong>要支持动态拓扑，只需给 <code>succ</code> 也加上 Time 列，Ring fact 改成 <code>all t, p | Process in p.^(succ.t)</code>。</strong></li>
+  <li><strong>用「定义」代替「维护」可以消除框架条件</strong>：<code>fact DefineElected</code> 用集合理解式定义 <code>elected</code>，而不是在 <code>init</code>/<code>step</code> 中更新它，既实现了关注点分离，又避免了框架条件。</li>
+  <li><strong>两种框架条件风格各有适用场景</strong>：传统式写「除 X 之外都不变」的<strong>等式</strong>，Reiter 式写「若 X 变了则必是这些操作」的<strong>蕴含</strong>。<strong>m 个组件、k 个操作、每个只改一个组件时 Reiter 大胜（m 条 vs k×(m−1) 条）；每个操作改掉几乎所有组件时传统式大胜。</strong>Reiter 式的额外好处是<strong>不需要任何逻辑之外的概念</strong>。</li>
+  <li><strong>事件式建模的三大好处</strong>：可视化更好（<strong>事件是原子，每个快照一眼看出发生了什么</strong>）、性质表述更简洁、<strong>signature 扩展可共享公共部分</strong>（比谓词间共享更容易，因为它靠自由变量而非显式参数）。</li>
+  <li><strong>活性性质要写成「公平性假设 ⇒ 结论」</strong>：<code>progress() =&gt; some Elected.Time</code>。直接写 <code>some t | some elected.t</code> 会得到「什么都没发生」的反例，因为 <code>skip</code> 允许每步都跳过。<strong>这类公平性过滤在 CTL 中不可表达。</strong></li>
+  <li><strong>拆分子性质分别检验</strong>：<code>lone elected.Time</code>（至多一个，且选举不换手）与 <code>some elected.Time</code>（至少一个）分开，更容易诊断问题。</li>
+  <li><strong>机器直径给出迹长的完备性保证</strong>：<code>pred looplessPath () {no disj t,t': Time | toSend.t = toSend.t'}</code>，逐步加大 Time 作用域直到无解。<strong>3 节点环在 Time=12 时有解、13 时无解 ⇒ 就 Time 而言分析是完备的。</strong></li>
+  <li><strong>对称破缺会强制「精确作用域」，这既是帮助也是陷阱</strong>：它让 <code>AtLeastOneElected</code> 成为有效（最终性性质本来就不满足作用域单调性，精确作用域正是它需要的）；但它对 <code>AtMostOneElected</code> 不可取（短坏迹无法延长，而这种情形<strong>无法被检验</strong>）。<strong>用 <code>sig RingProcess extends Process</code> 可以让「至多 k 个进程的环」都被考察到。</strong></li>
+  <li><strong>需求存在于真实世界中，就必须为其他行动者写假设</strong>：<code>fact NoIntervening</code> 记录的<strong>不是代码，而是对世界的假设</strong>；假设为假，安全保证就失效。<strong>Michael Jackson 的「问题框架」理论正是为处理这类情形而生。</strong>实用结论：<strong>入住后第一次开门一定要用自己的钥匙</strong>。</li>
+  <li><strong>没有单一性质能抓住设计的本质，但许多简单的合理性检查能暴露错误</strong>：媒体资产例子用两类断言——「<strong>操作保持不变式</strong>」与「<strong>代数性质</strong>（cut/paste 互逆）」。后者的失败揭示了三条微妙设计：<strong>选中项要么未定义要么非空</strong>、<strong>show 与 hide 其实都是「隐藏」</strong>、<strong>paste 用 <code>buf - cs.assets</code> 而不是整个 <code>buf</code></strong>。</li>
+  <li><strong>用「注释掉相等式」定位反例来源</strong>：把 <code>sameApplicationState</code> / <code>sameCatalogState</code> 中的某条相等式注释掉，若反例消失，则失败正是由该组件引起。</li>
+  <li><strong>「可用性研究是检验假设的实验」</strong>——没有一个抽象干净的设计，<strong>你就没有假设</strong>。「你无法通过微调把一个不连贯的界面设计调成可用而优雅的，正如你无法通过测试把一堆面条代码测成一个健壮的代码库。」</li>
+  <li><strong>精化的两种层次</strong>：同一状态空间内直接断言 <code>concreteOp ⇒ abstractOp</code>；<strong>跨状态空间则必须借助抽象函数</strong>：<code>concreteOp(s,s') ⇒ abstractOp(alpha(s), alpha(s'))</code>。这是 Hoare 的经典方案 [28]。</li>
+  <li><strong>「符合」的衡量标准是迹包含</strong>：事件 = 操作名 + 输入输出值（<strong>前后状态不算，因为外部不可见</strong>）；具体机器的迹集是抽象机器迹集的子集。<strong>迹包含保证「不做坏事」，但不保证「做好事」——空迹集的机器符合任何抽象机器。</strong>补足这一点需要「可适用性」条件，而它<strong>在 Alloy 中不可检验</strong>（否定后产生无界全称量词，见 5.3）。</li>
+  <li><strong>抽象函数方法是健全的但不完备</strong>。补全的两条路：泛化为<strong>抽象关系</strong>（Alloy 不可取，需无界全称量词），或用<strong>历史变量 / 预言变量</strong>增广具体模型（不改变可观察行为）。<strong>定长内存需要历史变量 <code>unwritten</code></strong>，抽象函数写作 <code>am.data = fm.data - (fm.unwritten -&gt; Data)</code>——<strong>一个减号把「垃圾值」翻译成「缺失」</strong>。</li>
+  <li><strong>「内部操作不可观察」的形式化 = 抽象状态不变</strong>：<code>load</code> / <code>flush</code> 在抽象模型中没有对应物，因此断言 <code>m = m'</code>。这也解释了<strong>为什么抽象内存必须有 <code>Canonicalize</code></strong>——否则内容相同的两个原子会让断言假失败。</li>
+  <li><strong><code>fun</code> 关键字不保证「真的是函数」</strong>：Alloy 函数返回的是一个集合，若理解式写坏了，一个具体状态可能对应多个抽象状态。<strong>要确保单值，得靠别的 fact（如 <code>Canonicalize</code>）。</strong>抽象函数还必须<strong>是「全的」</strong>；全性在 Alloy 中不易检验（无界全称），但可以<strong>写成一眼可辨的形式并在 Analyzer 里运行它</strong>来验证一致性。<strong>若有不变式且各操作都保持它，抽象函数只需定义在满足不变式的状态上。</strong></li>
+  <li><strong>模块系统在这里承担了真正的架构职责</strong>：<code>abstractMemory</code> / <code>cacheMemory</code> / <code>fixedSizeMemory</code> 各自独立且被 <code>Addr, Data</code> 参数化，<code>checkCache</code> / <code>checkFixedSize</code> 是<strong>专门用来关联它们的第三方模块</strong>——<strong>模型与「关于模型的检查」分离</strong>。<code>fixedSizeMemory_H</code> 更用 <code>extends memory/Memory</code> 在原模型上做增广，示范了<strong>「不重写、只扩展」</strong>的复用方式。</li>
+</ol>
+</div>
+
+<div class="pager">
+  <a href="ch5.html"><div class="d">← 上一章</div><div class="n">5 · Analysis 分析</div></a>
+  <a href="appA.html" class="next"><div class="d">下一章</div><div class="n">附录 A · Exercises 习题 →</div></a>
+</div>
+<div class="foot">Software Abstractions · Daniel Jackson · MIT Press 2006 · 第 6 章</div>
+
+</div>
+</body>
+</html>
